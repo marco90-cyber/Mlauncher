@@ -270,7 +270,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun areaFree(page: Int, x: Int, y: Int, sx: Int, sy: Int, ignoreId: String? = null): Boolean {
         if (x < 0 || y < 0) return false
         if (page == -1) {
-            if (y != 0 || sy != 1 || x + sx > 5) return false
+            if (y != 0 || sy != 1 || x + sx > settings.dockSlots) return false
         } else if (x + sx > settings.cols || y + sy > settings.rows) {
             return false
         }
@@ -521,7 +521,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         var dx = 0
         for (pkg in dockPkgs) {
             val a = byPkg[pkg]?.firstOrNull() ?: continue
-            if (dx >= 5) break
+            if (dx >= settings.dockSlots) break
             items.add(AppItem(a.id, -1, dx, 0))
             dx++
         }
@@ -890,6 +890,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             "cols", "rows" -> reflow()
+            "dockSlots" -> {
+                val n = settings.dockSlots
+                val out = items.filter { it.page == -1 && it.x >= n }
+                items.removeAll(out)
+                for (o in out) if (o is AppItem) addApp(o.appId, 0) else if (o is FolderItem) {
+                    val (p, x, y) = findFree(0)
+                    items.add(o.at(p, x, y))
+                    ensurePages(p)
+                }
+                saveLayout()
+            }
             "iconPack" -> reloadIcons()
         }
     }

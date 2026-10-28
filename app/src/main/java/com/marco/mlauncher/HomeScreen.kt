@@ -141,7 +141,6 @@ class BoundsHolder {
     var h: Float = 1f
 }
 
-private const val DOCK_SLOTS = 5
 
 fun Modifier.pageEffect(effect: String, state: PagerState, page: Int): Modifier = graphicsLayer {
     val o = page - state.currentPage - state.currentPageOffsetFraction
@@ -194,8 +193,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
 
     fun targetOf(p: Offset, item: HomeItem): Triple<Int, Int, Int>? {
         if (item.spanX == 1 && item.spanY == 1 && dockRect != Rect.Zero && dockRect.contains(p)) {
-            val w = dockRect.width / DOCK_SLOTS
-            val x = ((p.x - dockRect.left) / w).toInt().coerceIn(0, DOCK_SLOTS - 1)
+            val w = dockRect.width / s.dockSlots
+            val x = ((p.x - dockRect.left) / w).toInt().coerceIn(0, s.dockSlots - 1)
             return Triple(-1, x, 0)
         }
         if (gridRect != Rect.Zero && gridRect.contains(p)) {
@@ -439,7 +438,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             val t = targetOf(d.pos, d.item)
             if (t != null) {
                 val rect = if (t.first < 0) {
-                    val w = dockRect.width / DOCK_SLOTS
+                    val w = dockRect.width / s.dockSlots
                     Rect(dockRect.left + t.second * w, dockRect.top, dockRect.left + (t.second + 1) * w, dockRect.bottom)
                 } else {
                     val w = gridRect.width / s.cols
@@ -657,17 +656,28 @@ private fun Dock(
     onRect: (Rect) -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
+    val style = vm.settings.dockStyle
+    val margin = when (style) { "ios" -> 12.dp; "samsung" -> 8.dp; else -> 16.dp }
+    val corner = when (style) { "ios" -> 34.dp; "samsung" -> 26.dp; else -> 30.dp }
+    val bg = when (style) {
+        "ios" -> Color.White.copy(alpha = 0.22f)
+        "samsung" -> cs.surfaceContainerHighest.copy(alpha = 0.6f)
+        "hyperos" -> cs.surfaceContainer.copy(alpha = 0.5f)
+        else -> Color.Transparent
+    }
+    val border = if (style == "hyperos") Modifier.border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(corner)) else Modifier
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = margin, vertical = 6.dp)
             .height(92.dp)
-            .clip(RoundedCornerShape(34.dp))
-            .background(cs.surfaceContainer.copy(alpha = 0.5f))
+            .clip(RoundedCornerShape(corner))
+            .background(bg)
+            .then(border)
             .onGloballyPositioned { onRect(it.boundsInRoot()) }
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val cw = maxWidth / DOCK_SLOTS
+            val cw = maxWidth / vm.settings.dockSlots
             for (item in vm.items) {
                 if (item.page == -1) {
                     key(item.id) {

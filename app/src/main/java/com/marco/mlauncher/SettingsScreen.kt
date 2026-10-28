@@ -113,6 +113,16 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                         vm.setSetting("iconScale", (it * 20).roundToInt() / 20f)
                     }
                     Divider()
+                    SliderRow("Icone nella dock", "${s.dockSlots}", s.dockSlots.toFloat(), 4f..6f, 1) {
+                        val v = it.roundToInt()
+                        if (v != s.dockSlots) vm.setSetting("dockSlots", v)
+                    }
+                    ChoiceRow(
+                        "Stile della dock",
+                        listOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno"),
+                        s.dockStyle
+                    ) { vm.setSetting("dockStyle", it) }
+                    Divider()
                     SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
                     SwitchRow(
                         "Icone Material You",
