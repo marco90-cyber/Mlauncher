@@ -252,6 +252,13 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         snapshotFlow { pagerState.currentPage }.collect { vm.currentPage = it }
     }
 
+    // "Cerca nella pagina dov'è": porta alla pagina dell'app
+    LaunchedEffect(vm.locateSignal) {
+        if (vm.locateSignal > 0 && vm.locatePage >= 0 && vm.locatePage < vm.pageCount) {
+            pagerState.animateScrollToPage(vm.locatePage)
+        }
+    }
+
     // torna alla prima pagina quando si preme Home
     LaunchedEffect(vm.homeSignal) {
         menuItem = null
@@ -806,7 +813,19 @@ private fun GridItem(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(Modifier.size(iconSize), contentAlignment = Alignment.Center) {
+            val hl = vm.highlightId == item.id
+            val hlColor = MaterialTheme.colorScheme.primary
+            Box(
+                Modifier
+                    .size(iconSize)
+                    .then(
+                        if (hl) Modifier
+                            .background(hlColor.copy(alpha = 0.30f), RoundedCornerShape(24.dp))
+                            .border(3.dp, hlColor, RoundedCornerShape(24.dp))
+                        else Modifier
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
                 if (item is AppItem && app != null) {
                     ExplodeBox(
                         exploding = item.appId in vm.exploding,

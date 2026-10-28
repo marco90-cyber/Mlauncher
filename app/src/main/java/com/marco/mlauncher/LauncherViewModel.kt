@@ -778,6 +778,32 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
+    var highlightId by mutableStateOf<String?>(null)
+        private set
+    var locatePage by mutableIntStateOf(-1)
+        private set
+    var locateSignal by mutableIntStateOf(0)
+        private set
+
+    /** Porta l'utente alla pagina della Home dove si trova l'app e la evidenzia. */
+    fun locateApp(appId: String): Boolean {
+        val direct = items.firstOrNull { it is AppItem && it.appId == appId }
+        val folder = items.firstOrNull { it is FolderItem && appId in it.appIds } as? FolderItem
+        val target = direct ?: folder ?: return false
+        overlay = Overlay.NONE
+        editMode = false
+        locatePage = target.page
+        locateSignal += 1
+        highlightId = target.id
+        if (folder != null && direct == null) openFolderId = folder.folderId
+        val mine = target.id
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(3500)
+            if (highlightId == mine) highlightId = null
+        }
+        return true
+    }
+
     /** Riporta la Home all'impostazione pulita: widget in alto, poche app, dock. */
     fun resetHome() {
         items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }

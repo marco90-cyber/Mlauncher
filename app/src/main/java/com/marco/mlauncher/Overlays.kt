@@ -468,6 +468,15 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host) {
                 }
             )
             DropdownMenuItem(
+                text = { Text("Cerca nella pagina dov'è") },
+                onClick = {
+                    menu = false
+                    if (!vm.locateApp(app.id)) {
+                        Toast.makeText(ctx, "Quest'app non è nella Home", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+            DropdownMenuItem(
                 text = { Text("Info app") },
                 onClick = {
                     menu = false
