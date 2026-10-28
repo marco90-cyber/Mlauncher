@@ -1056,6 +1056,7 @@ private fun StackManage(stack: StackItem, vm: LauncherViewModel, modifier: Modif
                             Text(
                                 when (r.kind) {
                                     "clock" -> "Orologio"
+                                    "analog" -> "Orologio analogico"
                                     "weather" -> "Meteo"
                                     else -> vm.widgetMgr.getAppWidgetInfo(r.widgetId)
                                         ?.provider?.packageName ?: "Widget"

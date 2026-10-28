@@ -11,6 +11,8 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.TextView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -126,6 +128,7 @@ fun WidgetContent(
 ) {
     when (ref.kind) {
         "clock" -> ClockWidget(host, onLongPress, modifier)
+        "analog" -> AnalogClockWidget(host, onLongPress, modifier)
         "weather" -> WeatherWidget(vm, host, onLongPress, modifier, sample)
         else -> ExtWidget(ref, vm, onLongPress, modifier)
     }
@@ -166,28 +169,41 @@ fun ClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
         val w = maxWidth
         val h = maxHeight
         if (w >= h * 1.5f) {
+            val dayName = SimpleDateFormat("EEEE", loc).format(date).replaceFirstChar { it.uppercase() }
+            val dayDate = SimpleDateFormat("d MMMM", loc).format(date)
+            // la dimensione dipende sia dall'altezza sia dalla larghezza: così non si sovrappone mai
+            val fsDp = minOf(h * 0.50f, w * 0.27f)
+            val dateDp = minOf(h * 0.13f, w * 0.05f).coerceAtLeast(12.dp)
             Row(
                 Modifier.fillMaxSize().padding(horizontal = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val fs = (h * 0.52f).asSp()
                 Text(
                     buildAnnotatedString {
                         withStyle(SpanStyle(color = cs.onPrimaryContainer)) { append(hh) }
                         withStyle(SpanStyle(color = cs.primary)) { append(":$mm") }
                     },
-                    fontSize = fs,
+                    fontSize = fsDp.asSp(),
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Spacer(Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        day,
+                        dayName,
                         color = cs.onPrimaryContainer,
-                        fontSize = (h * 0.14f).coerceAtLeast(12.dp).asSp(),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        fontSize = dateDp.asSp(),
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(
+                        dayDate,
+                        color = cs.onPrimaryContainer.copy(alpha = 0.8f),
+                        fontSize = dateDp.asSp(),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -556,6 +572,91 @@ fun StackContent(
                         .clip(CircleShape)
                         .background(cs.onSurface.copy(alpha = if (pager.currentPage == i) 0.8f else 0.3f))
                 )
+            }
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------
+//  Orologio analogico (Material You)
+// ---------------------------------------------------------------------
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun AnalogClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
+    val cs = MaterialTheme.colorScheme
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(60_000L - (now % 60_000L) + 30L)
+        }
+    }
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+    val hour = cal.get(java.util.Calendar.HOUR) + cal.get(java.util.Calendar.MINUTE) / 60f
+    val minute = cal.get(java.util.Calendar.MINUTE).toFloat()
+    val date = Date(now)
+    val loc = Locale.getDefault()
+    val dayName = SimpleDateFormat("EEEE", loc).format(date).replaceFirstChar { it.uppercase() }
+    val dayDate = SimpleDateFormat("d MMMM", loc).format(date)
+
+    val bg = cs.tertiaryContainer
+    val face = cs.surface
+    val tick = cs.onSurfaceVariant
+    val hourHand = cs.onSurface
+    val minHand = cs.primary
+    val centerDot = cs.tertiary
+
+    BoxWithConstraints(
+        modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(bg)
+            .combinedClickable(onClick = { host.openClockApp() }, onLongClick = onLongPress)
+    ) {
+        val wide = maxWidth >= maxHeight * 1.5f
+        Row(
+            Modifier.fillMaxSize().padding(if (wide) 12.dp else 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (wide) Arrangement.SpaceEvenly else Arrangement.Center
+        ) {
+            Canvas(Modifier.fillMaxHeight().aspectRatio(1f)) {
+                val r = size.minDimension / 2f
+                val c = Offset(size.width / 2f, size.height / 2f)
+                drawCircle(face, radius = r, center = c)
+                for (i in 0 until 12) {
+                    val ang = Math.toRadians(i * 30.0 - 90.0)
+                    val big = i % 3 == 0
+                    val r1 = r * 0.90f
+                    val r2 = r * (if (big) 0.76f else 0.83f)
+                    drawLine(
+                        tick,
+                        Offset(c.x + (r1 * Math.cos(ang)).toFloat(), c.y + (r1 * Math.sin(ang)).toFloat()),
+                        Offset(c.x + (r2 * Math.cos(ang)).toFloat(), c.y + (r2 * Math.sin(ang)).toFloat()),
+                        strokeWidth = r * (if (big) 0.055f else 0.035f),
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                }
+                val ha = Math.toRadians(hour * 30.0 - 90.0)
+                val ma = Math.toRadians(minute * 6.0 - 90.0)
+                drawLine(
+                    hourHand, c,
+                    Offset(c.x + (r * 0.46f * Math.cos(ha)).toFloat(), c.y + (r * 0.46f * Math.sin(ha)).toFloat()),
+                    strokeWidth = r * 0.12f, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+                drawLine(
+                    minHand, c,
+                    Offset(c.x + (r * 0.68f * Math.cos(ma)).toFloat(), c.y + (r * 0.68f * Math.sin(ma)).toFloat()),
+                    strokeWidth = r * 0.085f, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+                drawCircle(centerDot, radius = r * 0.07f, center = c)
+            }
+            if (wide) {
+                Column(horizontalAlignment = Alignment.Start) {
+                    val fs = minOf(maxHeight * 0.16f, maxWidth * 0.06f).coerceAtLeast(13.dp).asSp()
+                    Text(dayName, color = cs.onTertiaryContainer, fontSize = fs, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+                    Text(dayDate, color = cs.onTertiaryContainer.copy(alpha = 0.8f), fontSize = fs, maxLines = 1, softWrap = false)
+                }
             }
         }
     }

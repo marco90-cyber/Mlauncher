@@ -144,6 +144,8 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                     item { InternalCard(vm, host, "Orologio", "clock", 2, 1) }
                     item { InternalCard(vm, host, "Orologio", "clock", 2, 2) }
                     item { InternalCard(vm, host, "Orologio", "clock", 4, 2) }
+                    item { InternalCard(vm, host, "Orologio analogico", "analog", 2, 2) }
+                    item { InternalCard(vm, host, "Orologio analogico", "analog", 4, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 2, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 4, 2) }
                     item { EmptyStackCard(vm, 2, 2) }
