@@ -77,6 +77,10 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -119,12 +123,15 @@ interface Host {
 
 class DragState(val item: HomeItem, start: Offset) {
     var pos by mutableStateOf(start)
+    /** id delle altre app raccolte toccandole con un secondo dito */
+    val collected = androidx.compose.runtime.mutableStateListOf<String>()
 }
 
 class DragCallbacks(
     val start: (HomeItem, Offset) -> Unit,
     val move: (Offset) -> Unit,
-    val end: () -> Unit
+    val end: () -> Unit,
+    val collect: (HomeItem) -> Unit = {}
 )
 
 class BoundsHolder {
@@ -181,6 +188,9 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     var menuRect by remember { mutableStateOf(Rect.Zero) }
     val edit = vm.editMode
     val topPad by animateDpAsState(if (edit) 56.dp else 6.dp, label = "topPad")
+    val folderZonePx = with(density) { 48.dp.toPx() }
+    val switchPx = with(density) { 60.dp.toPx() }
+    val dragRef by rememberUpdatedState(drag)
 
     fun targetOf(p: Offset, item: HomeItem): Triple<Int, Int, Int>? {
         if (item.spanX == 1 && item.spanY == 1 && dockRect != Rect.Zero && dockRect.contains(p)) {
@@ -200,6 +210,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         return null
     }
 
+    val hiddenIds: Set<String> = drag?.let { setOf(it.item.id) + it.collected } ?: emptySet()
+
     val cb = remember {
         DragCallbacks(
             start = { item, pos ->
@@ -210,10 +222,24 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             end = {
                 val d = drag
                 if (d != null) {
-                    val t = targetOf(d.pos, d.item)
-                    if (t != null) vm.dropItem(d.item, t.first, t.second, t.third)
+                    val main = d.item
+                    val extra = d.collected.map { it.removePrefix("app:") }
+                    val zone = gridRect != Rect.Zero && d.pos.y < gridRect.top + folderZonePx
+                    if (extra.isNotEmpty() && zone && main is AppItem) {
+                        vm.createFolderFrom(main, extra)
+                    } else {
+                        val t = targetOf(d.pos, main)
+                        if (t != null) vm.dropItem(main, t.first, t.second, t.third)
+                        if (extra.isNotEmpty()) vm.gatherApps(extra, t?.first?.takeIf { it >= 0 } ?: vm.currentPage)
+                    }
                 }
                 drag = null
+            },
+            collect = { it ->
+                val d = drag
+                if (d != null && d.item is AppItem && it is AppItem && it.id != d.item.id) {
+                    if (it.id in d.collected) d.collected.remove(it.id) else d.collected.add(it.id)
+                }
             }
         )
     }
@@ -256,7 +282,39 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                // mentre un'icona è tenuta premuta, un secondo dito che scorre cambia pagina
+                awaitPointerEventScope {
+                    val startX = HashMap<PointerId, Float>()
+                    while (true) {
+                        val ev = awaitPointerEvent(PointerEventPass.Initial)
+                        if (dragRef == null) {
+                            startX.clear()
+                            continue
+                        }
+                        for (c in ev.changes) {
+                            if (c.changedToDown()) {
+                                startX[c.id] = c.position.x
+                            } else if (c.changedToUp()) {
+                                startX.remove(c.id)
+                            } else if (c.pressed) {
+                                val x0 = startX[c.id] ?: continue
+                                val dx = c.position.x - x0
+                                if (abs(dx) > switchPx) {
+                                    startX.remove(c.id)
+                                    val target = (pagerState.currentPage + if (dx < 0) 1 else -1)
+                                        .coerceIn(0, vm.pageCount - 1)
+                                    scope.launch { pagerState.animateScrollToPage(target) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+    ) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
             if (s.searchBar == "home") {
                 Row(
@@ -286,7 +344,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     vm = vm,
                     host = host,
                     pagerState = pagerState,
-                    dragId = drag?.item?.id,
+                    dragId = hiddenIds,
                     cb = cb,
                     onMenu = onMenu
                 )
@@ -300,7 +358,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             Dock(
                 vm = vm,
                 host = host,
-                dragId = drag?.item?.id,
+                dragId = hiddenIds,
                 cb = cb,
                 onMenu = onMenu,
                 onRect = { dockRect = it }
@@ -353,6 +411,26 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
 
         // evidenzia la cella di destinazione e mostra l'elemento trascinato
         val d = drag
+        if (d != null && d.collected.isNotEmpty() && gridRect != Rect.Zero &&
+            d.pos.y < gridRect.top + gridRect.height * 0.35f
+        ) {
+            val inZone = d.pos.y < gridRect.top + folderZonePx
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 8.dp)
+                    .clip(CircleShape)
+                    .background(if (inZone) cs.primary else cs.secondaryContainer)
+                    .padding(horizontal = 22.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    "Crea cartella (${d.collected.size + 1} app)",
+                    color = if (inZone) cs.onPrimary else cs.onSecondaryContainer,
+                    fontSize = 14.sp
+                )
+            }
+        }
         if (d != null) {
             val t = targetOf(d.pos, d.item)
             if (t != null) {
@@ -392,7 +470,21 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             ) {
                 val iconDp = with(density) { pw.toDp() }
                 when (di) {
-                    is AppItem -> vm.apps[di.appId]?.let { a -> AppIcon(a, iconDp, s.themedIcons) }
+                    is AppItem -> {
+                        val extras = d.collected.take(3).mapNotNull { vm.apps[it.removePrefix("app:")] }
+                        extras.forEachIndexed { i, a ->
+                            Box(Modifier.offset((6 * (i + 1)).dp, (6 * (i + 1)).dp).alpha(0.85f)) {
+                                AppIcon(a, iconDp, s.themedIcons)
+                            }
+                        }
+                        vm.apps[di.appId]?.let { a -> AppIcon(a, iconDp, s.themedIcons) }
+                        if (d.collected.isNotEmpty()) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(cs.primary),
+                                contentAlignment = Alignment.Center
+                            ) { Text("${d.collected.size + 1}", color = cs.onPrimary, fontSize = 12.sp) }
+                        }
+                    }
                     is FolderItem -> if (!di.big) FolderIcon(di, vm.apps, iconDp, s.themedIcons)
                     else Box(
                         Modifier.fillMaxSize().padding(6.dp)
@@ -479,7 +571,7 @@ private fun HomePage(
     vm: LauncherViewModel,
     host: Host,
     pagerState: PagerState,
-    dragId: String?,
+    dragId: Set<String>,
     cb: DragCallbacks,
     onMenu: (HomeItem, Rect) -> Unit
 ) {
@@ -529,7 +621,7 @@ private fun HomePage(
             if (item.page == page) {
                 key(item.id) {
                     val mod = Modifier.offset(cw * item.x, ch * item.y)
-                    val hidden = dragId == item.id
+                    val hidden = item.id in dragId
                     when (item) {
                         is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
                         is FolderItem ->
@@ -555,7 +647,7 @@ private fun SideEffectCells(vm: LauncherViewModel, cw: Dp, ch: Dp) {
 private fun Dock(
     vm: LauncherViewModel,
     host: Host,
-    dragId: String?,
+    dragId: Set<String>,
     cb: DragCallbacks,
     onMenu: (HomeItem, Rect) -> Unit,
     onRect: (Rect) -> Unit
@@ -582,7 +674,7 @@ private fun Dock(
                             cellW = cw,
                             cellH = maxHeight,
                             labels = false,
-                            hidden = dragId == item.id,
+                            hidden = item.id in dragId,
                             cb = cb,
                             onMenu = onMenu,
                             modifier = Modifier.offset(cw * item.x, 0.dp)
@@ -611,7 +703,7 @@ private fun Modifier.itemGestures(
     val curTap by rememberUpdatedState(onTap)
     return this
         .pointerInput(item.id) {
-            detectTapGestures(onTap = { pos -> if (!vm.editMode) curTap(pos) })
+            detectTapGestures(onTap = { pos -> if (!vm.editMode) curTap(pos) else curCb.collect(curItem) })
         }
         .pointerInput(item.id) {
             var started = false

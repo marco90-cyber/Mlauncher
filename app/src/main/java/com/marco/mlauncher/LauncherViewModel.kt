@@ -772,6 +772,31 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Crea una cartella con l'app trascinata e quelle raccolte. */
+    fun createFolderFrom(main: AppItem, appIds: List<String>) {
+        val cur = items.firstOrNull { it.id == main.id } ?: return
+        val ids = (listOf(main.appId) + appIds).distinct().filter { it in apps }
+        if (ids.size < 2) return
+        val keepPage = cur.page
+        val keepX = cur.x
+        val keepY = cur.y
+        items.removeAll { it is AppItem && it.appId in ids }
+        val (p, x, y) = if (keepPage >= 0) Triple(keepPage, keepX, keepY) else findFree(currentPage)
+        items.add(FolderItem(UUID.randomUUID().toString(), "Cartella", ids, p, x, y))
+        ensurePages(p)
+        saveLayout()
+    }
+
+    /** Sposta le app raccolte nei primi posti liberi della pagina indicata. */
+    fun gatherApps(appIds: List<String>, page: Int) {
+        for (id in appIds) {
+            if (items.none { it is AppItem && it.appId == id }) continue
+            items.removeAll { it is AppItem && it.appId == id }
+            addApp(id, maxOf(page, 0))
+        }
+        saveLayout()
+    }
+
     fun renameFolder(folderId: String, name: String) {
         val f = items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem ?: return
         val n = name.trim().ifEmpty { "Cartella" }
