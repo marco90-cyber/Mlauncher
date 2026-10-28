@@ -173,11 +173,14 @@ fun ClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
         val w = maxWidth
         val h = maxHeight
         if (w >= h * 1.5f) {
-            val dayName = SimpleDateFormat("EEEE", loc).format(date).replaceFirstChar { it.uppercase() }
-            val dayDate = SimpleDateFormat("d MMMM", loc).format(date)
-            // la dimensione dipende sia dall'altezza sia dalla larghezza: così non si sovrappone mai
-            val fsDp = minOf(h * 0.50f, w * 0.27f)
-            val dateDp = minOf(h * 0.13f, w * 0.05f).coerceAtLeast(12.dp)
+            // spazio disponibile: 62% all'ora, il resto alla data; con poco spazio uso giorno e mese abbreviati
+            val availW = w - 36.dp
+            val short = availW < 300.dp
+            val dayName = SimpleDateFormat(if (short) "EEE" else "EEEE", loc).format(date)
+                .replaceFirstChar { it.uppercase() }
+            val dayDate = SimpleDateFormat(if (short) "d MMM" else "d MMMM", loc).format(date)
+            val fsDp = minOf(h * 0.50f, availW * 0.60f / 2.75f)
+            val dateDp = minOf(h * 0.16f, availW * 0.34f / (if (short) 3.6f else 5.6f)).coerceAtLeast(11.dp)
             Row(
                 Modifier.fillMaxSize().padding(horizontal = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
