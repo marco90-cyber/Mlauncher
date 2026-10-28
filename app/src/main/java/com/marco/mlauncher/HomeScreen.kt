@@ -829,7 +829,7 @@ private fun WidgetCell(
                 else -> {}
             }
         }
-        if (edit && !hidden) {
+        if (edit) {
             Box(
                 Modifier
                     .fillMaxSize()

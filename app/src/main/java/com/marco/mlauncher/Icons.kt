@@ -23,6 +23,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.animation.core.animate
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -107,18 +111,23 @@ fun MinusBadge(modifier: Modifier, onClick: () -> Unit) {
 /** Tremolio in modalità modifica. */
 @Composable
 fun Modifier.jiggle(on: Boolean, seed: Int): Modifier {
-    if (!on) return this
-    val t = rememberInfiniteTransition(label = "jiggle")
-    val r by t.animateFloat(
-        initialValue = -1.6f,
-        targetValue = 1.6f,
-        animationSpec = infiniteRepeatable(
-            tween(110 + (seed and 0x3F), easing = LinearEasing),
-            RepeatMode.Reverse
-        ),
-        label = "jr"
-    )
-    return this.graphicsLayer { rotationZ = r }
+    // la catena dei modificatori deve restare identica: altrimenti i gesti a valle si interrompono
+    var rot by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(on) {
+        if (on) {
+            animate(
+                initialValue = -1.6f,
+                targetValue = 1.6f,
+                animationSpec = infiniteRepeatable(
+                    tween(110 + (seed and 0x3F), easing = LinearEasing),
+                    RepeatMode.Reverse
+                )
+            ) { v, _ -> rot = v }
+        } else {
+            rot = 0f
+        }
+    }
+    return this.graphicsLayer { rotationZ = rot }
 }
 
 /** Avvolge l'icona: se [exploding] parte l'animazione scelta e alla fine chiama [onDone]. */
