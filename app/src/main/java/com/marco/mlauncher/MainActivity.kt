@@ -16,6 +16,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.ui.geometry.Rect
+import android.Manifest
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
+import android.content.pm.PackageManager
+import android.provider.AlarmClock
 
 class MainActivity : ComponentActivity(), Host {
 
@@ -31,6 +36,50 @@ class MainActivity : ComponentActivity(), Host {
         ActivityResultContracts.StartActivityForResult()
     ) { updateDefault() }
 
+    private val locationLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { vm.checkLocationPermission(); vm.refreshWeather(true) }
+
+    private val bindLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { r ->
+        val info = pendingInfo
+        val id = pendingWidgetId
+        if (info != null && id != -1) {
+            if (r.resultCode == RESULT_OK) configureOrFinish(id, info) else cancelPending()
+        }
+    }
+
+    private val exportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.openOutputStream(uri)?.use { it.write(vm.buildBackup().toByteArray()) }
+                Toast.makeText(this, "Backup salvato", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Backup non riuscito", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private val importLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val text = contentResolver.openInputStream(uri)?.use { String(it.readBytes()) } ?: ""
+                val ok = vm.restoreBackup(text)
+                Toast.makeText(this, if (ok) "Ripristinato" else "File non valido", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Ripristino non riuscito", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private var pendingWidgetId = -1
+    private var pendingInfo: AppWidgetProviderInfo? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -45,9 +94,61 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        try { vm.widgetHost.startListening() } catch (e: Exception) { }
+    }
+
+    override fun onStop() {
+        try { vm.widgetHost.stopListening() } catch (e: Exception) { }
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         updateDefault()
+        vm.checkLocationPermission()
+        vm.refreshWeather()
+        val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
+        vm.listenerEnabled = enabled.contains(packageName)
+        val acc = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
+        vm.accessibilityEnabled = acc.contains(packageName)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_CONFIGURE) {
+            val info = pendingInfo
+            val id = pendingWidgetId
+            if (info != null && id != -1) {
+                if (resultCode == RESULT_OK) finishPending(id, info) else cancelPending()
+            }
+        }
+    }
+
+    private fun cancelPending() {
+        if (pendingWidgetId != -1) vm.discardWidgetId(pendingWidgetId)
+        pendingWidgetId = -1
+        pendingInfo = null
+    }
+
+    private fun finishPending(id: Int, info: AppWidgetProviderInfo) {
+        vm.addExternalWidget(id, info)
+        pendingWidgetId = -1
+        pendingInfo = null
+    }
+
+    private fun configureOrFinish(id: Int, info: AppWidgetProviderInfo) {
+        if (info.configure != null) {
+            try {
+                vm.widgetHost.startAppWidgetConfigureActivityForResult(this, id, 0, REQ_CONFIGURE, null)
+            } catch (e: Exception) {
+                cancelPending()
+            }
+        } else {
+            finishPending(id, info)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -135,5 +236,67 @@ class MainActivity : ComponentActivity(), Host {
         } catch (e: Exception) {
             // niente
         }
+    }
+
+    override fun requestLocation() {
+        locationLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+
+    override fun addWidget(info: AppWidgetProviderInfo) {
+        cancelPending()
+        val id = vm.widgetHost.allocateAppWidgetId()
+        pendingWidgetId = id
+        pendingInfo = info
+        if (vm.widgetMgr.bindAppWidgetIdIfAllowed(id, info.provider)) {
+            configureOrFinish(id, info)
+        } else {
+            val i = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+            try {
+                bindLauncher.launch(i)
+            } catch (e: Exception) {
+                cancelPending()
+            }
+        }
+    }
+
+    override fun exportBackup() {
+        exportLauncher.launch("mlauncher-backup.json")
+    }
+
+    override fun importBackup() {
+        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+    }
+
+    override fun openListenerSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } catch (e: Exception) { }
+    }
+
+    override fun openAccessibilitySettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        } catch (e: Exception) { }
+    }
+
+    override fun lockScreen(): Boolean {
+        val svc = MLAccessibilityService.instance
+        if (svc == null) {
+            Toast.makeText(this, "Attiva il servizio di accessibilità di MLauncher", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        return svc.lock()
+    }
+
+    override fun openClockApp() {
+        try {
+            startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) { }
+    }
+
+    companion object {
+        private const val REQ_CONFIGURE = 7001
     }
 }

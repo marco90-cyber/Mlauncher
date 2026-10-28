@@ -244,9 +244,10 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val searchOnly = s.homeMode == "all"
-    val list = remember(query, vm.sortedApps) {
-        if (query.isBlank()) vm.sortedApps
-        else vm.sortedApps.filter { it.label.contains(query.trim(), ignoreCase = true) }
+    val list = remember(query, vm.sortedApps, vm.hidden.toList()) {
+        val visible = vm.sortedApps.filter { it.id !in vm.hidden }
+        if (query.isBlank()) visible
+        else visible.filter { it.label.contains(query.trim(), ignoreCase = true) }
     }
     LaunchedEffect(Unit) {
         if (searchOnly) {

@@ -170,6 +170,107 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
             item {
+                Group("Ricerca e widget") {
+                    ChoiceRow(
+                        "Barra di ricerca",
+                        listOf("home" to "In alto nella Home", "dock" to "Sopra la dock", "none" to "Nascosta"),
+                        s.searchBar
+                    ) { vm.setSetting("searchBar", it) }
+                    SwitchRow(
+                        "Rotazione automatica degli stack",
+                        "I widget impilati scorrono da soli",
+                        s.stackAutoRotate
+                    ) { vm.setSetting("stackAutoRotate", it) }
+                }
+            }
+            item {
+                Group("Icone e notifiche") {
+                    ChoiceRow(
+                        "Pacchetto icone",
+                        listOf("" to "Predefinito") + vm.iconPacks.map { it.first to it.second },
+                        s.iconPack
+                    ) { vm.setSetting("iconPack", it) }
+                    ChoiceRow(
+                        "Badge delle notifiche",
+                        listOf("off" to "Disattivati", "dot" to "Puntino", "count" to "Numero"),
+                        s.badges
+                    ) {
+                        vm.setSetting("badges", it)
+                        if (it != "off" && !vm.listenerEnabled) host.openListenerSettings()
+                    }
+                    if (s.badges != "off" && !vm.listenerEnabled) {
+                        ListItem(
+                            headlineContent = { Text("Serve l'accesso alle notifiche") },
+                            supportingContent = { Text("Tocca per attivarlo per MLauncher") },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { host.openListenerSettings() }
+                        )
+                    }
+                    var hiddenOpen by remember { mutableStateOf(false) }
+                    ListItem(
+                        headlineContent = { Text("App nascoste") },
+                        supportingContent = { Text("${vm.hidden.size} nascoste") },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { hiddenOpen = true }
+                    )
+                    if (hiddenOpen) {
+                        AlertDialog(
+                            onDismissRequest = { hiddenOpen = false },
+                            title = { Text("App nascoste") },
+                            text = {
+                                Column {
+                                    if (vm.hidden.isEmpty()) Text("Nessuna app nascosta")
+                                    vm.hidden.toList().forEach { id ->
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(vm.apps[id]?.label ?: id, Modifier.weight(1f))
+                                            TextButton(onClick = { vm.unhideApp(id) }) { Text("Mostra") }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = { TextButton(onClick = { hiddenOpen = false }) { Text("Chiudi") } }
+                        )
+                    }
+                }
+            }
+            item {
+                Group("Blocco schermo") {
+                    SwitchRow(
+                        "Doppio tocco per bloccare",
+                        "Tocca due volte uno spazio vuoto della Home",
+                        s.doubleTapLock
+                    ) {
+                        vm.setSetting("doubleTapLock", it)
+                        if (it && !vm.accessibilityEnabled) host.openAccessibilitySettings()
+                    }
+                    if (s.doubleTapLock && !vm.accessibilityEnabled) {
+                        ListItem(
+                            headlineContent = { Text("Serve il servizio di accessibilità") },
+                            supportingContent = { Text("Tocca per attivare MLauncher") },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { host.openAccessibilitySettings() }
+                        )
+                    }
+                }
+            }
+            item {
+                Group("Backup") {
+                    ListItem(
+                        headlineContent = { Text("Esporta layout e impostazioni") },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { host.exportBackup() }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Ripristina da file") },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { host.importBackup() }
+                    )
+                }
+            }
+            item {
                 Group("Aspetto") {
                     ChoiceRow(
                         "Tema",

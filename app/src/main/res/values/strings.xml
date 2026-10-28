@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">MLauncher</string>
+    <string name="a11y_description">Permette a MLauncher di bloccare lo schermo con il doppio tocco.</string>
 </resources>

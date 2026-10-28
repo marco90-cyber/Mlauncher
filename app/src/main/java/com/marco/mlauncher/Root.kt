@@ -31,6 +31,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
         if (vm.loaded) HomeScreen(vm, host)
         FolderOverlay(vm, host)
         AppsOverlay(vm, host)
+        WidgetPicker(vm, host)
         SettingsOverlay(vm, host)
     }
 
@@ -38,5 +39,6 @@ fun Root(vm: LauncherViewModel, host: Host) {
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }
     BackHandler(enabled = vm.openFolderId != null) { vm.openFolderId = null }
     BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }
+    BackHandler(enabled = vm.overlay == Overlay.WIDGETS) { vm.overlay = Overlay.NONE }
     BackHandler(enabled = vm.overlay == Overlay.SETTINGS) { vm.overlay = Overlay.NONE }
 }
