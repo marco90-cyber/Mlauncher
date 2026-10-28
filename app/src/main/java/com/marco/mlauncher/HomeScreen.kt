@@ -47,6 +47,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -258,8 +259,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
             if (s.searchBar == "home") {
-                Box(Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp, vertical = 6.dp)) {
-                    if (!edit) SearchPill { vm.overlay = Overlay.DRAWER }
+                Row(
+                    Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (!edit) {
+                        Box(Modifier.weight(1f)) { SearchPill { vm.overlay = Overlay.DRAWER } }
+                        Spacer(Modifier.width(8.dp))
+                        SettingsButton { vm.overlay = Overlay.SETTINGS }
+                    }
                 }
             } else {
                 Spacer(Modifier.height(topPad))
@@ -297,6 +305,16 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 onMenu = onMenu,
                 onRect = { dockRect = it }
             )
+        }
+
+        // icona impostazioni quando la ricerca non è in alto
+        if (s.searchBar != "home" && !edit) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 6.dp, end = 16.dp)
+            ) { SettingsButton { vm.overlay = Overlay.SETTINGS } }
         }
 
         // barra modifica
@@ -389,6 +407,20 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsButton(onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = CircleShape,
+        color = cs.surfaceContainerHigh.copy(alpha = 0.85f),
+        modifier = Modifier.size(46.dp).clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = cs.onSurfaceVariant)
         }
     }
 }
