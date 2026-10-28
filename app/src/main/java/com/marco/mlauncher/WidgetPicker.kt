@@ -146,6 +146,10 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                     item { InternalCard(vm, host, "Orologio", "clock", 4, 2) }
                     item { InternalCard(vm, host, "Orologio analogico", "analog", 2, 2) }
                     item { InternalCard(vm, host, "Orologio analogico", "analog", 4, 2) }
+                    item { InternalCard(vm, host, "Batteria", "battery", 1, 1) }
+                    item { InternalCard(vm, host, "Batteria", "battery", 2, 1) }
+                    item { InternalCard(vm, host, "Batteria", "battery", 2, 2) }
+                    item { InternalCard(vm, host, "Batteria", "battery", 4, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 2, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 4, 2) }
                     item { EmptyStackCard(vm, 2, 2) }
@@ -230,7 +234,11 @@ private fun CardFrame(width: Int, onClick: () -> Unit, title: String, size: Stri
                 .clip(RoundedCornerShape(18.dp))
                 .background(cs.surfaceContainerHigh),
             contentAlignment = Alignment.Center
-        ) { preview() }
+        ) {
+            preview()
+            // il tocco aggiunge il widget: non deve far partire l'app del widget
+            Box(Modifier.matchParentSize().clickable(onClick = onClick))
+        }
         Text(
             title,
             fontSize = 13.sp,

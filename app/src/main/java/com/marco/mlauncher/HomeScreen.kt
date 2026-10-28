@@ -322,8 +322,6 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 ) {
                     if (!edit) {
                         Box(Modifier.weight(1f)) { SearchPill { vm.overlay = Overlay.DRAWER } }
-                        Spacer(Modifier.width(8.dp))
-                        SettingsButton { vm.overlay = Overlay.SETTINGS }
                     }
                 }
             } else {
@@ -362,16 +360,6 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 onMenu = onMenu,
                 onRect = { dockRect = it }
             )
-        }
-
-        // icona impostazioni quando la ricerca non è in alto
-        if (s.searchBar != "home" && !edit) {
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 6.dp, end = 16.dp)
-            ) { SettingsButton { vm.overlay = Overlay.SETTINGS } }
         }
 
         // barra modifica
@@ -1057,6 +1045,7 @@ private fun StackManage(stack: StackItem, vm: LauncherViewModel, modifier: Modif
                                 when (r.kind) {
                                     "clock" -> "Orologio"
                                     "analog" -> "Orologio analogico"
+                                    "battery" -> "Batteria"
                                     "weather" -> "Meteo"
                                     else -> vm.widgetMgr.getAppWidgetInfo(r.widgetId)
                                         ?.provider?.packageName ?: "Widget"

@@ -60,6 +60,8 @@ object BadgeStore {
 
 class ShortcutEntry(val info: ShortcutInfo, val label: String, val icon: ImageBitmap?)
 
+const val SETTINGS_CLS = "mlauncher.settings"
+
 class IconPackData(val res: Resources, val packName: String, val map: Map<String, String>)
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -227,6 +229,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 result.add(AppEntry(ai.packageName, ai.name, label, icon, mono, removable))
             } catch (e: Exception) {
                 // app non leggibile: la salto
+            }
+        }
+        if (pkg == null || pkg == ctx.packageName) {
+            try {
+                val r = renderIcons(pm.getApplicationIcon(ctx.packageName))
+                result.add(AppEntry(ctx.packageName, SETTINGS_CLS, "Impostazioni Home", r.first, r.second, false))
+            } catch (e: Exception) {
+                // senza icona dell'app
             }
         }
         return result
@@ -548,6 +558,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 addApp(a.id)
             }
         }
+        apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
+            if (it.id !in placedAppIds()) addApp(it.id)
+        }
+        sp.edit().putBoolean("settingsIcon", true).apply()
         knownIds.clear()
         knownIds.addAll(apps.keys)
     }
@@ -582,6 +596,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (!sp.getBoolean("defaultWidgetsTop", false)) {
             placeDefaultWidgetsOnTop()
             sp.edit().putBoolean("defaultWidgets", true).putBoolean("defaultWidgetsTop", true).apply()
+        }
+        if (!sp.getBoolean("settingsIcon", false)) {
+            apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
+                if (it.id !in placedAppIds()) addApp(it.id)
+                sp.edit().putBoolean("settingsIcon", true).apply()
+            }
         }
         val placed = placedAppIds()
         if (settings.homeMode == "all") {

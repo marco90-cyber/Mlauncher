@@ -166,6 +166,11 @@ class MainActivity : ComponentActivity(), Host {
     // ---------- Host ----------
 
     override fun launch(app: AppEntry, bounds: Rect?) {
+        if (app.pkg == packageName && app.cls == SETTINGS_CLS) {
+            vm.openFolderId = null
+            vm.overlay = Overlay.SETTINGS
+            return
+        }
         val i = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(ComponentName(app.pkg, app.cls))

@@ -37,6 +37,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -129,6 +131,7 @@ fun WidgetContent(
     when (ref.kind) {
         "clock" -> ClockWidget(host, onLongPress, modifier)
         "analog" -> AnalogClockWidget(host, onLongPress, modifier)
+        "battery" -> BatteryWidget(onLongPress, modifier)
         "weather" -> WeatherWidget(vm, host, onLongPress, modifier, sample)
         else -> ExtWidget(ref, vm, onLongPress, modifier)
     }
@@ -208,35 +211,40 @@ fun ClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
                 }
             }
         } else {
-            val side = if (w < h) w else h
-            val fs = (side * 0.40f).asSp()
+            val showDate = h >= 120.dp
+            val fsDp = if (showDate) minOf(w * 0.34f, h * 0.30f) else minOf(w * 0.40f, h * 0.38f)
+            val fs = fsDp.asSp()
+            val dayShort = SimpleDateFormat("EEE d MMM", loc).format(date).replaceFirstChar { it.uppercase() }
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 10.dp),
+                Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     hh,
                     color = cs.onPrimaryContainer,
                     fontSize = fs,
-                    lineHeight = fs * 0.9f,
+                    lineHeight = fs * 0.92f,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Text(
                     mm,
                     color = cs.primary,
                     fontSize = fs,
-                    lineHeight = fs * 0.9f,
+                    lineHeight = fs * 0.92f,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    maxLines = 1,
+                    softWrap = false
                 )
-                if (h > 150.dp) {
+                if (showDate) {
                     Text(
-                        day,
+                        dayShort,
                         color = cs.onPrimaryContainer,
-                        fontSize = 13.sp,
+                        fontSize = minOf(h * 0.085f, w * 0.085f).coerceAtLeast(11.dp).asSp(),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -656,6 +664,116 @@ fun AnalogClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
                 Column(horizontalAlignment = Alignment.Start) {
                     Text(dayName, color = cs.onTertiaryContainer, fontSize = fs, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                     Text(dayDate, color = cs.onTertiaryContainer.copy(alpha = 0.8f), fontSize = fs, maxLines = 1, softWrap = false)
+                }
+            }
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------
+//  Batteria
+// ---------------------------------------------------------------------
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun BatteryWidget(onLongPress: () -> Unit, modifier: Modifier) {
+    val ctx = LocalContext.current
+    val cs = MaterialTheme.colorScheme
+    var level by remember { mutableIntStateOf(100) }
+    var charging by remember { mutableStateOf(false) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        fun read(i: android.content.Intent?) {
+            if (i == null) return
+            val l = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+            val sc = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+            if (l >= 0 && sc > 0) level = l * 100 / sc
+            val st = i.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+            charging = st == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                st == android.os.BatteryManager.BATTERY_STATUS_FULL
+        }
+        val rec = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context, i: android.content.Intent) = read(i)
+        }
+        read(ctx.registerReceiver(rec, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)))
+        onDispose { try { ctx.unregisterReceiver(rec) } catch (e: Exception) { } }
+    }
+    val low = level <= 15 && !charging
+    val ring = if (low) cs.error else cs.primary
+    val track = cs.onSecondaryContainer.copy(alpha = 0.15f)
+    val status = when {
+        charging && level >= 100 -> "Carica completa"
+        charging -> "In carica"
+        low -> "Batteria scarica"
+        else -> "Batteria"
+    }
+
+    BoxWithConstraints(
+        modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(cs.secondaryContainer)
+            .combinedClickable(onClick = {}, onLongClick = onLongPress)
+    ) {
+        val wide = maxWidth >= maxHeight * 1.5f
+        val small = maxWidth < 100.dp || maxHeight < 100.dp
+        val pad = if (small) 8.dp else 14.dp
+        val pctFs = if (wide) minOf(maxHeight * 0.30f, maxWidth * 0.12f) else minOf(maxWidth * 0.26f, maxHeight * 0.22f)
+        val pctSmall = minOf(maxWidth * 0.22f, maxHeight * 0.22f)
+        val statusFs = minOf(maxHeight * 0.13f, maxWidth * 0.05f).coerceAtLeast(12.dp).asSp()
+        Row(
+            Modifier.fillMaxSize().padding(pad),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (wide) Arrangement.spacedBy(14.dp) else Arrangement.Center
+        ) {
+            Box(Modifier.fillMaxHeight().aspectRatio(1f), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize().padding(4.dp)) {
+                    val sw = size.minDimension * 0.13f
+                    drawArc(
+                        track, -90f, 360f, false,
+                        topLeft = Offset(sw / 2, sw / 2),
+                        size = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                    drawArc(
+                        ring, -90f, 360f * level / 100f, false,
+                        topLeft = Offset(sw / 2, sw / 2),
+                        size = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                }
+                if (!wide) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "$level%",
+                            color = cs.onSecondaryContainer,
+                            fontSize = (if (small) pctSmall else pctFs).asSp(),
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        if (charging && !small) {
+                            Text("⚡", color = ring, fontSize = (pctFs * 0.7f).asSp())
+                        }
+                    }
+                }
+            }
+            if (wide) {
+                Column {
+                    Text(
+                        "$level%",
+                        color = cs.onSecondaryContainer,
+                        fontSize = pctFs.asSp(),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(
+                        status + if (charging) " ⚡" else "",
+                        color = cs.onSecondaryContainer.copy(alpha = 0.8f),
+                        fontSize = statusFs,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
         }
