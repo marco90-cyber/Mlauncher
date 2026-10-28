@@ -711,6 +711,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // ---------- operazioni dalla UI ----------
 
     fun dropItem(dragged: HomeItem, page: Int, x: Int, y: Int) {
+        // elementi "fantasma" (app che non esistono più) non devono bloccare le celle
+        items.removeAll { g ->
+            (g is AppItem && g.appId !in apps && g.id != dragged.id && g.appId !in exploding) ||
+                (g is FolderItem && g.appIds.none { it in apps })
+        }
         val item = items.firstOrNull { it.id == dragged.id } ?: return
         val sx = item.spanX
         val sy = item.spanY
@@ -746,9 +751,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 val uid = if (target is StackItem) target.uid else UUID.randomUUID().toString()
                 items.removeAll { it.id == item.id || it.id == target.id }
                 items.add(StackItem(uid, refs, target.page, target.x, target.y, sx, sy))
+            } else if (sx > 1 || sy > 1) {
+                displaceAndPlace(item, hits, page, x, y)
             }
+        } else if (sx > 1 || sy > 1) {
+            displaceAndPlace(item, hits, page, x, y)
         }
         saveLayout()
+    }
+
+    /** Mette un elemento grande dove vuole e sposta in posti liberi quelli che occupavano l'area. */
+    private fun displaceAndPlace(item: HomeItem, hits: List<HomeItem>, page: Int, x: Int, y: Int) {
+        if (page < 0 || x + item.spanX > settings.cols || y + item.spanY > settings.rows) return
+        replace(item, item.at(page, x, y))
+        for (h in hits) {
+            items.removeAll { it.id == h.id }
+            val (p, nx, ny) = findFree(page, h.spanX, h.spanY)
+            items.add(h.at(p, nx, ny))
+            ensurePages(p)
+        }
     }
 
     fun renameFolder(folderId: String, name: String) {
