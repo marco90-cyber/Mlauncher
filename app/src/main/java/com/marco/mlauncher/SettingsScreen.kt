@@ -94,6 +94,18 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
             item {
+                Group("Launcher") {
+                    ListItem(
+                        headlineContent = { Text("Imposta come Home") },
+                        supportingContent = {
+                            Text(if (vm.isDefaultHome) "MLauncher è la Home predefinita" else "Tocca per scegliere MLauncher come Home")
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { host.requestHomeRole() }
+                    )
+                }
+            }
+            item {
                 Group("Schermata Home") {
                     ChoiceRow(
                         "Modalità Home",

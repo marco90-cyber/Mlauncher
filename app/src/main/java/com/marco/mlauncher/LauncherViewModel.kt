@@ -204,6 +204,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val result = ArrayList<AppEntry>()
         for (ri in list) {
             val ai = ri.activityInfo ?: continue
+            if (ai.packageName == ctx.packageName) continue // l'icona di MLauncher serve solo agli altri launcher
             try {
                 val label = ri.loadLabel(pm).toString()
                 var packDrawable: Drawable? = null
