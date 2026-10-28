@@ -376,8 +376,12 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         }
 
         // barra modifica
+        val showCreate = drag?.let { dd ->
+            dd.collected.isNotEmpty() && gridRect != Rect.Zero &&
+                dd.pos.y < gridRect.top + gridRect.height * 0.35f
+        } == true
         AnimatedVisibility(
-            visible = edit,
+            visible = edit && !showCreate,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.statusBars)
