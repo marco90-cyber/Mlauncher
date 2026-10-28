@@ -26,7 +26,7 @@ jobs:
       - name: Show errors
         if: failure()
         run: |
-          grep -E "^e: |error:|What went wrong|Execution failed|> " build.log | head -60 | while IFS= read -r l; do echo "::error::${l:0:900}"; done
+          grep -E "^e: |error:|What went wrong|Execution failed" build.log | sed "s|file:///home/runner/work/Mlauncher/Mlauncher/app/src/main/java/com/marco/mlauncher/||" | head -9 | while IFS= read -r l; do echo "::error::${l:0:900}"; done
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk MLauncher.apk
       - uses: actions/upload-artifact@v4
