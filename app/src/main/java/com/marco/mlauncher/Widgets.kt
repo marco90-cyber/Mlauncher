@@ -615,6 +615,7 @@ fun AnalogClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
             .combinedClickable(onClick = { host.openClockApp() }, onLongClick = onLongPress)
     ) {
         val wide = maxWidth >= maxHeight * 1.5f
+        val fs = minOf(maxHeight * 0.16f, maxWidth * 0.06f).coerceAtLeast(13.dp).asSp()
         Row(
             Modifier.fillMaxSize().padding(if (wide) 12.dp else 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -653,7 +654,6 @@ fun AnalogClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
             }
             if (wide) {
                 Column(horizontalAlignment = Alignment.Start) {
-                    val fs = minOf(maxHeight * 0.16f, maxWidth * 0.06f).coerceAtLeast(13.dp).asSp()
                     Text(dayName, color = cs.onTertiaryContainer, fontSize = fs, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                     Text(dayDate, color = cs.onTertiaryContainer.copy(alpha = 0.8f), fontSize = fs, maxLines = 1, softWrap = false)
                 }
