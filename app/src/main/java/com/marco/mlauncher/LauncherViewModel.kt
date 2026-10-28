@@ -384,6 +384,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addWidgetFromPicker(kind: String, sx: Int, sy: Int) {
+        val t = stackTarget
+        if (t != null && addRefToStack(t, WidgetRef(kind))) return
         addInternalWidget(kind, sx, sy, currentPage)
         overlay = Overlay.NONE
         saveLayout()
@@ -404,6 +406,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addExternalWidget(widgetId: Int, info: AppWidgetProviderInfo) {
+        val t = stackTarget
+        if (t != null && addRefToStack(t, WidgetRef("ext", widgetId, info.provider.flattenToString()))) return
         val density = ctx.resources.displayMetrics.density
         val wDp = info.minWidth / density
         val hDp = info.minHeight / density
@@ -447,16 +451,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun removeFromStack(stack: StackItem, ref: WidgetRef) {
         val rest = stack.refs - ref
         if (ref.kind == "ext") discardWidgetId(ref.widgetId)
-        when {
-            rest.isEmpty() -> items.removeAll { it.id == stack.id }
-            rest.size == 1 -> {
-                items.removeAll { it.id == stack.id }
-                items.add(WidgetItem(UUID.randomUUID().toString(), rest[0], stack.page, stack.x, stack.y, stack.spanX, stack.spanY))
-            }
-            else -> replace(stack, stack.copy(refs = rest))
-        }
+        replace(stack, stack.copy(refs = rest))
         saveLayout()
     }
+
+    /** Stack al quale aggiungere il prossimo widget scelto (null = nuovo widget). */
+    var stackTarget by mutableStateOf<String?>(null)
+
+    private fun addRefToStack(uid: String, ref: WidgetRef): Boolean {
+        val st = items.firstOrNull { it is StackItem && it.uid == uid } as? StackItem ?: return false
+        replace(st, st.copy(refs = st.refs + ref))
+        stackTarget = null
+        overlay = Overlay.NONE
+        saveLayout()
+        return true
+    }
+
+    fun addEmptyStack(sx: Int, sy: Int) = addStackPreset(sx, sy, emptyList())
 
     fun resizeItem(item: HomeItem, sx: Int, sy: Int) {
         val cur = items.firstOrNull { it.id == item.id } ?: return
@@ -636,8 +647,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     if (skipExt) refs = refs.filter { it.kind != "ext" }
                     val sx = o.getInt("sx")
                     val sy = o.getInt("sy")
-                    if (refs.size >= 2) out.add(StackItem(o.getString("uid"), refs, page, x, y, sx, sy))
-                    else if (refs.size == 1) out.add(WidgetItem(UUID.randomUUID().toString(), refs[0], page, x, y, sx, sy))
+                    out.add(StackItem(o.getString("uid"), refs, page, x, y, sx, sy))
                 }
             }
         }

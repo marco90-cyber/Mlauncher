@@ -115,6 +115,9 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
         }
     }
     var expanded by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { vm.stackTarget = null }
+    }
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Box(
@@ -126,7 +129,7 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                 .background(cs.outlineVariant)
         )
         Text(
-            "Widget",
+            if (vm.stackTarget != null) "Aggiungi allo stack" else "Widget",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
@@ -143,6 +146,10 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                     item { InternalCard(vm, host, "Orologio", "clock", 4, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 2, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 4, 2) }
+                    item { EmptyStackCard(vm, 2, 2) }
+                    item { EmptyStackCard(vm, 4, 2) }
+                    item { EmptyStackCard(vm, 2, 1) }
+                    item { EmptyStackCard(vm, 4, 4) }
                     item { StackCard(vm, host, "Stack", 2, 2, listOf("clock", "weather")) }
                     item { StackCard(vm, host, "Stack", 4, 2, listOf("clock", "weather")) }
                     item { StackCard(vm, host, "Stack meteo", 2, 2, listOf("weather", "clock")) }
@@ -247,6 +254,25 @@ private fun InternalCard(vm: LauncherViewModel, host: Host, title: String, kind:
         Box(Modifier.size(pw.dp, ph.dp)) {
             WidgetContent(WidgetRef(kind), vm, host, {}, Modifier.fillMaxSize(), sample = true)
         }
+    }
+}
+
+@Composable
+private fun EmptyStackCard(vm: LauncherViewModel, sx: Int, sy: Int) {
+    val cs = MaterialTheme.colorScheme
+    CardFrame(
+        width = if (sx >= 4) 190 else 130,
+        onClick = { vm.addEmptyStack(sx, sy) },
+        title = "Stack vuoto",
+        size = "${sx}x$sy"
+    ) {
+        Box(
+            Modifier
+                .size((sx * 36).coerceAtMost(150).dp, (sy * 30).coerceAtMost(100).dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(cs.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) { Text("+", color = cs.onSecondaryContainer, fontSize = 28.sp) }
     }
 }
 

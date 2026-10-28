@@ -934,6 +934,13 @@ private fun StackManage(stack: StackItem, vm: LauncherViewModel, modifier: Modif
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = { open = false }) { Text("Chiudi") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    open = false
+                    vm.stackTarget = stack.uid
+                    vm.overlay = Overlay.WIDGETS
+                }) { Text("Aggiungi widget") }
             }
         )
     }

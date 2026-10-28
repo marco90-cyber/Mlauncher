@@ -508,6 +508,28 @@ fun StackContent(
     val cs = MaterialTheme.colorScheme
     val pager = rememberPagerState { item.refs.size }
     val auto = vm.settings.stackAutoRotate
+    if (item.refs.isEmpty()) {
+        Box(
+            modifier
+                .clip(RoundedCornerShape(28.dp))
+                .background(cs.surfaceContainerHigh.copy(alpha = 0.7f))
+                .combinedClickable(
+                    onClick = {
+                        vm.stackTarget = item.uid
+                        vm.overlay = Overlay.WIDGETS
+                    },
+                    onLongClick = onLongPress
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("+", color = cs.primary, fontSize = 34.sp)
+                Text("Stack vuoto", color = cs.onSurfaceVariant, fontSize = 12.sp)
+                Text("Tocca per aggiungere widget", color = cs.onSurfaceVariant, fontSize = 10.sp)
+            }
+        }
+        return
+    }
     LaunchedEffect(auto, item.refs.size, vm.editMode) {
         while (auto && !vm.editMode && item.refs.size > 1) {
             delay(7000)
