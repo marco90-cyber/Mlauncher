@@ -835,7 +835,7 @@ private fun GridItem(
     val curItem by rememberUpdatedState(item)
     val edit = vm.editMode
     // misure proporzionali alla cella: si adattano a qualsiasi schermo
-    val base = if (labels) minOf(cellW * 0.66f, cellH * 0.52f) else minOf(cellW * 0.82f, cellH * 0.72f)
+    val base = if (labels) minOf(cellW * 0.62f, cellH * 0.50f) else minOf(cellW * 0.82f, cellH * 0.72f)
     val iconSize = minOf(base * s.iconScale, 88.dp)
     val app = (item as? AppItem)?.let { vm.apps[it.appId] }
     if (item is AppItem && app == null) return

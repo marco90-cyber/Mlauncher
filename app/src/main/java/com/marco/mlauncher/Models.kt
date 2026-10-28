@@ -17,7 +17,9 @@ class AppEntry(
     val label: String,
     val icon: ImageBitmap,
     val mono: ImageBitmap?,
-    val removable: Boolean
+    val removable: Boolean,
+    /** icona senza maschera del sistema, per applicare una forma uniforme */
+    val raw: ImageBitmap? = null
 ) {
     val id: String get() = "$pkg/$cls"
 }
@@ -128,6 +130,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
         private set
     var dockStyle by mutableStateOf(sp.getString("dockStyle", "hyperos") ?: "hyperos")
         private set
+    var iconShape by mutableStateOf(sp.getString("iconShape", "ios") ?: "ios")
+        private set
     var pageIndicator by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
         private set
     var searchBar by mutableStateOf(sp.getString("searchBar", "home") ?: "home")
@@ -188,6 +192,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "autoAddNew" -> autoAddNew = value as Boolean
             "dockSlots" -> dockSlots = value as Int
             "dockStyle" -> dockStyle = value as String
+            "iconShape" -> iconShape = value as String
             "pageIndicator" -> pageIndicator = value as String
             "searchBar" -> searchBar = value as String
             "badges" -> badges = value as String

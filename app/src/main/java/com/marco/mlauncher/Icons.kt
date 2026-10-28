@@ -44,15 +44,44 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.sin
 
+val LocalIconShape = androidx.compose.runtime.compositionLocalOf { "ios" }
+
+/** Squircola in stile iOS (superellisse). */
+val IosShape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.GenericShape { size, _ ->
+    val a = size.width / 2f
+    val b = size.height / 2f
+    val n = 5.0
+    val steps = 96
+    for (i in 0..steps) {
+        val t = 2.0 * Math.PI * i / steps
+        val c = Math.cos(t)
+        val sn = Math.sin(t)
+        val x = a + a * Math.signum(c) * Math.pow(Math.abs(c), 2.0 / n)
+        val y = b + b * Math.signum(sn) * Math.pow(Math.abs(sn), 2.0 / n)
+        if (i == 0) moveTo(x.toFloat(), y.toFloat()) else lineTo(x.toFloat(), y.toFloat())
+    }
+    close()
+}
+
+@Composable
+fun iconShapeFor(iconSize: Dp, fallbackRadius: Float): androidx.compose.ui.graphics.Shape =
+    when (LocalIconShape.current) {
+        "circle" -> CircleShape
+        "original" -> RoundedCornerShape(iconSize * fallbackRadius)
+        else -> IosShape
+    }
+
 @Composable
 fun AppIcon(app: AppEntry, iconSize: Dp, themed: Boolean, modifier: Modifier = Modifier) {
     val mono = app.mono
+    val mode = LocalIconShape.current
+    val shape = iconShapeFor(iconSize, 0.32f)
     if (themed && mono != null) {
         val cs = MaterialTheme.colorScheme
         Box(
             modifier
                 .size(iconSize)
-                .clip(RoundedCornerShape(iconSize * 0.32f))
+                .clip(shape)
                 .background(cs.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
@@ -63,6 +92,12 @@ fun AppIcon(app: AppEntry, iconSize: Dp, themed: Boolean, modifier: Modifier = M
                 modifier = Modifier.fillMaxSize()
             )
         }
+    } else if (mode != "original" && app.raw != null) {
+        Image(
+            bitmap = app.raw,
+            contentDescription = null,
+            modifier = modifier.size(iconSize).clip(shape)
+        )
     } else {
         Image(bitmap = app.icon, contentDescription = null, modifier = modifier.size(iconSize))
     }
@@ -75,7 +110,7 @@ fun FolderIcon(folder: FolderItem, apps: Map<String, AppEntry>, iconSize: Dp, th
     Box(
         Modifier
             .size(iconSize)
-            .clip(RoundedCornerShape(iconSize * 0.30f))
+            .clip(iconShapeFor(iconSize, 0.30f))
             .background(cs.surfaceContainerHighest.copy(alpha = 0.6f))
             .padding(iconSize * 0.10f)
     ) {

@@ -27,12 +27,14 @@ fun Root(vm: LauncherViewModel, host: Host) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        if (vm.loaded) HomeScreen(vm, host)
-        FolderOverlay(vm, host)
-        AppsOverlay(vm, host)
-        WidgetPicker(vm, host)
-        SettingsOverlay(vm, host)
+    androidx.compose.runtime.CompositionLocalProvider(LocalIconShape provides vm.settings.iconShape) {
+        Box(Modifier.fillMaxSize()) {
+            if (vm.loaded) HomeScreen(vm, host)
+            FolderOverlay(vm, host)
+            AppsOverlay(vm, host)
+            WidgetPicker(vm, host)
+            SettingsOverlay(vm, host)
+        }
     }
 
     // l'ordine conta: l'ultimo registrato ha la precedenza

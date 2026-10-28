@@ -135,6 +135,11 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                         s.dockStyle
                     ) { vm.setSetting("dockStyle", it) }
                     Divider()
+                    ChoiceRow(
+                        "Forma delle icone",
+                        listOf("ios" to "iOS (squircola)", "circle" to "Cerchio", "original" to "Originale del sistema"),
+                        s.iconShape
+                    ) { vm.setSetting("iconShape", it) }
                     SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
                     SwitchRow(
                         "Icone Material You",

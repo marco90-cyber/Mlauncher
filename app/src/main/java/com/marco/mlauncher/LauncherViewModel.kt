@@ -134,6 +134,34 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return bmp
     }
 
+    /** Icona senza maschera: i livelli adattivi a tutto campo, oppure l'icona classica su un riquadro chiaro. */
+    private fun renderRaw(d: Drawable): ImageBitmap? = try {
+        val bmp = Bitmap.createBitmap(iconPx, iconPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        if (d is AdaptiveIconDrawable) {
+            val pad = iconPx / 4
+            d.background?.let { b ->
+                val c = b.constantState?.newDrawable()?.mutate() ?: b
+                c.setBounds(-pad, -pad, iconPx + pad, iconPx + pad)
+                c.draw(canvas)
+            }
+            d.foreground?.let { f ->
+                val c = f.constantState?.newDrawable()?.mutate() ?: f
+                c.setBounds(-pad, -pad, iconPx + pad, iconPx + pad)
+                c.draw(canvas)
+            }
+        } else {
+            canvas.drawColor(0xFFF2F2F7.toInt())
+            val inset = (iconPx * 0.14f).toInt()
+            val c = d.constantState?.newDrawable()?.mutate() ?: d
+            c.setBounds(inset, inset, iconPx - inset, iconPx - inset)
+            c.draw(canvas)
+        }
+        bmp.asImageBitmap()
+    } catch (e: Throwable) {
+        null
+    }
+
     private fun renderIcons(d: Drawable): Pair<ImageBitmap, ImageBitmap?> {
         val icon = drawableToBitmap(d, 0).asImageBitmap()
         var mono: ImageBitmap? = null
@@ -217,25 +245,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
                 val icon: ImageBitmap
                 val mono: ImageBitmap?
+                var raw: ImageBitmap? = null
                 if (packDrawable != null) {
                     icon = drawableToBitmap(packDrawable, 0).asImageBitmap()
                     mono = null
                 } else {
-                    val r = renderIcons(ri.loadIcon(pm))
+                    val dr = ri.loadIcon(pm)
+                    val r = renderIcons(dr)
                     icon = r.first
                     mono = r.second
+                    raw = renderRaw(dr)
                 }
                 val removable = (ai.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0 &&
                     ai.packageName != ctx.packageName
-                result.add(AppEntry(ai.packageName, ai.name, label, icon, mono, removable))
+                result.add(AppEntry(ai.packageName, ai.name, label, icon, mono, removable, raw))
             } catch (e: Exception) {
                 // app non leggibile: la salto
             }
         }
         if (pkg == null || pkg == ctx.packageName) {
             try {
-                val r = renderIcons(ctx.getDrawable(R.drawable.ic_home_settings)!!)
-                result.add(AppEntry(ctx.packageName, SETTINGS_CLS, "Impostazioni Home", r.first, r.second, false))
+                val sd = ctx.getDrawable(R.drawable.ic_home_settings)!!
+                val r = renderIcons(sd)
+                result.add(AppEntry(ctx.packageName, SETTINGS_CLS, "Impostazioni Home", r.first, r.second, false, renderRaw(sd)))
             } catch (e: Exception) {
                 // senza icona dell'app
             }
