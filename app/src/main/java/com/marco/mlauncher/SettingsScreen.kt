@@ -295,6 +295,19 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
             item {
                 Group("Aspetto") {
                     ChoiceRow(
+                        "Indicatore di pagina",
+                        listOf(
+                            "pill" to "Puntini (attivo allungato)",
+                            "dots" to "Puntini semplici",
+                            "lines" to "Linee",
+                            "worm" to "Puntini con ovale scorrevole",
+                            "progress" to "Barra di avanzamento",
+                            "number" to "Numero (2 / 5)",
+                            "none" to "Nessuno"
+                        ),
+                        s.pageIndicator
+                    ) { vm.setSetting("pageIndicator", it) }
+                    ChoiceRow(
                         "Tema",
                         listOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro"),
                         s.theme

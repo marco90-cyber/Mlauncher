@@ -354,7 +354,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     onMenu = onMenu
                 )
             }
-            PageDots(vm.pageCount, pagerState.currentPage)
+            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
             if (s.searchBar == "dock" && !edit) {
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)) {
                     SearchPill { vm.overlay = Overlay.DRAWER }
@@ -542,22 +542,69 @@ private fun BarButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PageDots(count: Int, current: Int) {
+private fun PageDots(count: Int, state: PagerState, style: String) {
+    val current = state.currentPage
+    val white = Color.White
     Row(
         Modifier.fillMaxWidth().height(18.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (count > 1) {
-            repeat(count) { i ->
+        if (count <= 1 || style == "none") return@Row
+        when (style) {
+            "dots" -> repeat(count) { i ->
+                val sel = current == i
+                val sz by animateDpAsState(if (sel) 8.dp else 6.dp, label = "d")
+                Box(
+                    Modifier.padding(horizontal = 3.dp).size(sz).clip(CircleShape)
+                        .background(white.copy(alpha = if (sel) 0.95f else 0.45f))
+                )
+            }
+            "lines" -> repeat(count) { i ->
+                val sel = current == i
+                Box(
+                    Modifier.padding(horizontal = 2.dp).size(18.dp, 3.dp).clip(CircleShape)
+                        .background(white.copy(alpha = if (sel) 0.95f else 0.35f))
+                )
+            }
+            "worm" -> {
+                // puntini fissi con un'ovale che scorre seguendo il dito
+                val dot = 6.dp
+                val gap = 8.dp
+                Box(Modifier.width((dot + gap) * count - gap).height(dot)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        repeat(count) { Box(Modifier.size(dot).clip(CircleShape).background(white.copy(alpha = 0.4f))) }
+                    }
+                    val pos = (state.currentPage + state.currentPageOffsetFraction).coerceIn(0f, (count - 1).toFloat())
+                    val stretch = 1f - kotlin.math.abs(state.currentPageOffsetFraction) * 1.0f
+                    Box(
+                        Modifier
+                            .offset((dot + gap) * pos, 0.dp)
+                            .size(dot + (dot * (1f - stretch) * 1.6f), dot)
+                            .clip(CircleShape)
+                            .background(white.copy(alpha = 0.95f))
+                    )
+                }
+            }
+            "progress" -> {
+                val w = 96.dp
+                Box(Modifier.size(w, 4.dp).clip(CircleShape).background(white.copy(alpha = 0.3f))) {
+                    val seg = w / count
+                    val pos = (state.currentPage + state.currentPageOffsetFraction).coerceIn(0f, (count - 1).toFloat())
+                    Box(Modifier.offset(seg * pos, 0.dp).size(seg, 4.dp).clip(CircleShape).background(white.copy(alpha = 0.95f)))
+                }
+            }
+            "number" -> Text(
+                "${current + 1} / $count",
+                color = white.copy(alpha = 0.9f),
+                fontSize = 12.sp
+            )
+            else -> repeat(count) { i ->
                 val sel = current == i
                 val w by animateDpAsState(if (sel) 16.dp else 6.dp, label = "dot")
                 Box(
-                    Modifier
-                        .padding(horizontal = 3.dp)
-                        .size(w, 6.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = if (sel) 0.95f else 0.5f))
+                    Modifier.padding(horizontal = 3.dp).size(w, 6.dp).clip(CircleShape)
+                        .background(white.copy(alpha = if (sel) 0.95f else 0.5f))
                 )
             }
         }

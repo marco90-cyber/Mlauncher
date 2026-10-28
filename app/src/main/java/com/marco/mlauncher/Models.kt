@@ -128,6 +128,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
         private set
     var dockStyle by mutableStateOf(sp.getString("dockStyle", "hyperos") ?: "hyperos")
         private set
+    var pageIndicator by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
+        private set
     var searchBar by mutableStateOf(sp.getString("searchBar", "home") ?: "home")
         private set
     var badges by mutableStateOf(sp.getString("badges", "off") ?: "off")
@@ -186,6 +188,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "autoAddNew" -> autoAddNew = value as Boolean
             "dockSlots" -> dockSlots = value as Int
             "dockStyle" -> dockStyle = value as String
+            "pageIndicator" -> pageIndicator = value as String
             "searchBar" -> searchBar = value as String
             "badges" -> badges = value as String
             "stackAutoRotate" -> stackAutoRotate = value as Boolean
