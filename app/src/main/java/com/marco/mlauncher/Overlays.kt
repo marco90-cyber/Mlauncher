@@ -468,7 +468,7 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host) {
                 }
             )
             DropdownMenuItem(
-                text = { Text("Cerca nella pagina dov'è") },
+                text = { Text("Trova in Home") },
                 onClick = {
                     menu = false
                     if (!vm.locateApp(app.id)) {
