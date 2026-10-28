@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -131,7 +132,7 @@ fun WidgetContent(
     when (ref.kind) {
         "clock" -> ClockWidget(host, onLongPress, modifier)
         "analog" -> AnalogClockWidget(host, onLongPress, modifier)
-        "battery" -> BatteryWidget(onLongPress, modifier)
+        "battery" -> BatteryWidget(host, onLongPress, modifier)
         "weather" -> WeatherWidget(vm, host, onLongPress, modifier, sample)
         else -> ExtWidget(ref, vm, onLongPress, modifier)
     }
@@ -672,16 +673,99 @@ fun AnalogClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
 
 
 // ---------------------------------------------------------------------
-//  Batteria
+//  Batteria (telefono + accessori Bluetooth)
 // ---------------------------------------------------------------------
+
+class Accessory(val name: String, val level: Int, val icon: String)
+
+/** Livelli segnalati dai dispositivi tramite broadcast (indirizzo -> %). */
+object AccessoryCache {
+    val levels = HashMap<String, Int>()
+}
+
+private const val ACTION_BT_BATTERY = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
+private const val EXTRA_BT_BATTERY = "android.bluetooth.device.extra.BATTERY_LEVEL"
+
+private fun hasBtPermission(ctx: android.content.Context) =
+    ctx.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+
+@android.annotation.SuppressLint("MissingPermission")
+private fun readAccessories(ctx: android.content.Context): List<Accessory> {
+    if (!hasBtPermission(ctx)) return emptyList()
+    val out = ArrayList<Accessory>()
+    try {
+        val adapter = ctx.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
+            ?: return emptyList()
+        if (!adapter.isEnabled) return emptyList()
+        for (d in adapter.bondedDevices ?: emptySet()) {
+            var level = -1
+            try {
+                level = android.bluetooth.BluetoothDevice::class.java
+                    .getMethod("getBatteryLevel").invoke(d) as Int
+            } catch (e: Throwable) {
+                level = AccessoryCache.levels[d.address] ?: -1
+            }
+            if (level !in 0..100) continue
+            val name = try { d.alias ?: d.name } catch (e: Exception) { null } ?: continue
+            val icon = when (d.bluetoothClass?.majorDeviceClass) {
+                0x0400 -> "🎧"
+                0x0500 -> "⌨"
+                0x0700 -> "⌚"
+                0x0200 -> "📱"
+                else -> "🔹"
+            }
+            out.add(Accessory(name, level, icon))
+        }
+    } catch (e: Throwable) {
+        // Bluetooth non disponibile
+    }
+    return out
+}
+
+@Composable
+private fun PhoneRing(level: Int, ring: Color, track: Color, modifier: Modifier, content: @Composable () -> Unit) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize().padding(4.dp)) {
+            val sw = size.minDimension * 0.13f
+            val sz = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw)
+            val tl = Offset(sw / 2, sw / 2)
+            val st = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            drawArc(track, -90f, 360f, false, topLeft = tl, size = sz, style = st)
+            drawArc(ring, -90f, 360f * level / 100f, false, topLeft = tl, size = sz, style = st)
+        }
+        content()
+    }
+}
+
+@Composable
+private fun AccessoryRow(a: Accessory, textColor: Color, fs: TextUnit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(a.icon, fontSize = fs)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            a.name,
+            color = textColor,
+            fontSize = fs,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text("${a.level}%", color = textColor, fontSize = fs, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun BatteryWidget(onLongPress: () -> Unit, modifier: Modifier) {
+fun BatteryWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
     val ctx = LocalContext.current
     val cs = MaterialTheme.colorScheme
     var level by remember { mutableIntStateOf(100) }
     var charging by remember { mutableStateOf(false) }
+    var accessories by remember { mutableStateOf<List<Accessory>>(emptyList()) }
+    var hasPerm by remember { mutableStateOf(hasBtPermission(ctx)) }
+
     androidx.compose.runtime.DisposableEffect(Unit) {
         fun read(i: android.content.Intent?) {
             if (i == null) return
@@ -696,8 +780,45 @@ fun BatteryWidget(onLongPress: () -> Unit, modifier: Modifier) {
             override fun onReceive(c: android.content.Context, i: android.content.Intent) = read(i)
         }
         read(ctx.registerReceiver(rec, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)))
-        onDispose { try { ctx.unregisterReceiver(rec) } catch (e: Exception) { } }
+        // accessori: aggiornamenti dei livelli e connessioni/disconnessioni
+        val btRec = object : android.content.BroadcastReceiver() {
+            @android.annotation.SuppressLint("MissingPermission")
+            override fun onReceive(c: android.content.Context, i: android.content.Intent) {
+                try {
+                    if (i.action == ACTION_BT_BATTERY) {
+                        val dev = i.getParcelableExtra<android.bluetooth.BluetoothDevice>(
+                            android.bluetooth.BluetoothDevice.EXTRA_DEVICE
+                        )
+                        val lv = i.getIntExtra(EXTRA_BT_BATTERY, -1)
+                        if (dev != null && lv in 0..100) AccessoryCache.levels[dev.address] = lv
+                    }
+                } catch (e: Throwable) { }
+                accessories = readAccessories(ctx)
+            }
+        }
+        val f = android.content.IntentFilter().apply {
+            addAction(ACTION_BT_BATTERY)
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        try {
+            androidx.core.content.ContextCompat.registerReceiver(
+                ctx, btRec, f, androidx.core.content.ContextCompat.RECEIVER_EXPORTED
+            )
+        } catch (e: Throwable) { }
+        onDispose {
+            try { ctx.unregisterReceiver(rec) } catch (e: Exception) { }
+            try { ctx.unregisterReceiver(btRec) } catch (e: Exception) { }
+        }
     }
+    LaunchedEffect(Unit) {
+        while (true) {
+            hasPerm = hasBtPermission(ctx)
+            accessories = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { readAccessories(ctx) }
+            delay(30_000L)
+        }
+    }
+
     val low = level <= 15 && !charging
     val ring = if (low) cs.error else cs.primary
     val track = cs.onSecondaryContainer.copy(alpha = 0.15f)
@@ -712,68 +833,76 @@ fun BatteryWidget(onLongPress: () -> Unit, modifier: Modifier) {
         modifier
             .clip(RoundedCornerShape(28.dp))
             .background(cs.secondaryContainer)
-            .combinedClickable(onClick = {}, onLongClick = onLongPress)
+            .combinedClickable(
+                onClick = { if (!hasPerm) host.requestBluetooth() },
+                onLongClick = onLongPress
+            )
     ) {
         val wide = maxWidth >= maxHeight * 1.5f
         val small = maxWidth < 100.dp || maxHeight < 100.dp
+        val tall = !wide && !small && maxHeight >= 150.dp
         val pad = if (small) 8.dp else 14.dp
-        val pctFs = if (wide) minOf(maxHeight * 0.30f, maxWidth * 0.12f) else minOf(maxWidth * 0.26f, maxHeight * 0.22f)
+        val pctFs = when {
+            wide -> minOf(maxHeight * 0.26f, maxWidth * 0.10f)
+            tall -> minOf(maxWidth * 0.20f, maxHeight * 0.14f)
+            else -> minOf(maxWidth * 0.26f, maxHeight * 0.22f)
+        }
         val pctSmall = minOf(maxWidth * 0.22f, maxHeight * 0.22f)
-        val statusFs = minOf(maxHeight * 0.13f, maxWidth * 0.05f).coerceAtLeast(12.dp).asSp()
-        Row(
-            Modifier.fillMaxSize().padding(pad),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (wide) Arrangement.spacedBy(14.dp) else Arrangement.Center
-        ) {
-            Box(Modifier.fillMaxHeight().aspectRatio(1f), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.fillMaxSize().padding(4.dp)) {
-                    val sw = size.minDimension * 0.13f
-                    drawArc(
-                        track, -90f, 360f, false,
-                        topLeft = Offset(sw / 2, sw / 2),
-                        size = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    drawArc(
-                        ring, -90f, 360f * level / 100f, false,
-                        topLeft = Offset(sw / 2, sw / 2),
-                        size = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
+        val statusFs = minOf(maxHeight * 0.12f, maxWidth * 0.045f).coerceAtLeast(12.dp).asSp()
+        val accFs = minOf(maxHeight * 0.10f, maxWidth * 0.05f).coerceIn(11.dp, 15.dp).asSp()
+        val ringTextFs = (if (small) pctSmall else pctFs).asSp()
+        val onC = cs.onSecondaryContainer
+        val ringH = if (accessories.isEmpty()) maxHeight * 0.70f else maxHeight * 0.52f
+
+        if (wide) {
+            Row(
+                Modifier.fillMaxSize().padding(pad),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                PhoneRing(level, ring, track, Modifier.fillMaxHeight().aspectRatio(1f)) {}
+                Column(Modifier.weight(if (accessories.isEmpty()) 1f else 0.9f)) {
+                    Text("$level%", color = onC, fontSize = pctFs.asSp(), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                    Text(status + if (charging) " ⚡" else "", color = onC.copy(alpha = 0.8f), fontSize = statusFs, maxLines = 1, softWrap = false)
                 }
-                if (!wide) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "$level%",
-                            color = cs.onSecondaryContainer,
-                            fontSize = (if (small) pctSmall else pctFs).asSp(),
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                        if (charging && !small) {
-                            Text("⚡", color = ring, fontSize = (pctFs * 0.7f).asSp())
-                        }
+                if (accessories.isNotEmpty()) {
+                    Column(Modifier.weight(1.1f)) {
+                        accessories.take(3).forEach { AccessoryRow(it, onC, accFs) }
                     }
+                } else if (!hasPerm) {
+                    Text(
+                        "Tocca per mostrare la batteria degli accessori",
+                        color = onC.copy(alpha = 0.7f),
+                        fontSize = accFs,
+                        modifier = Modifier.weight(1.1f)
+                    )
                 }
             }
-            if (wide) {
-                Column {
-                    Text(
-                        "$level%",
-                        color = cs.onSecondaryContainer,
-                        fontSize = pctFs.asSp(),
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    Text(
-                        status + if (charging) " ⚡" else "",
-                        color = cs.onSecondaryContainer.copy(alpha = 0.8f),
-                        fontSize = statusFs,
-                        maxLines = 1,
-                        softWrap = false
-                    )
+        } else if (tall) {
+            Column(
+                Modifier.fillMaxSize().padding(pad),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                PhoneRing(level, ring, track, Modifier.height(ringH).aspectRatio(1f)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("$level%", color = onC, fontSize = ringTextFs, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                        if (charging) Text("⚡", color = ring, fontSize = (pctFs * 0.7f).asSp())
+                    }
+                }
+                if (accessories.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    accessories.take(2).forEach { AccessoryRow(it, onC, accFs) }
+                }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxSize().padding(pad),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                PhoneRing(level, ring, track, Modifier.fillMaxHeight().aspectRatio(1f)) {
+                    Text("$level%", color = onC, fontSize = ringTextFs, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
         }

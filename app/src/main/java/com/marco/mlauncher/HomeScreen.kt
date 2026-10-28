@@ -119,6 +119,7 @@ interface Host {
     fun openAccessibilitySettings()
     fun lockScreen(): Boolean
     fun openClockApp()
+    fun requestBluetooth()
 }
 
 class DragState(val item: HomeItem, start: Offset) {

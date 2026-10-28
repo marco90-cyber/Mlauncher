@@ -40,6 +40,10 @@ class MainActivity : ComponentActivity(), Host {
         ActivityResultContracts.RequestPermission()
     ) { vm.checkLocationPermission(); vm.refreshWeather(true) }
 
+    private val btLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
     private val bindLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { r ->
@@ -293,6 +297,10 @@ class MainActivity : ComponentActivity(), Host {
             return false
         }
         return svc.lock()
+    }
+
+    override fun requestBluetooth() {
+        btLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
     }
 
     override fun openClockApp() {
