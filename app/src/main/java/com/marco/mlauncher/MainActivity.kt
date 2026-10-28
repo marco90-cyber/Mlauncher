@@ -1,7 +1,7 @@
 package com.marco.mlauncher
 
 import android.app.ActivityOptions
-import android.app.RoleManager
+import android.app.role.RoleManager
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
