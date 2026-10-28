@@ -497,6 +497,7 @@ fun ExtWidget(ref: WidgetRef, vm: LauncherViewModel, onLongPress: () -> Unit, mo
 //  Stack di widget (scorrimento orizzontale)
 // ---------------------------------------------------------------------
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun StackContent(
     item: StackItem,
