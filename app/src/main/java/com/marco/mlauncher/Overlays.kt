@@ -17,6 +17,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.alpha
+import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +80,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -111,6 +124,13 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 onDispose { vm.renameFolder(folderId, nameRef.value) }
             }
             val focusManager = LocalFocusManager.current
+            val haptic = LocalHapticFeedback.current
+            val cellRects = remember(folderId) { mutableStateMapOf<String, Rect>() }
+            var cardRect by remember(folderId) { mutableStateOf(Rect.Zero) }
+            var dragApp by remember(folderId) { mutableStateOf<String?>(null) }
+            var dragPos by remember(folderId) { mutableStateOf(Offset.Zero) }
+            var menuApp by remember(folderId) { mutableStateOf<String?>(null) }
+            var menuRect by remember(folderId) { mutableStateOf(Rect.Zero) }
             Box(
                 Modifier
                     .fillMaxSize()
@@ -131,6 +151,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         )
                         .padding(24.dp)
                         .fillMaxWidth()
+                        .onGloballyPositioned { cardRect = it.boundsInRoot() }
                         .pointerInput(Unit) { detectTapGestures { } }
                 ) {
                     Column(Modifier.padding(16.dp)) {
@@ -166,21 +187,70 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 val app = vm.apps[appId]
                                 if (app != null) {
                                     val b = remember { BoundsHolder() }
+                                    val curId by rememberUpdatedState(appId)
                                     Column(
                                         Modifier
                                             .fillMaxWidth()
-                                            .onGloballyPositioned { b.window = it.boundsInWindow() }
+                                            .alpha(if (dragApp == appId) 0f else 1f)
+                                            .onGloballyPositioned {
+                                                b.window = it.boundsInWindow()
+                                                b.root = it.positionInRoot()
+                                                cellRects[appId] = it.boundsInRoot()
+                                            }
                                             .clip(RoundedCornerShape(16.dp))
-                                            .combinedClickable(
-                                                onClick = {
+                                            .pointerInput(appId) {
+                                                detectTapGestures(onTap = {
                                                     vm.openFolderId = null
                                                     host.launch(app, b.window)
-                                                },
-                                                onLongClick = {
-                                                    vm.removeFromFolder(folderId, appId)
-                                                    Toast.makeText(ctx, "Spostata nella Home", Toast.LENGTH_SHORT).show()
-                                                }
-                                            )
+                                                })
+                                            }
+                                            .pointerInput(appId) {
+                                                var started = false
+                                                var lpPos = Offset.Zero
+                                                val slop = viewConfiguration.touchSlop
+                                                detectDragGesturesAfterLongPress(
+                                                    onDragStart = { pos ->
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        lpPos = pos
+                                                        started = false
+                                                    },
+                                                    onDrag = { ch, _ ->
+                                                        if (!started && (ch.position - lpPos).getDistance() > slop) {
+                                                            started = true
+                                                            dragApp = curId
+                                                        }
+                                                        if (started) dragPos = b.root + ch.position
+                                                    },
+                                                    onDragEnd = {
+                                                        if (started) {
+                                                            val pos = dragPos
+                                                            val moving = curId
+                                                            dragApp = null
+                                                            if (cardRect.contains(pos)) {
+                                                                val target = cellRects.entries
+                                                                    .firstOrNull { it.value.contains(pos) }?.key
+                                                                val list = vm.items
+                                                                    .firstOrNull { it is FolderItem && it.folderId == folderId }
+                                                                    .let { (it as? FolderItem)?.appIds ?: emptyList() }
+                                                                val idx = if (target != null) list.indexOf(target) else list.size - 1
+                                                                if (idx >= 0) vm.moveInFolder(folderId, moving, idx)
+                                                            } else {
+                                                                vm.removeFromFolder(folderId, moving)
+                                                                vm.openFolderId = null
+                                                                Toast.makeText(ctx, "Spostata nella Home", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        } else {
+                                                            menuApp = curId
+                                                            menuRect = b.window
+                                                        }
+                                                        started = false
+                                                    },
+                                                    onDragCancel = {
+                                                        dragApp = null
+                                                        started = false
+                                                    }
+                                                )
+                                            }
                                             .padding(vertical = 8.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
@@ -198,7 +268,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                             }
                         }
                         Text(
-                            "Tieni premuta un'app per toglierla dalla cartella",
+                            "Tieni premuta e trascina per riordinare, o fuori per toglierla",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -206,6 +276,19 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         )
                     }
                 }
+            }
+            val da = dragApp?.let { vm.apps[it] }
+            if (da != null) {
+                val sz = with(androidx.compose.ui.platform.LocalDensity.current) { 52.dp.toPx() }
+                Box(
+                    Modifier
+                        .offset { IntOffset((dragPos.x - sz / 2f).roundToInt(), (dragPos.y - sz / 2f).roundToInt()) }
+                        .size(52.dp)
+                ) { AppIcon(da, 52.dp, s.themedIcons) }
+            }
+            val ma = menuApp?.let { vm.apps[it] }
+            if (ma != null) {
+                QuickMenu(AppItem(ma.id, -2, 0, 0), menuRect, vm, host) { menuApp = null }
             }
         }
     }

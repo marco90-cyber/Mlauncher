@@ -280,6 +280,16 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
             item {
+                Group("Manutenzione") {
+                    ListItem(
+                        headlineContent = { Text("Riavvia Home") },
+                        supportingContent = { Text("Ricarica app, icone, meteo e widget") },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { vm.restartHome() }
+                    )
+                }
+            }
+            item {
                 Group("Info") {
                     ListItem(
                         headlineContent = { Text("MLauncher") },

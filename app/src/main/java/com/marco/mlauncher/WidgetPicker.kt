@@ -143,7 +143,10 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                     item { InternalCard(vm, host, "Orologio", "clock", 4, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 2, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 4, 2) }
-                    item { StackCard(vm, host) }
+                    item { StackCard(vm, host, "Stack", 2, 2, listOf("clock", "weather")) }
+                    item { StackCard(vm, host, "Stack", 4, 2, listOf("clock", "weather")) }
+                    item { StackCard(vm, host, "Stack meteo", 2, 2, listOf("weather", "clock")) }
+                    item { StackCard(vm, host, "Stack", 2, 1, listOf("clock", "weather")) }
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -248,15 +251,17 @@ private fun InternalCard(vm: LauncherViewModel, host: Host, title: String, kind:
 }
 
 @Composable
-private fun StackCard(vm: LauncherViewModel, host: Host) {
+private fun StackCard(vm: LauncherViewModel, host: Host, title: String, sx: Int, sy: Int, kinds: List<String>) {
     CardFrame(
-        width = 130,
-        onClick = { vm.addStackPreset() },
-        title = "Stack",
-        size = "2x2 · orologio e meteo"
+        width = if (sx >= 4) 190 else 130,
+        onClick = { vm.addStackPreset(sx, sy, kinds) },
+        title = title,
+        size = "${sx}x$sy · scorrevole"
     ) {
-        Box(Modifier.size(80.dp)) {
-            WidgetContent(WidgetRef("clock"), vm, host, {}, Modifier.fillMaxSize())
+        val pw = (sx * 40).coerceAtMost(170)
+        val ph = sy * 40
+        Box(Modifier.size(pw.dp, ph.dp)) {
+            WidgetContent(WidgetRef(kinds.first()), vm, host, {}, Modifier.fillMaxSize(), sample = true)
         }
     }
 }

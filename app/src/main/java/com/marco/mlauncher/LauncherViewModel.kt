@@ -328,6 +328,61 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         ensurePages(p)
     }
 
+    /** Mette orologio e meteo in cima alla prima pagina, spostando le icone che occupano il posto. */
+    private fun placeDefaultWidgetsOnTop() {
+        items.removeAll { it is WidgetItem && it.ref.kind != "ext" }
+        val cols = settings.cols
+        val w = if (cols >= 4) 2 else 1
+        val slots = listOf(Triple("clock", 0, 0), Triple("weather", minOf(w, cols - w), 0))
+        val moved = ArrayList<HomeItem>()
+        for ((_, x, y) in slots) {
+            for (it in items.toList()) {
+                if (it.page == 0 && overlaps(it, 0, x, y, w, 2)) {
+                    items.remove(it)
+                    moved.add(it)
+                }
+            }
+        }
+        for ((kind, x, y) in slots) {
+            items.add(WidgetItem(UUID.randomUUID().toString(), WidgetRef(kind), 0, x, y, w, 2))
+        }
+        for (m in moved) {
+            val (p, x, y) = findFree(0, m.spanX, m.spanY)
+            items.add(m.at(p, x, y))
+            ensurePages(p)
+        }
+    }
+
+    fun moveInFolder(folderId: String, appId: String, index: Int) {
+        val f = items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem ?: return
+        val l = f.appIds.toMutableList()
+        l.remove(appId)
+        l.add(index.coerceIn(0, l.size), appId)
+        replace(f, f.copy(appIds = l))
+        saveLayout()
+    }
+
+    /** Ricarica app, icone, meteo e layout. */
+    fun restartHome() {
+        editMode = false
+        openFolderId = null
+        overlay = Overlay.NONE
+        refresh(null)
+        refreshWeather(true)
+        homeSignal += 1
+    }
+
+    fun addStackPreset(sx: Int, sy: Int, kinds: List<String>) {
+        val (p, x, y) = findFree(currentPage, minOf(sx, settings.cols), minOf(sy, settings.rows))
+        items.add(
+            StackItem(UUID.randomUUID().toString(), kinds.map { WidgetRef(it) }, p, x, y,
+                minOf(sx, settings.cols), minOf(sy, settings.rows))
+        )
+        ensurePages(p)
+        overlay = Overlay.NONE
+        saveLayout()
+    }
+
     fun addWidgetFromPicker(kind: String, sx: Int, sy: Int) {
         addInternalWidget(kind, sx, sy, currentPage)
         overlay = Overlay.NONE
@@ -513,10 +568,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
         }
         // prima volta dopo l'introduzione dei widget: aggiungo orologio e meteo
-        if (!sp.getBoolean("defaultWidgets", false)) {
-            addInternalWidget("clock", 2, 2, 0)
-            addInternalWidget("weather", 2, 2, 0)
-            sp.edit().putBoolean("defaultWidgets", true).apply()
+        if (!sp.getBoolean("defaultWidgetsTop", false)) {
+            placeDefaultWidgetsOnTop()
+            sp.edit().putBoolean("defaultWidgets", true).putBoolean("defaultWidgetsTop", true).apply()
         }
         val placed = placedAppIds()
         if (settings.homeMode == "all") {

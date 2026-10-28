@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.drag
@@ -576,36 +577,42 @@ private fun Modifier.itemGestures(
     val curCb by rememberUpdatedState(cb)
     val curMenu by rememberUpdatedState(onMenu)
     val curTap by rememberUpdatedState(onTap)
-    return this.pointerInput(item.id) {
-        awaitEachGesture {
-            val down = awaitFirstDown()
-            val lp = awaitLongPressOrCancellation(down.id)
-            if (lp != null) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                var started = false
-                if (vm.editMode) {
-                    started = true
-                    curCb.start(curItem, holder.root + lp.position)
-                }
-                val slop = viewConfiguration.touchSlop
-                drag(lp.id) { ch ->
-                    if (!started && (ch.position - down.position).getDistance() > slop) {
+    return this
+        .pointerInput(item.id) {
+            detectTapGestures(onTap = { pos -> if (!vm.editMode) curTap(pos) })
+        }
+        .pointerInput(item.id) {
+            var started = false
+            var lpPos = Offset.Zero
+            val slop = viewConfiguration.touchSlop
+            detectDragGesturesAfterLongPress(
+                onDragStart = { pos ->
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    lpPos = pos
+                    started = false
+                    if (vm.editMode) {
+                        started = true
+                        curCb.start(curItem, holder.root + pos)
+                    }
+                },
+                onDrag = { ch, _ ->
+                    if (!started && (ch.position - lpPos).getDistance() > slop) {
                         started = true
                         vm.editMode = true
                         curCb.start(curItem, holder.root + ch.position)
                     }
-                    if (started) {
-                        ch.consume()
-                        curCb.move(holder.root + ch.position)
-                    }
+                    if (started) curCb.move(holder.root + ch.position)
+                },
+                onDragEnd = {
+                    if (started) curCb.end() else curMenu(curItem, holder.window)
+                    started = false
+                },
+                onDragCancel = {
+                    if (started) curCb.end()
+                    started = false
                 }
-                if (started) curCb.end() else curMenu(curItem, holder.window)
-            } else {
-                val up = currentEvent.changes.firstOrNull { it.id == down.id }
-                if (up != null && !up.pressed && !vm.editMode) curTap(down.position)
-            }
+            )
         }
-    }
 }
 
 @Composable
@@ -833,19 +840,15 @@ private fun WidgetCell(
                         holder.window = it.boundsInWindow()
                     }
                     .pointerInput(item.id) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown()
-                            val lp = awaitLongPressOrCancellation(down.id)
-                            if (lp != null) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { pos ->
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                curCb.start(curItem, holder.root + lp.position)
-                                drag(lp.id) { ch ->
-                                    ch.consume()
-                                    curCb.move(holder.root + ch.position)
-                                }
-                                curCb.end()
-                            }
-                        }
+                                curCb.start(curItem, holder.root + pos)
+                            },
+                            onDrag = { ch, _ -> curCb.move(holder.root + ch.position) },
+                            onDragEnd = { curCb.end() },
+                            onDragCancel = { curCb.end() }
+                        )
                     }
             )
             MinusBadge(Modifier.align(Alignment.TopStart).padding(6.dp)) { vm.removeWidgetItem(item) }
@@ -941,7 +944,7 @@ private fun StackManage(stack: StackItem, vm: LauncherViewModel, modifier: Modif
 // =====================================================================
 
 @Composable
-private fun QuickMenu(
+internal fun QuickMenu(
     item: HomeItem,
     rect: Rect,
     vm: LauncherViewModel,
