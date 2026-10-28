@@ -19,7 +19,14 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Build release APK
-        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
+      - name: Show errors
+        if: failure()
+        run: |
+          grep -E "^e: |error:|What went wrong|Execution failed|> " build.log | head -60 | while IFS= read -r l; do echo "::error::${l:0:900}"; done
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk MLauncher.apk
       - uses: actions/upload-artifact@v4
