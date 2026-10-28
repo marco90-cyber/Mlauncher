@@ -233,7 +233,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         if (pkg == null || pkg == ctx.packageName) {
             try {
-                val r = renderIcons(pm.getApplicationIcon(ctx.packageName))
+                val r = renderIcons(ctx.getDrawable(R.drawable.ic_home_settings)!!)
                 result.add(AppEntry(ctx.packageName, SETTINGS_CLS, "Impostazioni Home", r.first, r.second, false))
             } catch (e: Exception) {
                 // senza icona dell'app
@@ -544,12 +544,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val placed = placedAppIds()
             sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id) }
         } else {
+            // pochi elementi in Home, come sui launcher Samsung: il resto sta nel cassetto
             val preferred = listOf(
-                "com.android.chrome", "com.google.android.apps.photos", "com.google.android.gm",
-                "com.google.android.apps.maps", "com.android.vending", "com.google.android.youtube",
-                "com.google.android.calendar", "com.google.android.deskclock", "com.android.settings",
-                "com.google.android.apps.messaging", "com.google.android.apps.nbu.files",
-                "com.google.android.calculator"
+                "com.google.android.apps.photos", "com.google.android.gm",
+                "com.google.android.apps.maps", "com.android.vending"
             )
             val placed = placedAppIds()
             for (pkg in preferred) {
@@ -778,6 +776,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             displaceAndPlace(item, hits, page, x, y)
         }
         saveLayout()
+    }
+
+    /** Riporta la Home all'impostazione pulita: widget in alto, poche app, dock. */
+    fun resetHome() {
+        items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
+        items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
+        editMode = false
+        openFolderId = null
+        buildDefault()
+        saveLayout()
+        homeSignal += 1
     }
 
     /** Mette un elemento grande dove vuole e sposta in posti liberi quelli che occupavano l'area. */

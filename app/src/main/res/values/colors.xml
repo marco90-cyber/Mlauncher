@@ -1,3 +1,4 @@
 <resources>
     <color name="ic_background">#3D5AFE</color>
+    <color name="ic_home_settings_bg">#FFDCE1FF</color>
 </resources>

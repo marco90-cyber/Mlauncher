@@ -291,6 +291,28 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
             }
             item {
                 Group("Manutenzione") {
+                    var confirmReset by remember { mutableStateOf(false) }
+                    ListItem(
+                        headlineContent = { Text("Riordina Home") },
+                        supportingContent = { Text("Widget in alto, poche app e dock. Le altre restano nel cassetto") },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { confirmReset = true }
+                    )
+                    if (confirmReset) {
+                        AlertDialog(
+                            onDismissRequest = { confirmReset = false },
+                            title = { Text("Riordinare la Home?") },
+                            text = { Text("La disposizione attuale di icone, cartelle e widget verrà sostituita.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    confirmReset = false
+                                    vm.resetHome()
+                                    vm.overlay = Overlay.NONE
+                                }) { Text("Riordina") }
+                            },
+                            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Annulla") } }
+                        )
+                    }
                     ListItem(
                         headlineContent = { Text("Riavvia Home") },
                         supportingContent = { Text("Ricarica app, icone, meteo e widget") },

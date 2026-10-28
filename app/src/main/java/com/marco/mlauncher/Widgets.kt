@@ -855,9 +855,41 @@ fun BatteryWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
         val accFs = minOf(maxHeight * 0.10f, maxWidth * 0.05f).coerceIn(11.dp, 15.dp).asSp()
         val ringTextFs = (if (small) pctSmall else pctFs).asSp()
         val onC = cs.onSecondaryContainer
+        val bars = maxWidth >= 220.dp && maxHeight >= 150.dp
+        val barFs = minOf(maxHeight * 0.12f, maxWidth * 0.06f).coerceIn(14.dp, 20.dp).asSp()
         val ringH = if (accessories.isEmpty()) maxHeight * 0.70f else maxHeight * 0.52f
 
-        if (wide) {
+        if (bars) {
+            val rowsMax = (((maxHeight - 28.dp) / 46.dp).toInt()).coerceAtLeast(1)
+            val rows = listOf(Accessory("Telefono", level, if (charging) "⚡" else "📱")) + accessories
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.SpaceEvenly
+            ) {
+                rows.take(rowsMax).forEachIndexed { idx, r ->
+                    Column(Modifier.fillMaxWidth()) {
+                        AccessoryRow(r, onC, if (idx == 0) barFs else accFs)
+                        Spacer(Modifier.height(3.dp))
+                        Box(
+                            Modifier.fillMaxWidth().height(if (idx == 0) 12.dp else 8.dp)
+                                .clip(CircleShape).background(track)
+                        ) {
+                            Box(
+                                Modifier.fillMaxHeight().fillMaxWidth(r.level / 100f).clip(CircleShape)
+                                    .background(if (idx == 0) ring else cs.tertiary)
+                            )
+                        }
+                    }
+                }
+                if (accessories.isEmpty() && !hasPerm && rowsMax > 1) {
+                    Text(
+                        "Tocca per mostrare la batteria degli accessori",
+                        color = onC.copy(alpha = 0.7f),
+                        fontSize = accFs
+                    )
+                }
+            }
+        } else if (wide) {
             Row(
                 Modifier.fillMaxSize().padding(pad),
                 verticalAlignment = Alignment.CenterVertically,
