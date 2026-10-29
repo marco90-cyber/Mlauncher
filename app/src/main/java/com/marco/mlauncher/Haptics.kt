@@ -10,11 +10,17 @@ object Haptics {
     @Volatile var onPress: Boolean = true
     @Volatile var onDrop: Boolean = true
     @Volatile var onTick: Boolean = true
+    @Volatile var onPage: Boolean = true
     val pressOn get() = enabled && onPress
 
     /** Leggero: passaggio di pagina, passo di ridimensionamento, selezione. */
     fun tick(v: View) {
         if (enabled && onTick) v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+    }
+
+    /** Cambio di pagina nella Home. */
+    fun page(v: View) {
+        if (enabled && onPage) v.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
     }
 
     /** Pressione lunga, inizio trascinamento. */

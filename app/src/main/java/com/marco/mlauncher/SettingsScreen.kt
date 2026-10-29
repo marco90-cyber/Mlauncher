@@ -674,8 +674,13 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
             s.hapDrop
         ) { vm.setSetting("hapDrop", it) }
         SwitchRow(
+            "A ogni pagina",
+            "Un tocco leggero quando cambi pagina nella Home",
+            s.hapPage
+        ) { vm.setSetting("hapPage", it) }
+        SwitchRow(
             "Scorrimento e selezione",
-            "Cambio pagina, ridimensionamento, gesti su e giù",
+            "Ridimensionamento, lista del cassetto, gesti su e giù",
             s.hapTick
         ) { vm.setSetting("hapTick", it) }
     }
@@ -724,6 +729,7 @@ private fun PageLook(vm: LauncherViewModel) {
         ChoiceRow(
             "Indicatore di pagina",
             listOf(
+                "ios" to "iOS 27 (diventa \"Cerca\")",
                 "pill" to "Puntini (attivo allungato)",
                 "dots" to "Puntini semplici",
                 "lines" to "Linee",
@@ -735,6 +741,12 @@ private fun PageLook(vm: LauncherViewModel) {
             s.pageIndicator,
             preview = { IndicatorPreview(it) }
         ) { vm.setSetting("pageIndicator", it) }
+        Text(
+            "Con qualsiasi stile: tieni premuto sull'indicatore e scorri per cambiare pagina al volo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 }
 
@@ -1025,6 +1037,14 @@ private fun IndicatorPreview(key: String) {
     ) {
         when (key) {
             "none" -> Text("\u2014", color = off)
+            "ios" -> Row(
+                Modifier.clip(CircleShape).background(off.copy(alpha = 0.25f)).padding(horizontal = 7.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Search, contentDescription = null, tint = on, modifier = Modifier.size(11.dp))
+                Spacer(Modifier.width(3.dp))
+                Text("Cerca", color = on, style = MaterialTheme.typography.labelSmall)
+            }
             "number" -> Text("2 / 5", color = on, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
             "progress" -> Box(Modifier.width(44.dp).height(4.dp).clip(CircleShape).background(off)) {
                 Box(Modifier.width(18.dp).height(4.dp).clip(CircleShape).background(on))

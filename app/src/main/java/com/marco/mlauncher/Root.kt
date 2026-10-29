@@ -38,6 +38,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
         Haptics.onPress = vm.settings.hapPress
         Haptics.onDrop = vm.settings.hapDrop
         Haptics.onTick = vm.settings.hapTick
+        Haptics.onPage = vm.settings.hapPage
         val window = (view.context as? Activity)?.window
         if (window != null) {
             val c = WindowCompat.getInsetsController(window, view)

@@ -2,7 +2,11 @@ package com.marco.mlauncher
 
 import android.appwidget.AppWidgetProviderInfo
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -289,7 +293,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         var first = true
         snapshotFlow { pagerState.currentPage }.collect {
             vm.currentPage = it
-            if (!first) Haptics.tick(view)
+            if (!first) Haptics.page(view)
             first = false
         }
     }
@@ -411,7 +415,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
                     Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
-                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
+                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
                 }
                 if (!seascape) dockContent()
             }
@@ -424,7 +428,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         ) {
             Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
-            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
+            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
             Dock(
                 vm = vm,
                 host = host,
@@ -604,15 +608,83 @@ private fun BarButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PageDots(count: Int, state: PagerState, style: String) {
+private fun PageDots(count: Int, state: PagerState, style: String, onSearch: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val view = androidx.compose.ui.platform.LocalView.current
+    var scrubbing by remember { mutableStateOf(false) }
+    val ios = style == "ios"
+    // stile iOS: dopo qualche secondo fermo i puntini diventano "Cerca"
+    var showSearch by remember { mutableStateOf(false) }
+    LaunchedEffect(ios, count, state.currentPage, state.isScrollInProgress, scrubbing) {
+        showSearch = false
+        if (ios && (count <= 1 || (!state.isScrollInProgress && !scrubbing))) {
+            if (count > 1) delay(2500)
+            showSearch = true
+        }
+    }
+    val scale by animateFloatAsState(if (scrubbing) 1.25f else 1f, label = "scrub")
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(if (ios) 34.dp else 24.dp)
+            .pointerInput(count) {
+                if (count <= 1) return@pointerInput
+                // tieni premuto e scorri sull'indicatore per cambiare pagina
+                fun pageAt(x: Float) = ((x / size.width) * count).toInt().coerceIn(0, count - 1)
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { o ->
+                        scrubbing = true
+                        Haptics.press(view)
+                        val p = pageAt(o.x)
+                        if (p != state.currentPage) scope.launch { state.scrollToPage(p) }
+                    },
+                    onDrag = { ch, _ ->
+                        ch.consume()
+                        val p = pageAt(ch.position.x)
+                        if (p != state.currentPage) scope.launch { state.scrollToPage(p) }
+                    },
+                    onDragEnd = { scrubbing = false },
+                    onDragCancel = { scrubbing = false }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (style == "none" || (count <= 1 && !ios)) return@Box
+        val capsule = ios || scrubbing
+        Row(
+            Modifier
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = if (capsule) 0.22f else 0f))
+                .border(1.dp, Color.White.copy(alpha = if (ios) 0.28f else 0f), CircleShape)
+                .then(
+                    if (ios) Modifier.pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            if (showSearch) onSearch() else showSearch = true
+                        })
+                    } else Modifier
+                )
+                .animateContentSize(tween(Motion.FOLDER, easing = Motion.EmphasizedDecelerate))
+                .padding(horizontal = if (capsule) 12.dp else 0.dp, vertical = if (capsule) 7.dp else 0.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (ios && showSearch) {
+                Icon(Icons.Default.Search, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Cerca", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            } else {
+                PageDotsContent(count, state, if (ios) "dots" else style)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageDotsContent(count: Int, state: PagerState, style: String) {
     val current = state.currentPage
     val white = Color.White
-    Row(
-        Modifier.fillMaxWidth().height(18.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (count <= 1 || style == "none") return@Row
+    Row(verticalAlignment = Alignment.CenterVertically) {
         when (style) {
             "dots" -> repeat(count) { i ->
                 val sel = current == i

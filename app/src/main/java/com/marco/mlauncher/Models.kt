@@ -123,7 +123,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var iconScaleL by mutableStateOf(sp.getFloat("iconScale_l", sp.getFloat("iconScale", 1f)))
     val iconScale: Float get() = if (landscape) iconScaleL else iconScaleP
     private var showLabelsP by mutableStateOf(sp.getBoolean("showLabels", true))
-    private var showLabelsL by mutableStateOf(sp.getBoolean("showLabels_l", false))
+    private var showLabelsL by mutableStateOf(sp.getBoolean("showLabels_l", true))
     val showLabels: Boolean get() = if (landscape) showLabelsL else showLabelsP
     var themedIcons by mutableStateOf(sp.getBoolean("themedIcons", false))
         private set
@@ -164,6 +164,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapPress by mutableStateOf(sp.getBoolean("hapPress", true))
     var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
+    var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
         private set
     var drLayout by mutableStateOf(sp.getString("drLayout", "grid") ?: "grid")
     private var drColsP by mutableStateOf(sp.getInt("drCols", 4))
@@ -279,6 +280,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapPress" -> hapPress = value as Boolean
             "hapDrop" -> hapDrop = value as Boolean
             "hapTick" -> hapTick = value as Boolean
+            "hapPage" -> hapPage = value as Boolean
             "drLayout" -> drLayout = value as String
             "drCols" -> if (landscape) drColsL = value as Int else drColsP = value as Int
             "drRowH" -> if (landscape) drRowHL = value as Float else drRowHP = value as Float
