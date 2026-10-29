@@ -68,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
@@ -218,7 +219,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     }
     val cats = listOf(
         Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home"), Icons.Default.Home),
-        Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 stile ${dockNames[s.dockStyle] ?: ""}", Icons.Default.Menu),
+        Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 ${DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""}", Icons.Default.Menu),
         Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""}", Icons.Default.Star),
         Cat("folders", "Cartelle", "Anteprima: ${folderNames[s.folderPreview] ?: ""}", Icons.Default.List),
         Cat("widgets", "Widget e ricerca", "Ricerca ${searchNames[s.searchBar] ?: ""}", Icons.Default.Search),
@@ -314,17 +315,36 @@ private fun PageHome(vm: LauncherViewModel) {
 @Composable
 private fun PageDock(vm: LauncherViewModel) {
     val s = vm.settings
-    Group(null) {
-        SliderRow("Icone nella dock", "${s.dockSlots}", s.dockSlots.toFloat(), 4f..6f, 1, preview = { DockPreview(s.dockStyle, s.dockSlots) }) {
+    DockLivePreview(s)
+    Group("Stile") {
+        ChoiceRow(
+            "Stile della dock",
+            DOCK_STYLES,
+            s.dockStyle,
+            preview = { DockPreview(it, s.dockSlots, s.dockOpacity, s.dockGlass, s.dockCorner) }
+        ) { vm.setSetting("dockStyle", it) }
+        SwitchRow(
+            "Effetto glass",
+            "Riflesso e bordo luminoso come il vetro",
+            s.dockGlass
+        ) { vm.setSetting("dockGlass", it) }
+    }
+    Group("Personalizza") {
+        SliderRow("Trasparenza", "${100 - s.dockOpacity}%", s.dockOpacity.toFloat(), 0f..100f, 19) {
+            val v = (it / 5f).roundToInt() * 5
+            if (v != s.dockOpacity) vm.setSetting("dockOpacity", v)
+        }
+        SliderRow("Grandezza", "${(s.dockSize * 100).roundToInt()}%", s.dockSize, 0.8f..1.2f, 7) {
+            vm.setSetting("dockSize", (it * 20).roundToInt() / 20f)
+        }
+        SliderRow("Arrotondamento", "${s.dockCorner} dp", s.dockCorner.toFloat(), 0f..40f, 0) {
+            val v = it.roundToInt()
+            if (v != s.dockCorner) vm.setSetting("dockCorner", v)
+        }
+        SliderRow("Icone nella dock", "${s.dockSlots}", s.dockSlots.toFloat(), 4f..6f, 1) {
             val v = it.roundToInt()
             if (v != s.dockSlots) vm.setSetting("dockSlots", v)
         }
-        ChoiceRow(
-            "Stile della dock",
-            listOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno"),
-            s.dockStyle,
-            preview = { DockPreview(it, s.dockSlots) }
-        ) { vm.setSetting("dockStyle", it) }
     }
 }
 
@@ -747,29 +767,91 @@ private fun GridPreview(cols: Int, rows: Int) {
     }
 }
 
+private val previewWallpaper = Brush.linearGradient(
+    listOf(Color(0xFF0B1B3A), Color(0xFF1E88C8), Color(0xFF0A2A52), Color(0xFF16A6E0))
+)
+
 @Composable
-private fun DockPreview(style: String, slots: Int) {
+private fun DockPreview(style: String, slots: Int, opacity: Int, glass: Boolean, corner: Int) {
     val cs = MaterialTheme.colorScheme
-    val bg = cs.surfaceContainerHighest
-    Box(Modifier.width(56.dp).height(34.dp), contentAlignment = Alignment.BottomCenter) {
-        val shape = when (style) {
-            "ios" -> RoundedCornerShape(10.dp)
-            "samsung" -> RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
-            "hyperos" -> RoundedCornerShape(50)
-            else -> RoundedCornerShape(0.dp)
-        }
-        val m = if (style == "samsung") 0.dp else 3.dp
+    Box(
+        Modifier.size(width = 64.dp, height = 40.dp).clip(RoundedCornerShape(8.dp)).background(previewWallpaper),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        val c = (corner * 0.4f).dp
+        val bar = style == "bar"
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = m, vertical = if (style == "samsung") 0.dp else 3.dp)
-                .height(if (style == "ios") 18.dp else 16.dp)
-                .clip(shape)
-                .background(if (style == "none") Color.Transparent else bg),
+                .padding(horizontal = if (bar) 0.dp else 4.dp, vertical = if (bar) 0.dp else 4.dp)
+                .height(16.dp)
+                .dockLook(style, opacity, glass, c),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            repeat(slots) { Box(Modifier.size(5.dp).clip(RoundedCornerShape(2.dp)).background(cs.primary)) }
+            repeat(minOf(slots, 5)) {
+                Box(
+                    Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(Color.White)
+                        .then(if (style == "tiles") Modifier.dockTile(opacity, glass, 4.dp) else Modifier)
+                )
+            }
+        }
+    }
+}
+
+/** Anteprima grande: sfondo, qualche icona e la dock con le impostazioni attuali. */
+@Composable
+private fun DockLivePreview(s: LauncherSettings) {
+    val cs = MaterialTheme.colorScheme
+    Box(
+        Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .height(190.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(previewWallpaper)
+    ) {
+        // onde dello sfondo
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(260f, 120f),
+                    radius = 520f
+                )
+            )
+        )
+        Row(
+            Modifier.align(Alignment.TopCenter).padding(top = 18.dp).fillMaxWidth().padding(horizontal = 22.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            repeat(4) {
+                Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.85f)))
+            }
+        }
+        val h = 66.dp * s.dockSize
+        val bar = s.dockStyle == "bar"
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = if (bar) 0.dp else 14.dp, vertical = if (bar) 0.dp else 12.dp)
+                .height(h)
+                .dockLook(s.dockStyle, s.dockOpacity, s.dockGlass, (s.dockCorner * 0.8f).dp)
+        ) {
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                repeat(s.dockSlots) {
+                    Box(Modifier.weight(1f).fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
+                        .then(if (s.dockStyle == "tiles") Modifier.dockTile(s.dockOpacity, s.dockGlass, 14.dp) else Modifier),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            Modifier.size(40.dp * s.dockSize).clip(RoundedCornerShape(12.dp * s.dockSize))
+                                .background(cs.primaryContainer)
+                        )
+                    }
+                }
+            }
         }
     }
 }

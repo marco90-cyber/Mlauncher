@@ -128,7 +128,13 @@ class LauncherSettings(private val sp: SharedPreferences) {
         private set
     var dockSlots by mutableIntStateOf(sp.getInt("dockSlots", 4))
         private set
-    var dockStyle by mutableStateOf(sp.getString("dockStyle", "hyperos") ?: "hyperos")
+    var dockStyle by mutableStateOf(
+        (sp.getString("dockStyle", "glass") ?: "glass").let { if (it in listOf("glass", "tinted", "dark", "pill", "bar", "tiles", "none")) it else "glass" }
+    )
+    var dockOpacity by mutableStateOf(sp.getInt("dockOpacity", 60))
+    var dockGlass by mutableStateOf(sp.getBoolean("dockGlass", true))
+    var dockSize by mutableStateOf(sp.getFloat("dockSize", 1f))
+    var dockCorner by mutableStateOf(sp.getInt("dockCorner", 30))
         private set
     var haptics by mutableStateOf(sp.getBoolean("haptics", true))
     var hapPress by mutableStateOf(sp.getBoolean("hapPress", true))
@@ -201,6 +207,10 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "autoAddNew" -> autoAddNew = value as Boolean
             "dockSlots" -> dockSlots = value as Int
             "dockStyle" -> dockStyle = value as String
+            "dockOpacity" -> dockOpacity = value as Int
+            "dockGlass" -> dockGlass = value as Boolean
+            "dockSize" -> dockSize = value as Float
+            "dockCorner" -> dockCorner = value as Int
             "haptics" -> haptics = value as Boolean
             "hapPress" -> hapPress = value as Boolean
             "hapDrop" -> hapDrop = value as Boolean

@@ -739,26 +739,28 @@ private fun Dock(
     onRect: (Rect) -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
-    val style = vm.settings.dockStyle
-    val margin = when (style) { "ios" -> 12.dp; "samsung" -> 8.dp; else -> 16.dp }
-    val corner = when (style) { "ios" -> 34.dp; "samsung" -> 26.dp; else -> 30.dp }
-    val bg = when (style) {
-        "ios" -> Color.White.copy(alpha = 0.22f)
-        "samsung" -> cs.surfaceContainerHighest.copy(alpha = 0.6f)
-        "hyperos" -> cs.surfaceContainer.copy(alpha = 0.5f)
-        else -> Color.Transparent
-    }
-    val border = if (style == "hyperos") Modifier.border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(corner)) else Modifier
+    val st = vm.settings
+    val style = st.dockStyle
+    val margin = if (style == "bar") 0.dp else 16.dp
+    val corner = st.dockCorner.dp
     Box(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = margin, vertical = 6.dp)
-            .height(92.dp)
-            .clip(RoundedCornerShape(corner))
-            .background(bg)
-            .then(border)
+            .height(92.dp * st.dockSize)
+            .dockLook(style, st.dockOpacity, st.dockGlass, corner)
             .onGloballyPositioned { onRect(it.boundsInRoot()) }
     ) {
+        if (style == "tiles") {
+            Row(Modifier.fillMaxSize()) {
+                repeat(st.dockSlots) {
+                    Box(
+                        Modifier.weight(1f).fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
+                            .dockTile(st.dockOpacity, st.dockGlass, minOf(corner, 26.dp))
+                    )
+                }
+            }
+        }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val cw = maxWidth / vm.settings.dockSlots
             for (item in vm.items) {
@@ -771,6 +773,7 @@ private fun Dock(
                             cellW = cw,
                             cellH = maxHeight,
                             labels = false,
+                            scale = st.dockSize,
                             hidden = item.id in dragId,
                             cb = cb,
                             onMenu = onMenu,
@@ -868,7 +871,8 @@ private fun GridItem(
     hidden: Boolean,
     cb: DragCallbacks,
     onMenu: (HomeItem, Rect) -> Unit,
-    modifier: Modifier
+    modifier: Modifier,
+    scale: Float = 1f
 ) {
     val s = vm.settings
     val holder = remember { BoundsHolder() }
@@ -876,7 +880,7 @@ private fun GridItem(
     val edit = vm.editMode
     // misure proporzionali alla cella: si adattano a qualsiasi schermo
     val base = if (labels) minOf(cellW * 0.62f, cellH * 0.50f) else minOf(cellW * 0.82f, cellH * 0.72f)
-    val iconSize = minOf(base * s.iconScale, 88.dp)
+    val iconSize = minOf(base * s.iconScale * scale, 96.dp)
     val app = (item as? AppItem)?.let { vm.apps[it.appId] }
     if (item is AppItem && app == null) return
 
