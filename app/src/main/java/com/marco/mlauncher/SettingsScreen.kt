@@ -135,11 +135,6 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                         s.dockStyle
                     ) { vm.setSetting("dockStyle", it) }
                     Divider()
-                    ChoiceRow(
-                        "Forma delle icone",
-                        listOf("ios" to "iOS (squircola)", "circle" to "Cerchio", "original" to "Originale del sistema"),
-                        s.iconShape
-                    ) { vm.setSetting("iconShape", it) }
                     SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
                     SwitchRow(
                         "Icone Material You",
@@ -216,7 +211,17 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
             item {
-                Group("Icone e notifiche") {
+                Group("Icone") {
+                    ChoiceRow(
+                        "Forma",
+                        listOf(
+                            "original" to "Predefinita (come sono sempre state)",
+                            "ios" to "iOS (squircola)",
+                            "circle" to "Cerchio",
+                            "square" to "Quadrato arrotondato"
+                        ),
+                        s.iconShape
+                    ) { vm.setSetting("iconShape", it) }
                     ChoiceRow(
                         "Pacchetto icone",
                         listOf("" to "Predefinito") + vm.iconPacks.map { it.first to it.second },

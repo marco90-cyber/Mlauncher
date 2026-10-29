@@ -132,7 +132,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
         private set
     var haptics by mutableStateOf(sp.getBoolean("haptics", true))
         private set
-    var iconShape by mutableStateOf(sp.getString("iconShape", "ios") ?: "ios")
+    var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
         private set
     var pageIndicator by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
         private set

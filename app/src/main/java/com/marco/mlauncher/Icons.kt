@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.sin
 
-val LocalIconShape = androidx.compose.runtime.compositionLocalOf { "ios" }
+val LocalIconShape = androidx.compose.runtime.compositionLocalOf { "original" }
 
 /** Squircola in stile iOS (superellisse). */
 val IosShape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.GenericShape { size, _ ->
@@ -67,8 +67,10 @@ val IosShape: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.s
 fun iconShapeFor(iconSize: Dp, fallbackRadius: Float): androidx.compose.ui.graphics.Shape =
     when (LocalIconShape.current) {
         "circle" -> CircleShape
+        "square" -> RoundedCornerShape(iconSize * 0.22f)
+        "ios" -> IosShape
         "original" -> RoundedCornerShape(iconSize * fallbackRadius)
-        else -> IosShape
+        else -> RoundedCornerShape(iconSize * fallbackRadius)
     }
 
 @Composable
