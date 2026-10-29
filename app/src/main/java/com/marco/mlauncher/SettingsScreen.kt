@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
@@ -81,6 +82,7 @@ private val shapeNames = mapOf(
 private val effectNames = mapOf(
     "slide" to "Scorrimento", "fade" to "Dissolvenza", "cube" to "Cubo", "rotate" to "Rotazione", "cascade" to "Cascata"
 )
+private val folderNames = mapOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72", "stack" to "Ventaglio")
 private val themeNames = mapOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro")
 private val dockNames = mapOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno")
 private val searchNames = mapOf("home" to "in alto nella Home", "dock" to "sopra la dock", "none" to "nascosta")
@@ -89,6 +91,7 @@ private fun pageTitle(key: String?) = when (key) {
     "home" -> "Schermata Home"
     "dock" -> "Dock"
     "icons" -> "Icone e notifiche"
+    "folders" -> "Cartelle"
     "widgets" -> "Widget e ricerca"
     "gestures" -> "Gesti e feedback"
     "effects" -> "Effetti e animazioni"
@@ -150,6 +153,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "home" -> PageHome(vm)
                     "dock" -> PageDock(vm)
                     "icons" -> PageIcons(vm, host)
+                    "folders" -> PageFolders(vm)
                     "widgets" -> PageWidgets(vm)
                     "gestures" -> PageGestures(vm, host)
                     "effects" -> PageEffects(vm)
@@ -203,6 +207,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home"), Icons.Default.Home),
         Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 stile ${dockNames[s.dockStyle] ?: ""}", Icons.Default.Menu),
         Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""}", Icons.Default.Star),
+        Cat("folders", "Cartelle", "Anteprima: ${folderNames[s.folderPreview] ?: ""}", Icons.Default.List),
         Cat("widgets", "Widget e ricerca", "Ricerca ${searchNames[s.searchBar] ?: ""}", Icons.Default.Search),
         Cat("gestures", "Gesti e feedback", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
         Cat("effects", "Effetti e animazioni", "Cambio pagina: ${effectNames[s.pageEffect] ?: ""}", Icons.Default.Favorite),
@@ -348,6 +353,71 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
                 },
                 confirmButton = { TextButton(onClick = { hiddenOpen = false }) { Text("Chiudi") } }
             )
+        }
+    }
+}
+
+@Composable
+private fun PageFolders(vm: LauncherViewModel) {
+    val s = vm.settings
+    Group("Aspetto") {
+        ChoiceRow(
+            "Anteprima della cartella",
+            listOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72 (icone grandi)", "stack" to "Ventaglio"),
+            s.folderPreview,
+            preview = { FolderPreview(it, s.folderBg) }
+        ) { vm.setSetting("folderPreview", it) }
+        ChoiceRow(
+            "Sfondo della cartella",
+            listOf("tonal" to "Tonale", "primary" to "Colore principale", "dark" to "Scuro trasparente", "glass" to "Vetro chiaro"),
+            s.folderBg,
+            preview = { FolderPreview(s.folderPreview, it) }
+        ) { vm.setSetting("folderBg", it) }
+    }
+    Group("Cartella aperta") {
+        SliderRow("Colonne", "${s.folderCols}", s.folderCols.toFloat(), 3f..5f, 1) {
+            val v = it.roundToInt()
+            if (v != s.folderCols) vm.setSetting("folderCols", v)
+        }
+        ListItem(
+            headlineContent = { Text("Ordina A-Z") },
+            supportingContent = { Text("Tieni premuta una cartella nella Home e scegli \"Ordina A-Z\". Trascina le icone per riordinarle a mano.") },
+            colors = prefColors()
+        )
+    }
+}
+
+@Composable
+private fun FolderPreview(style: String, bgKey: String) {
+    val cs = MaterialTheme.colorScheme
+    val bg = when (bgKey) {
+        "primary" -> cs.primaryContainer
+        "dark" -> Color.Black.copy(alpha = 0.45f)
+        "glass" -> Color.White.copy(alpha = 0.5f)
+        else -> cs.surfaceContainerHighest
+    }
+    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(bg).padding(5.dp)) {
+        when (style) {
+            "grid2" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+                repeat(2) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    repeat(2) { Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(cs.primary)) }
+                } }
+            }
+            "stack" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                repeat(3) { i ->
+                    val k = 2 - i
+                    Box(
+                        Modifier.offset(x = (2 * k).dp, y = (-2 * k).dp).size(14.dp)
+                            .graphicsLayer { rotationZ = k * 8f }
+                            .clip(RoundedCornerShape(4.dp)).background(cs.primary.copy(alpha = 1f - 0.25f * k))
+                    )
+                }
+            }
+            else -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                repeat(3) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    repeat(3) { Box(Modifier.size(6.dp).clip(RoundedCornerShape(2.dp)).background(cs.primary)) }
+                } }
+            }
         }
     }
 }

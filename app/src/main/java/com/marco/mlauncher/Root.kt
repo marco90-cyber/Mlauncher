@@ -34,7 +34,10 @@ fun Root(vm: LauncherViewModel, host: Host) {
         }
     }
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalIconShape provides vm.settings.iconShape) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalIconShape provides vm.settings.iconShape,
+        LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg)
+    ) {
         Box(Modifier.fillMaxSize()) {
             if (vm.loaded) HomeScreen(vm, host)
             FolderOverlay(vm, host)

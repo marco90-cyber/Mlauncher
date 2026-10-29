@@ -136,6 +136,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
         private set
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
+    var folderPreview by mutableStateOf(sp.getString("folderPreview", "grid") ?: "grid")
+    var folderBg by mutableStateOf(sp.getString("folderBg", "tonal") ?: "tonal")
+    var folderCols by mutableStateOf(sp.getInt("folderCols", 4))
         private set
     var pageIndicator by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
         private set
@@ -202,6 +205,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapDrop" -> hapDrop = value as Boolean
             "hapTick" -> hapTick = value as Boolean
             "iconShape" -> iconShape = value as String
+            "folderPreview" -> folderPreview = value as String
+            "folderBg" -> folderBg = value as String
+            "folderCols" -> folderCols = value as Int
             "pageIndicator" -> pageIndicator = value as String
             "searchBar" -> searchBar = value as String
             "badges" -> badges = value as String

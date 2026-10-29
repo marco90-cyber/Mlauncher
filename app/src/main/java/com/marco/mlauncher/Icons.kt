@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
@@ -105,23 +106,65 @@ fun AppIcon(app: AppEntry, iconSize: Dp, themed: Boolean, modifier: Modifier = M
     }
 }
 
+val LocalFolderStyle = androidx.compose.runtime.compositionLocalOf { "grid" to "tonal" }
+
+@Composable
 @Composable
 fun FolderIcon(folder: FolderItem, apps: Map<String, AppEntry>, iconSize: Dp, themed: Boolean) {
     val cs = MaterialTheme.colorScheme
-    val mini = iconSize * 0.24f
+    val (preview, bgKey) = LocalFolderStyle.current
+    val bg = when (bgKey) {
+        "primary" -> cs.primaryContainer
+        "dark" -> androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)
+        "glass" -> androidx.compose.ui.graphics.Color.White.copy(alpha = 0.28f)
+        else -> cs.surfaceContainerHighest.copy(alpha = 0.6f)
+    }
     Box(
         Modifier
             .size(iconSize)
             .clip(iconShapeFor(iconSize, 0.30f))
-            .background(cs.surfaceContainerHighest.copy(alpha = 0.6f))
+            .background(bg)
             .padding(iconSize * 0.10f)
     ) {
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-            for (r in 0 until 3) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    for (c in 0 until 3) {
-                        val a = folder.appIds.getOrNull(r * 3 + c)?.let { apps[it] }
-                        if (a != null) AppIcon(a, mini, themed) else Spacer(Modifier.size(mini))
+        when (preview) {
+            "grid2" -> {
+                val mini = iconSize * 0.38f
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+                    for (r in 0 until 2) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            for (c in 0 until 2) {
+                                val a = folder.appIds.getOrNull(r * 2 + c)?.let { apps[it] }
+                                if (a != null) AppIcon(a, mini, themed) else Spacer(Modifier.size(mini))
+                            }
+                        }
+                    }
+                }
+            }
+            "stack" -> {
+                // ventaglio: le prime tre icone sovrapposte
+                val big = iconSize * 0.56f
+                val list = folder.appIds.take(3).mapNotNull { apps[it] }.reversed()
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    list.forEachIndexed { i, a ->
+                        val k = list.size - 1 - i
+                        Box(
+                            Modifier
+                                .offset(x = iconSize * 0.07f * k, y = -iconSize * 0.07f * k)
+                                .graphicsLayer { rotationZ = k * 8f; alpha = 1f - 0.18f * k }
+                        ) { AppIcon(a, big, themed) }
+                    }
+                }
+            }
+            else -> {
+                val mini = iconSize * 0.24f
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                    for (r in 0 until 3) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            for (c in 0 until 3) {
+                                val a = folder.appIds.getOrNull(r * 3 + c)?.let { apps[it] }
+                                if (a != null) AppIcon(a, mini, themed) else Spacer(Modifier.size(mini))
+                            }
+                        }
                     }
                 }
             }

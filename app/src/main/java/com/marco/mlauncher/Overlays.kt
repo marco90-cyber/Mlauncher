@@ -187,7 +187,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                             modifier = Modifier.fillMaxWidth()
                         )
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(4),
+                            columns = GridCells.Fixed(s.folderCols),
                             modifier = Modifier.heightIn(max = 380.dp),
                             contentPadding = PaddingValues(top = 8.dp)
                         ) {

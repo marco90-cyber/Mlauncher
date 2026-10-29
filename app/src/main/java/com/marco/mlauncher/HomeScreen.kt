@@ -1193,7 +1193,7 @@ internal fun QuickMenu(
     val shortcuts by produceState<List<ShortcutEntry>>(emptyList(), item.id) {
         if (app != null) value = withContext(Dispatchers.IO) { vm.loadShortcuts(app.pkg) }
     }
-    val rows = (if (app != null) 3 + (if (app.removable) 1 else 0) else 4) + shortcuts.size
+    val rows = (if (app != null) 3 + (if (app.removable) 1 else 0) else 5) + shortcuts.size
     val menuW = 236.dp
     val menuWpx = with(density) { menuW.toPx() }
     val estH = with(density) { (rows * 50 + 16).dp.toPx() }
@@ -1247,6 +1247,10 @@ internal fun QuickMenu(
                     MenuRow("Rinomina") {
                         onDismiss()
                         vm.openFolderId = item.folderId
+                    }
+                    MenuRow("Ordina A-Z") {
+                        onDismiss()
+                        vm.sortFolder(item.folderId)
                     }
                     MenuRow(if (item.big) "Riduci" else "Ingrandisci (2x2)") {
                         onDismiss()

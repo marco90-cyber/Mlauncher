@@ -407,6 +407,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
+    fun sortFolder(folderId: String) {
+        val f = items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem ?: return
+        replace(f, f.copy(appIds = f.appIds.sortedBy { (apps[it]?.label ?: it).lowercase() }))
+        saveLayout()
+    }
+
     /** Ricarica app, icone, meteo e layout. */
     fun restartHome() {
         editMode = false
