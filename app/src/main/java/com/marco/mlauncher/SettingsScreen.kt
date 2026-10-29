@@ -537,16 +537,22 @@ private fun PageFolders(vm: LauncherViewModel) {
             s.folderFollowDock
         ) { vm.setSetting("folderFollowDock", it) }
         ChoiceRow(
+            "Forma della cartella",
+            FOLDER_SHAPES,
+            s.folderShape,
+            preview = { FolderPreview(s.folderPreview, s.folderBg, it) }
+        ) { vm.setSetting("folderShape", it) }
+        ChoiceRow(
             "Anteprima della cartella",
             listOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72 (icone grandi)", "stack" to "Ventaglio"),
             s.folderPreview,
-            preview = { FolderPreview(it, s.folderBg) }
+            preview = { FolderPreview(it, s.folderBg, s.folderShape) }
         ) { vm.setSetting("folderPreview", it) }
         if (!s.folderFollowDock) ChoiceRow(
             "Sfondo della cartella",
             listOf("tonal" to "Tonale", "primary" to "Colore principale", "dark" to "Scuro trasparente", "glass" to "Vetro chiaro"),
             s.folderBg,
-            preview = { FolderPreview(s.folderPreview, it) }
+            preview = { FolderPreview(s.folderPreview, it, s.folderShape) }
         ) { vm.setSetting("folderBg", it) }
     }
     Group("Cartella aperta") {
@@ -567,7 +573,7 @@ private fun PageFolders(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun FolderPreview(style: String, bgKey: String) {
+private fun FolderPreview(style: String, bgKey: String, shapeKey: String = "squircle") {
     val cs = MaterialTheme.colorScheme
     val bg = when (bgKey) {
         "primary" -> cs.primaryContainer
@@ -575,7 +581,7 @@ private fun FolderPreview(style: String, bgKey: String) {
         "glass" -> Color.White.copy(alpha = 0.5f)
         else -> cs.surfaceContainerHighest
     }
-    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(bg).padding(5.dp)) {
+    Box(Modifier.size(34.dp).clip(folderShapeOf(shapeKey)).background(bg).padding((34 * folderShapeInset(shapeKey)).dp)) {
         when (style) {
             "grid2" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
                 repeat(2) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {

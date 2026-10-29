@@ -106,6 +106,7 @@ fun AppIcon(app: AppEntry, iconSize: Dp, themed: Boolean, modifier: Modifier = M
     }
 }
 
+val LocalFolderShape = androidx.compose.runtime.compositionLocalOf { "squircle" }
 val LocalFolderStyle = androidx.compose.runtime.compositionLocalOf { "grid" to "tonal" }
 
 @Composable
@@ -119,15 +120,17 @@ fun FolderIcon(folder: FolderItem, apps: Map<String, AppEntry>, iconSize: Dp, th
         else -> cs.surfaceContainerHighest.copy(alpha = 0.6f)
     }
     val dock = LocalFolderDock.current
+    val shapeKey = LocalFolderShape.current
+    val shape = folderShapeOf(shapeKey)
     val iconCorner = minOf((dock?.corner ?: 0).dp, iconSize * 0.38f)
     val base = Modifier.size(iconSize)
     val look = when {
-        dock == null -> base.clip(iconShapeFor(iconSize, 0.30f)).background(bg)
-        dock.style == "none" || dock.style == "tiles" -> base.dockTile(maxOf(dock.opacity, 50), dock.glass, iconCorner)
-        else -> base.dockLook(if (dock.style == "bar") "pill" else dock.style, dock.opacity, dock.glass, iconCorner)
+        dock == null -> base.clip(shape).background(bg)
+        dock.style == "none" || dock.style == "tiles" -> base.dockTile(maxOf(dock.opacity, 50), dock.glass, iconCorner, shape)
+        else -> base.dockLook(if (dock.style == "bar") "pill" else dock.style, dock.opacity, dock.glass, iconCorner, shape)
     }
     Box(
-        look.padding(iconSize * 0.10f)
+        look.padding(iconSize * folderShapeInset(shapeKey))
     ) {
         when (preview) {
             "grid2" -> {

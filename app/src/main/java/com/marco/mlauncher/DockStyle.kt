@@ -28,7 +28,7 @@ fun dockShape(style: String, corner: Dp): Shape =
 
 /** Aspetto della dock: usato sia dalla Home sia dalle anteprime nelle impostazioni. */
 @Composable
-fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp): Modifier {
+fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, shapeOverride: Shape? = null): Modifier {
     if (style == "none" || style == "tiles") return this
     val cs = MaterialTheme.colorScheme
     val (base, a) = when (style) {
@@ -39,7 +39,7 @@ fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp): 
         else -> Color.White to 0.28f
     }
     val alpha = (a * opacity / 60f).coerceIn(0f, 1f)
-    val shape = dockShape(style, corner)
+    val shape = shapeOverride ?: dockShape(style, corner)
     var m = this.clip(shape).background(base.copy(alpha = alpha))
     if (glass) {
         val k = (0.4f + opacity / 100f).coerceIn(0.4f, 1.2f)
@@ -82,11 +82,37 @@ fun dockContentColor(style: String, opacity: Int): Color {
     return if (lum > 0.5f) Color(0xFF1B1B1F) else Color.White
 }
 
+/** Forme disponibili per l'icona delle cartelle. */
+val FOLDER_SHAPES = listOf(
+    "squircle" to "Squircle",
+    "circle" to "Cerchio",
+    "rounded" to "Quadrato arrotondato",
+    "square" to "Quadrato",
+    "teardrop" to "Goccia",
+    "leaf" to "Foglia"
+)
+
+fun folderShapeOf(key: String): Shape = when (key) {
+    "circle" -> androidx.compose.foundation.shape.CircleShape
+    "rounded" -> RoundedCornerShape(20)
+    "square" -> RoundedCornerShape(8)
+    "teardrop" -> RoundedCornerShape(topStartPercent = 50, topEndPercent = 50, bottomEndPercent = 12, bottomStartPercent = 50)
+    "leaf" -> RoundedCornerShape(topStartPercent = 50, topEndPercent = 12, bottomEndPercent = 50, bottomStartPercent = 12)
+    else -> RoundedCornerShape(32)
+}
+
+/** Margine interno perché le mini icone non vengano tagliate dalle forme più tonde. */
+fun folderShapeInset(key: String): Float = when (key) {
+    "circle" -> 0.17f
+    "teardrop", "leaf" -> 0.13f
+    else -> 0.10f
+}
+
 /** Tessera singola dietro a ogni icona (stile "Tessere singole"). */
 @Composable
-fun Modifier.dockTile(opacity: Int, glass: Boolean, corner: Dp): Modifier {
+fun Modifier.dockTile(opacity: Int, glass: Boolean, corner: Dp, shapeOverride: Shape? = null): Modifier {
     val cs = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(corner)
+    val shape = shapeOverride ?: RoundedCornerShape(corner)
     val alpha = (0.30f * opacity / 60f).coerceIn(0f, 1f)
     var m = this.clip(shape).background(cs.surfaceContainerHighest.copy(alpha = alpha))
     if (glass) {

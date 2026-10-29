@@ -52,6 +52,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     androidx.compose.runtime.CompositionLocalProvider(
         LocalIconShape provides vm.settings.iconShape,
         LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg),
+        LocalFolderShape provides vm.settings.folderShape,
         LocalFolderDock provides (
             if (vm.settings.folderFollowDock) with(vm.settings) { DockLookSpec(dockStyle, dockOpacity, dockGlass, dockCorner) }
             else null
