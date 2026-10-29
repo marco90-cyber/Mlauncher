@@ -430,7 +430,79 @@ fun AppsOverlay(vm: LauncherViewModel, host: Host) {
                 targetScale = 0.92f
             )
     ) {
-        DrawerContent(vm, host, query) { query = it }
+        // mentre un'icona viene portata sulla Home il cassetto sparisce ma resta vivo (il dito è ancora suo)
+        var dragHidden by remember { mutableStateOf(false) }
+        LaunchedEffect(vm.drawerDrag) { if (vm.drawerDrag != null) dragHidden = true }
+        LaunchedEffect(visible) { if (visible) dragHidden = false }
+        val a by androidx.compose.animation.core.animateFloatAsState(
+            if (dragHidden) 0f else 1f,
+            tween(Motion.FADE, easing = Motion.Standard),
+            label = "drawerDrag"
+        )
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = a }) {
+            DrawerContent(vm, host, query) { query = it }
+        }
+    }
+}
+
+/**
+ * Tocco = apri, pressione lunga = menu, pressione lunga e trascina = porta l'icona sulla Home
+ * (come Launcher3: il menu si chiude appena il dito si muove).
+ */
+private fun Modifier.drawerGestures(
+    app: AppEntry,
+    vm: LauncherViewModel,
+    bounds: BoundsHolder,
+    onTap: () -> Unit,
+    onMenu: (Boolean) -> Unit
+): Modifier = androidx.compose.ui.composed {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val tap by rememberUpdatedState(onTap)
+    val menu by rememberUpdatedState(onMenu)
+    pointerInput(app.id) {
+        androidx.compose.foundation.gestures.awaitEachGesture {
+            val down = androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+            val slop = viewConfiguration.touchSlop
+            var up = false
+            var moved = false
+            withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                while (!up && !moved) {
+                    val ev = awaitPointerEvent()
+                    val c = ev.changes.firstOrNull { it.id == down.id }
+                    if (c == null || !c.pressed) up = c != null
+                    else if (c.isConsumed || (c.position - down.position).getDistance() > slop) moved = true
+                    if (c == null) moved = true
+                }
+            }
+            if (up) {
+                tap()
+                return@awaitEachGesture
+            }
+            if (moved) return@awaitEachGesture
+            Haptics.press(view)
+            menu(true)
+            var dragging = false
+            var released = false
+            while (true) {
+                val ev = awaitPointerEvent()
+                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                if (!c.pressed) {
+                    released = true
+                    break
+                }
+                c.consume()
+                val rootPos = bounds.root + c.position
+                if (!dragging && (c.position - down.position).getDistance() > slop * 1.5f) {
+                    dragging = true
+                    menu(false)
+                    vm.startDrawerDrag(app.id, rootPos)
+                }
+                if (dragging) vm.drawerDrag?.pos = rootPos
+            }
+            if (dragging) {
+                if (released) vm.endDrawerDrag() else vm.cancelDrawerDrag()
+            }
+        }
     }
 }
 
@@ -744,15 +816,15 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host, forceGri
         Column(
             Modifier
                 .fillMaxWidth()
-                .onGloballyPositioned { bounds.window = it.boundsInWindow() }
+                .onGloballyPositioned {
+                    bounds.window = it.boundsInWindow()
+                    bounds.root = it.positionInRoot()
+                }
                 .clip(RoundedCornerShape(16.dp))
-                .combinedClickable(
-                    onClick = {
-                        vm.overlay = Overlay.NONE
-                        host.launch(app, bounds.window)
-                    },
-                    onLongClick = { menu = true }
-                )
+                .drawerGestures(app, vm, bounds, onTap = {
+                    vm.overlay = Overlay.NONE
+                    host.launch(app, bounds.window)
+                }, onMenu = { menu = it })
                 .padding(vertical = (8f * st.drRowH).dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -803,6 +875,18 @@ fun SettingsOverlay(vm: LauncherViewModel, host: Host) {
 private fun AppMenu(app: AppEntry, expanded: Boolean, onDismiss: () -> Unit, vm: LauncherViewModel, host: Host) {
     val ctx = LocalContext.current
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("Aggiungi alla Home") },
+            onClick = {
+                onDismiss()
+                if (vm.isOnHome(app.id)) {
+                    Toast.makeText(ctx, "È già nella Home", Toast.LENGTH_SHORT).show()
+                } else {
+                    vm.addToHome(app.id)
+                    Toast.makeText(ctx, "Aggiunta alla Home", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
         DropdownMenuItem(
             text = { Text("Trova in Home") },
             onClick = {
@@ -861,14 +945,14 @@ private fun ResultCard(app: AppEntry, query: String, vm: LauncherViewModel, host
             color = if (best) cs.primaryContainer else cs.surfaceContainerLow,
             modifier = Modifier
                 .fillMaxWidth()
-                .onGloballyPositioned { bounds.window = it.boundsInWindow() }
-                .combinedClickable(
-                    onClick = {
-                        vm.overlay = Overlay.NONE
-                        host.launch(app, bounds.window)
-                    },
-                    onLongClick = { menu = true }
-                )
+                .onGloballyPositioned {
+                    bounds.window = it.boundsInWindow()
+                    bounds.root = it.positionInRoot()
+                }
+                .drawerGestures(app, vm, bounds, onTap = {
+                    vm.overlay = Overlay.NONE
+                    host.launch(app, bounds.window)
+                }, onMenu = { menu = it })
         ) {
             Row(
                 Modifier.padding(horizontal = 16.dp, vertical = if (best) 16.dp else 10.dp),

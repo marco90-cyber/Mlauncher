@@ -101,6 +101,10 @@ class WeatherData(
     val time: Long
 )
 
+class DrawerDrag(val appId: String, start: androidx.compose.ui.geometry.Offset) {
+    var pos by mutableStateOf(start)
+}
+
 class LauncherSettings(private val sp: SharedPreferences) {
     /** orientazione reale del telefono (aggiornata da Root) */
     var actualLand by mutableStateOf(false)

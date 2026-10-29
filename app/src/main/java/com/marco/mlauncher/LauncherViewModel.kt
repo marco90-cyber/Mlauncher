@@ -87,6 +87,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         private set
 
     var overlay by mutableStateOf(Overlay.NONE)
+    /** icona trascinata dal cassetto verso la Home */
+    var drawerDrag by mutableStateOf<DrawerDrag?>(null)
+    var drawerDropSignal by mutableIntStateOf(0)
+        private set
     /** il cassetto deve aprirsi con la tastiera sulla ricerca (tocco sul widget di ricerca) */
     var searchFocus by mutableStateOf(false)
     /** pagina aperta nelle impostazioni (null = elenco delle categorie) */
@@ -1106,6 +1110,46 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         addApp(appId, maxOf(f.page, 0))
         saveLayout()
     }
+
+    fun startDrawerDrag(appId: String, pos: androidx.compose.ui.geometry.Offset) {
+        openFolderId = null
+        drawerDrag = DrawerDrag(appId, pos)
+    }
+
+    fun endDrawerDrag() {
+        drawerDropSignal += 1
+    }
+
+    fun cancelDrawerDrag() {
+        drawerDrag = null
+        overlay = Overlay.NONE
+    }
+
+    /** Rilascio di un'app presa dal cassetto: cella libera, sopra un'app (cartella) o dentro una cartella. */
+    fun dropFromDrawer(appId: String, page: Int, x: Int, y: Int) {
+        val existing = items.firstOrNull { it is AppItem && it.appId == appId }
+        if (existing != null) {
+            dropItem(existing, page, x, y)
+            return
+        }
+        val hits = items.filter { overlaps(it, page, x, y, 1, 1) }
+        val t = hits.singleOrNull()
+        when {
+            hits.isEmpty() && areaFree(page, x, y, 1, 1) -> {
+                items.add(AppItem(appId, page, x, y))
+                if (page >= 0) ensurePages(page)
+            }
+            t is AppItem && page >= 0 && t.appId != appId -> {
+                items.remove(t)
+                items.add(FolderItem(UUID.randomUUID().toString(), "Cartella", listOf(t.appId, appId), page, t.x, t.y))
+            }
+            t is FolderItem && t.spanX == 1 && appId !in t.appIds -> replace(t, t.copy(appIds = t.appIds + appId))
+            else -> addApp(appId, maxOf(page, 0))
+        }
+        saveLayout()
+    }
+
+    fun isOnHome(appId: String) = appId in placedAppIds()
 
     fun addToHome(appId: String) {
         if (appId in placedAppIds()) return

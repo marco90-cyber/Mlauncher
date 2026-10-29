@@ -289,6 +289,33 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         menuRect = rect
     }
 
+    // trascinamento iniziato nel cassetto: l'icona continua a seguire il dito sulla Home
+    val dDrag = vm.drawerDrag
+    LaunchedEffect(dDrag) {
+        if (dDrag != null) {
+            menuItem = null
+            homeMenu = null
+            val st = DragState(AppItem(dDrag.appId, -3, 0, 0), dDrag.pos)
+            drag = st
+            snapshotFlow { dDrag.pos }.collect { st.pos = it }
+        } else if (drag?.item?.page == -3) {
+            drag = null
+        }
+    }
+    LaunchedEffect(vm.drawerDropSignal) {
+        if (vm.drawerDropSignal == 0) return@LaunchedEffect
+        val d = drag
+        val e = vm.drawerDrag
+        if (d != null && e != null) {
+            val t = targetOf(d.pos, d.item)
+            if (t != null) vm.dropFromDrawer(e.appId, t.first, t.second, t.third) else vm.addToHome(e.appId)
+            Haptics.confirm(view)
+        }
+        drag = null
+        vm.overlay = Overlay.NONE
+        vm.drawerDrag = null
+    }
+
     LaunchedEffect(Unit) {
         var first = true
         snapshotFlow { pagerState.currentPage }.collect {
