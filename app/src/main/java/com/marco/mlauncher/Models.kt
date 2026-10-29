@@ -131,6 +131,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var dockStyle by mutableStateOf(sp.getString("dockStyle", "hyperos") ?: "hyperos")
         private set
     var haptics by mutableStateOf(sp.getBoolean("haptics", true))
+    var hapPress by mutableStateOf(sp.getBoolean("hapPress", true))
+    var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
+    var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
         private set
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
         private set
@@ -195,6 +198,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "dockSlots" -> dockSlots = value as Int
             "dockStyle" -> dockStyle = value as String
             "haptics" -> haptics = value as Boolean
+            "hapPress" -> hapPress = value as Boolean
+            "hapDrop" -> hapDrop = value as Boolean
+            "hapTick" -> hapTick = value as Boolean
             "iconShape" -> iconShape = value as String
             "pageIndicator" -> pageIndicator = value as String
             "searchBar" -> searchBar = value as String

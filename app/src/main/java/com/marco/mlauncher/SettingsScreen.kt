@@ -21,6 +21,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -232,17 +237,17 @@ private fun PageHome(vm: LauncherViewModel) {
             listOf("drawer" to "Home e cassetto app", "all" to "Tutte le app in Home"),
             s.homeMode
         ) { vm.setSetting("homeMode", it) }
-        SliderRow("Colonne", "${s.cols}", s.cols.toFloat(), 4f..6f, 1) {
+        SliderRow("Colonne", "${s.cols}", s.cols.toFloat(), 4f..6f, 1, preview = { GridPreview(s.cols, s.rows) }) {
             val v = it.roundToInt()
             if (v != s.cols) vm.setSetting("cols", v)
         }
-        SliderRow("Righe", "${s.rows}", s.rows.toFloat(), 5f..8f, 2) {
+        SliderRow("Righe", "${s.rows}", s.rows.toFloat(), 5f..8f, 2, preview = { GridPreview(s.cols, s.rows) }) {
             val v = it.roundToInt()
             if (v != s.rows) vm.setSetting("rows", v)
         }
     }
     Group("Icone in Home") {
-        SliderRow("Dimensione icone", "${(s.iconScale * 100).roundToInt()}%", s.iconScale, 0.8f..1.2f, 0) {
+        SliderRow("Dimensione icone", "${(s.iconScale * 100).roundToInt()}%", s.iconScale, 0.8f..1.2f, 0, preview = { ShapePreview(s.iconShape, 30.dp * s.iconScale) }) {
             vm.setSetting("iconScale", (it * 20).roundToInt() / 20f)
         }
         SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
@@ -260,14 +265,15 @@ private fun PageHome(vm: LauncherViewModel) {
 private fun PageDock(vm: LauncherViewModel) {
     val s = vm.settings
     Group(null) {
-        SliderRow("Icone nella dock", "${s.dockSlots}", s.dockSlots.toFloat(), 4f..6f, 1) {
+        SliderRow("Icone nella dock", "${s.dockSlots}", s.dockSlots.toFloat(), 4f..6f, 1, preview = { DockPreview(s.dockStyle, s.dockSlots) }) {
             val v = it.roundToInt()
             if (v != s.dockSlots) vm.setSetting("dockSlots", v)
         }
         ChoiceRow(
             "Stile della dock",
             listOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno"),
-            s.dockStyle
+            s.dockStyle,
+            preview = { DockPreview(it, s.dockSlots) }
         ) { vm.setSetting("dockStyle", it) }
     }
 }
@@ -284,7 +290,8 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
                 "circle" to "Cerchio",
                 "square" to "Quadrato arrotondato"
             ),
-            s.iconShape
+            s.iconShape,
+            preview = { ShapePreview(it, 34.dp) }
         ) { vm.setSetting("iconShape", it) }
         ChoiceRow(
             "Pacchetto icone",
@@ -301,7 +308,8 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
         ChoiceRow(
             "Badge delle notifiche",
             listOf("off" to "Disattivati", "dot" to "Puntino", "count" to "Numero"),
-            s.badges
+            s.badges,
+            preview = { BadgePreview(it) }
         ) {
             vm.setSetting("badges", it)
             if (it != "off" && !vm.listenerEnabled) host.openListenerSettings()
@@ -399,9 +407,26 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
     Group("Feedback") {
         SwitchRow(
             "Feedback tattile",
-            "Vibrazione leggera nelle azioni principali",
+            "Interruttore generale",
             s.haptics
         ) { vm.setSetting("haptics", it) }
+    }
+    if (s.haptics) Group("Dove vuoi il feedback") {
+        SwitchRow(
+            "Pressione lunga e trascinamento",
+            "Menu rapidi, inizio spostamento di icone e widget",
+            s.hapPress
+        ) { vm.setSetting("hapPress", it) }
+        SwitchRow(
+            "Rilascio e conferme",
+            "Icona posata, cartella creata, widget aggiunto, azione non possibile",
+            s.hapDrop
+        ) { vm.setSetting("hapDrop", it) }
+        SwitchRow(
+            "Scorrimento e selezione",
+            "Cambio pagina, ridimensionamento, gesti su e giù",
+            s.hapTick
+        ) { vm.setSetting("hapTick", it) }
     }
 }
 
@@ -418,7 +443,8 @@ private fun PageEffects(vm: LauncherViewModel) {
                 "rotate" to "Rotazione",
                 "cascade" to "Cascata"
             ),
-            s.pageEffect
+            s.pageEffect,
+            preview = { EffectPreview(it) }
         ) { vm.setSetting("pageEffect", it) }
         ChoiceRow(
             "Velocità animazioni",
@@ -440,7 +466,8 @@ private fun PageLook(vm: LauncherViewModel) {
         ChoiceRow(
             "Tema",
             listOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro"),
-            s.theme
+            s.theme,
+            preview = { ThemePreview(it) }
         ) { vm.setSetting("theme", it) }
         ChoiceRow(
             "Indicatore di pagina",
@@ -453,7 +480,8 @@ private fun PageLook(vm: LauncherViewModel) {
                 "number" to "Numero (2 / 5)",
                 "none" to "Nessuno"
             ),
-            s.pageIndicator
+            s.pageIndicator,
+            preview = { IndicatorPreview(it) }
         ) { vm.setSetting("pageIndicator", it) }
     }
 }
@@ -509,9 +537,192 @@ private fun PageInfo() {
     Group(null) {
         ListItem(
             headlineContent = { Text("MLauncher") },
-            supportingContent = { Text("Colori dinamici Material You dallo sfondo. Android 12 o successivo.") },
+            supportingContent = { Text("Launcher in stile HyperOS con colori Material You. Android 12 o successivo.") },
             colors = prefColors()
         )
+    }
+    Group("Realizzazione") {
+        Credit("Marco", "Idea, richieste e collaudo")
+        Credit("Claude (Anthropic)", "Progettazione e sviluppo del codice")
+    }
+    Group("Ispirazione") {
+        Credit("Xiaomi HyperOS", "Aspetto di Home, dock, widget ed effetto di disinstallazione")
+        Credit("Samsung One UI", "Widget impilati con rotazione, dock, gesti")
+        Credit("Apple iOS", "Modalità modifica con icone che tremolano, forma delle icone, dock")
+        Credit("Lawnchair", "Stile delle impostazioni e menu della Home. Licenza Apache 2.0, github.com/lawnchairlauncher/lawnchair")
+        Credit("Google Material Design 3", "Linguaggio grafico e colori dinamici (Material You)")
+    }
+    Group("Librerie e servizi") {
+        Credit("Kotlin", "Linguaggio. JetBrains, licenza Apache 2.0")
+        Credit("Jetpack Compose e AndroidX", "Interfaccia e componenti. Google, licenza Apache 2.0")
+        Credit("Material 3 per Compose", "Componenti grafici. Google, licenza Apache 2.0")
+        Credit("Open-Meteo", "Dati meteo gratuiti. open-meteo.com, licenza CC BY 4.0")
+        Credit("Android Open Source Project", "Piattaforma, AppWidget, servizi di accessibilità e notifiche")
+        Credit("GitHub Actions", "Compilazione automatica e pubblicazione degli APK")
+    }
+    Group("Note") {
+        Credit("Marchi", "HyperOS, Xiaomi, Samsung, One UI, iOS, Apple, Lawnchair e Google sono marchi dei rispettivi proprietari. MLauncher non è affiliato a nessuno di essi.")
+    }
+}
+
+@Composable
+private fun Credit(title: String, text: String) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(text) },
+        colors = prefColors()
+    )
+}
+
+// ---------------------------------------------------------------------
+//  Anteprime
+// ---------------------------------------------------------------------
+
+@Composable
+private fun ShapePreview(key: String, size: Dp) {
+    val cs = MaterialTheme.colorScheme
+    val shape = when (key) {
+        "circle" -> CircleShape
+        "square" -> RoundedCornerShape(size * 0.22f)
+        "ios" -> IosShape
+        else -> RoundedCornerShape(size * 0.32f)
+    }
+    Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(size).clip(shape).background(cs.primary),
+            contentAlignment = Alignment.Center
+        ) { Icon(Icons.Default.Star, null, tint = cs.onPrimary, modifier = Modifier.size(size * 0.55f)) }
+    }
+}
+
+@Composable
+private fun GridPreview(cols: Int, rows: Int) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier.size(34.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(3.dp),
+        verticalArrangement = Arrangement.SpaceEvenly
+    ) {
+        repeat(rows) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                repeat(cols) { Box(Modifier.size(3.dp).clip(CircleShape).background(cs.primary)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DockPreview(style: String, slots: Int) {
+    val cs = MaterialTheme.colorScheme
+    val bg = cs.surfaceContainerHighest
+    Box(Modifier.width(56.dp).height(34.dp), contentAlignment = Alignment.BottomCenter) {
+        val shape = when (style) {
+            "ios" -> RoundedCornerShape(10.dp)
+            "samsung" -> RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+            "hyperos" -> RoundedCornerShape(50)
+            else -> RoundedCornerShape(0.dp)
+        }
+        val m = if (style == "samsung") 0.dp else 3.dp
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = m, vertical = if (style == "samsung") 0.dp else 3.dp)
+                .height(if (style == "ios") 18.dp else 16.dp)
+                .clip(shape)
+                .background(if (style == "none") Color.Transparent else bg),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(slots) { Box(Modifier.size(5.dp).clip(RoundedCornerShape(2.dp)).background(cs.primary)) }
+        }
+    }
+}
+
+@Composable
+private fun EffectPreview(key: String) {
+    val cs = MaterialTheme.colorScheme
+    Box(Modifier.size(width = 44.dp, height = 34.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(18.dp, 26.dp).offset(x = (-8).dp).clip(RoundedCornerShape(4.dp))
+                .background(cs.primary.copy(alpha = if (key == "fade") 0.35f else 0.9f))
+                .graphicsLayer {
+                    when (key) {
+                        "cube" -> scaleX = 0.7f
+                        "rotate" -> rotationZ = -14f
+                        "cascade" -> { scaleX = 0.85f; scaleY = 0.85f }
+                    }
+                }
+        )
+        Box(
+            Modifier.size(18.dp, 26.dp).offset(x = 8.dp).clip(RoundedCornerShape(4.dp))
+                .background(cs.tertiary.copy(alpha = if (key == "fade") 0.6f else 0.9f))
+                .graphicsLayer {
+                    when (key) {
+                        "cube" -> scaleX = 0.7f
+                        "rotate" -> rotationZ = 14f
+                        "cascade" -> { scaleX = 0.85f; scaleY = 0.85f }
+                    }
+                }
+        )
+    }
+}
+
+@Composable
+private fun ThemePreview(key: String) {
+    val shape = CircleShape
+    Row(Modifier.size(34.dp).clip(shape)) {
+        val light = Color(0xFFF5F5F5)
+        val dark = Color(0xFF222222)
+        Box(Modifier.weight(1f).fillMaxSize().background(if (key == "dark") dark else light))
+        Box(Modifier.weight(1f).fillMaxSize().background(if (key == "light") light else dark))
+    }
+}
+
+@Composable
+private fun IndicatorPreview(key: String) {
+    val cs = MaterialTheme.colorScheme
+    val on = cs.primary
+    val off = cs.onSurfaceVariant.copy(alpha = 0.4f)
+    Row(
+        Modifier.width(56.dp).height(34.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        when (key) {
+            "none" -> Text("\u2014", color = off)
+            "number" -> Text("2 / 5", color = on, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
+            "progress" -> Box(Modifier.width(44.dp).height(4.dp).clip(CircleShape).background(off)) {
+                Box(Modifier.width(18.dp).height(4.dp).clip(CircleShape).background(on))
+            }
+            else -> repeat(4) { i ->
+                val sel = i == 1
+                val w = when (key) {
+                    "pill" -> if (sel) 16.dp else 6.dp
+                    "lines" -> 10.dp
+                    "worm" -> if (sel) 14.dp else 6.dp
+                    else -> 6.dp
+                }
+                val h = if (key == "lines") 3.dp else 6.dp
+                Box(
+                    Modifier.padding(horizontal = 2.dp).size(w, h).clip(CircleShape)
+                        .background(if (sel) on else off)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BadgePreview(key: String) {
+    val cs = MaterialTheme.colorScheme
+    Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(24.dp).clip(RoundedCornerShape(8.dp)).background(cs.surfaceContainerHighest))
+        when (key) {
+            "dot" -> Box(Modifier.align(Alignment.TopEnd).size(9.dp).clip(CircleShape).background(cs.error))
+            "count" -> Box(
+                Modifier.align(Alignment.TopEnd).size(14.dp).clip(CircleShape).background(cs.error),
+                contentAlignment = Alignment.Center
+            ) { Text("3", color = cs.onError, style = MaterialTheme.typography.labelSmall) }
+        }
     }
 }
 
@@ -560,6 +771,7 @@ private fun SliderRow(
     value: Float,
     range: ClosedFloatingPointRange<Float>,
     steps: Int,
+    preview: (@Composable () -> Unit)? = null,
     onChange: (Float) -> Unit
 ) {
     Column(
@@ -571,6 +783,10 @@ private fun SliderRow(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
             Text(valueLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            if (preview != null) {
+                Spacer(Modifier.width(12.dp))
+                preview()
+            }
         }
         Slider(value = value, onValueChange = onChange, valueRange = range, steps = steps)
     }
@@ -581,12 +797,14 @@ private fun ChoiceRow(
     title: String,
     options: List<Pair<String, String>>,
     current: String,
+    preview: (@Composable (String) -> Unit)? = null,
     onSelect: (String) -> Unit
 ) {
     var open by remember { mutableStateOf(false) }
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(options.firstOrNull { it.first == current }?.second ?: "") },
+        trailingContent = if (preview != null) ({ preview(current) }) else null,
         colors = prefColors(),
         modifier = Modifier.clickable { open = true }
     )
@@ -609,6 +827,10 @@ private fun ChoiceRow(
                         ) {
                             RadioButton(selected = k == current, onClick = null)
                             Spacer(Modifier.width(12.dp))
+                            if (preview != null) {
+                                preview(k)
+                                Spacer(Modifier.width(12.dp))
+                            }
                             Text(l)
                         }
                     }

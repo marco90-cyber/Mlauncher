@@ -218,7 +218,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                                 val slop = viewConfiguration.touchSlop
                                                 detectDragGesturesAfterLongPress(
                                                     onDragStart = { pos ->
-                                                        if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                         lpPos = pos
                                                         started = false
                                                     },

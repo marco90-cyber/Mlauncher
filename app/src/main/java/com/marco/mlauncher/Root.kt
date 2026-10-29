@@ -21,6 +21,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
     }
     SideEffect {
         Haptics.enabled = vm.settings.haptics
+        Haptics.onPress = vm.settings.hapPress
+        Haptics.onDrop = vm.settings.hapDrop
+        Haptics.onTick = vm.settings.hapTick
         val window = (view.context as? Activity)?.window
         if (window != null) {
             val c = WindowCompat.getInsetsController(window, view)

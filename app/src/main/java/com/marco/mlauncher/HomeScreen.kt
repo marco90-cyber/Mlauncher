@@ -666,7 +666,7 @@ private fun HomePage(
                     },
                     onLongPress = { off ->
                         if (!vm.editMode) {
-                            if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onEmptyMenu(origin + off)
                         }
                     }
@@ -799,7 +799,7 @@ private fun Modifier.itemGestures(
             val slop = viewConfiguration.touchSlop
             detectDragGesturesAfterLongPress(
                 onDragStart = { pos ->
-                    if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     lpPos = pos
                     started = false
                     if (vm.editMode) {
@@ -1033,7 +1033,7 @@ private fun WidgetCell(
     val edit = vm.editMode
     val enterEdit: () -> Unit = {
         if (!vm.editMode) {
-            if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             vm.editMode = true
         }
     }
@@ -1067,7 +1067,7 @@ private fun WidgetCell(
                     .pointerInput(item.id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { pos ->
-                                if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 curCb.start(curItem, holder.root + pos)
                             },
                             onDrag = { ch, _ -> curCb.move(holder.root + ch.position) },
