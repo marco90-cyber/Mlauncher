@@ -113,6 +113,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private var pendingUninstall: AppEntry? = null
     private var hasLayout = false
+    /** orientamento del layout attualmente caricato in [items] */
+    private var curLand = false
+    private val curCols get() = settings.colsOf(curLand)
+    private val curRows get() = settings.rowsOf(curLand)
+    private val curSlots get() = settings.dockSlotsOf(curLand)
+    private fun lk(k: String) = if (curLand) k + "_l" else k
     private val knownIds = HashSet<String>()
     private var weatherBusy = false
 
@@ -318,16 +324,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun areaFree(page: Int, x: Int, y: Int, sx: Int, sy: Int, ignoreId: String? = null): Boolean {
         if (x < 0 || y < 0) return false
         if (page == -1) {
-            if (y != 0 || sy != 1 || x + sx > settings.dockSlots) return false
-        } else if (x + sx > settings.cols || y + sy > settings.rows) {
+            if (y != 0 || sy != 1 || x + sx > curSlots) return false
+        } else if (x + sx > curCols || y + sy > curRows) {
             return false
         }
         return items.none { it.id != ignoreId && overlaps(it, page, x, y, sx, sy) }
     }
 
     private fun findFree(startPage: Int, sx: Int = 1, sy: Int = 1): Triple<Int, Int, Int> {
-        val cols = settings.cols
-        val rows = settings.rows
+        val cols = curCols
+        val rows = curRows
         val w = minOf(sx, cols)
         val h = minOf(sy, rows)
         var p = startPage
@@ -370,8 +376,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun addInternalWidget(kind: String, sx: Int, sy: Int, startPage: Int) {
         val (p, x, y) = findFree(startPage, sx, sy)
-        val w = minOf(sx, settings.cols)
-        val h = minOf(sy, settings.rows)
+        val w = minOf(sx, curCols)
+        val h = minOf(sy, curRows)
         items.add(WidgetItem(UUID.randomUUID().toString(), WidgetRef(kind), p, x, y, w, h))
         ensurePages(p)
     }
@@ -379,7 +385,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Mette orologio e meteo in cima alla prima pagina, spostando le icone che occupano il posto. */
     private fun placeDefaultWidgetsOnTop() {
         items.removeAll { it is WidgetItem && it.ref.kind != "ext" }
-        val cols = settings.cols
+        val cols = curCols
         val w = if (cols >= 4) 2 else 1
         val slots = listOf(Triple("clock", 0, 0), Triple("weather", minOf(w, cols - w), 0))
         val moved = ArrayList<HomeItem>()
@@ -427,10 +433,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addStackPreset(sx: Int, sy: Int, kinds: List<String>) {
-        val (p, x, y) = findFree(currentPage, minOf(sx, settings.cols), minOf(sy, settings.rows))
+        val (p, x, y) = findFree(currentPage, minOf(sx, curCols), minOf(sy, curRows))
         items.add(
             StackItem(UUID.randomUUID().toString(), kinds.map { WidgetRef(it) }, p, x, y,
-                minOf(sx, settings.cols), minOf(sy, settings.rows))
+                minOf(sx, curCols), minOf(sy, curRows))
         )
         ensurePages(p)
         overlay = Overlay.NONE
@@ -466,9 +472,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val wDp = info.minWidth / density
         val hDp = info.minHeight / density
         val sx = ceil(((wDp - 8f).coerceAtLeast(1f)) / cellWdp.coerceAtLeast(40f)).toInt()
-            .coerceIn(1, minOf(4, settings.cols))
+            .coerceIn(1, minOf(4, curCols))
         val sy = ceil(((hDp - 8f).coerceAtLeast(1f)) / cellHdp.coerceAtLeast(40f)).toInt()
-            .coerceIn(1, minOf(4, settings.rows))
+            .coerceIn(1, minOf(4, curRows))
         val (p, x, y) = findFree(currentPage, sx, sy)
         items.add(
             WidgetItem(
@@ -685,7 +691,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         var dx = 0
         for (pkg in dockPkgs) {
             val a = byPkg[pkg]?.firstOrNull() ?: continue
-            if (dx >= settings.dockSlots) break
+            if (dx >= curSlots) break
             items.add(AppItem(a.id, -1, dx, 0))
             dx++
         }
@@ -696,8 +702,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
         run {
             // poche icone in Home, il resto sta nel cassetto
-            val rows = settings.rows
-            val cols = settings.cols
+            val rows = curRows
+            val cols = curCols
             fun app(pkg: String) = byPkg[pkg]?.firstOrNull()
             val gmail = app("com.google.android.gm")
             val folderApps = listOf(
@@ -834,22 +840,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun loadLayout(): Boolean {
-        val s = sp.getString("layout", null) ?: return false
+        val s = sp.getString(lk("layout"), null) ?: return false
         try {
             items.addAll(decodeItems(JSONArray(s), false))
         } catch (e: Exception) {
             items.clear()
             return false
         }
-        pageCount = sp.getInt("pages", 1).coerceAtLeast(1)
+        pageCount = sp.getInt(lk("pages"), 1).coerceAtLeast(1)
         sp.getStringSet("hidden", null)?.let { hidden.addAll(it) }
         return true
     }
 
     private fun saveLayout() {
         sp.edit()
-            .putString("layout", encodeItems().toString())
-            .putInt("pages", pageCount)
+            .putString(lk("layout"), encodeItems().toString())
+            .putInt(lk("pages"), pageCount)
             .putStringSet("known", HashSet(knownIds))
             .putStringSet("hidden", HashSet(hidden))
             .apply()
@@ -860,8 +866,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun buildBackup(): String {
         val o = JSONObject()
         o.put("version", 1)
-        o.put("layout", encodeItems())
-        o.put("pages", pageCount)
+        saveLayout()
+        o.put("layout", JSONArray(sp.getString("layout", "[]")))
+        o.put("pages", sp.getInt("pages", 1))
+        sp.getString("layout_l", null)?.let { o.put("layout_l", JSONArray(it)); o.put("pages_l", sp.getInt("pages_l", 1)) }
         o.put("hidden", JSONArray(hidden.toList()))
         o.put("settings", settings.dump())
         return o.toString(2)
@@ -872,9 +880,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val o = JSONObject(text)
             val list = decodeItems(o.getJSONArray("layout"), true)
             settings.load(o.getJSONObject("settings"))
+            curLand = false
             items.clear()
             items.addAll(list)
             pageCount = o.optInt("pages", 1).coerceAtLeast(1)
+            val e = sp.edit().remove("layout_l").remove("pages_l")
+            o.optJSONArray("layout_l")?.let { e.putString("layout_l", it.toString()).putInt("pages_l", o.optInt("pages_l", 1)) }
+            e.apply()
             hidden.clear()
             val h = o.optJSONArray("hidden")
             if (h != null) for (i in 0 until h.length()) hidden.add(h.getString(i))
@@ -978,7 +990,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Mette un elemento grande dove vuole e sposta in posti liberi quelli che occupavano l'area. */
     private fun displaceAndPlace(item: HomeItem, hits: List<HomeItem>, page: Int, x: Int, y: Int) {
-        if (page < 0 || x + item.spanX > settings.cols || y + item.spanY > settings.rows) return
+        if (page < 0 || x + item.spanX > curCols || y + item.spanY > curRows) return
         replace(item, item.at(page, x, y))
         for (h in hits) {
             items.removeAll { it.id == h.id }
@@ -1107,25 +1119,78 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             "homeOrder", "autoFolders" -> if (settings.homeMode == "all") arrangeHomeApps()
-            "cols", "rows" -> reflow()
-            "dockSlots" -> {
-                val n = settings.dockSlots
-                val out = items.filter { it.page == -1 && it.x >= n }
-                items.removeAll(out)
-                for (o in out) if (o is AppItem) addApp(o.appId, 0) else if (o is FolderItem) {
-                    val (p, x, y) = findFree(0)
-                    items.add(o.at(p, x, y))
-                    ensurePages(p)
-                }
-                saveLayout()
-            }
+            "cols", "rows", "dockSlots" -> inOrientation(settings.landscape) { fit() }
             "iconPack" -> reloadIcons()
         }
     }
 
+    /** Esegue [block] sul layout dell'orientamento [land] (anche se non è quello attivo). */
+    private fun inOrientation(land: Boolean, block: () -> Unit) {
+        if (land == curLand) {
+            block()
+            return
+        }
+        val back = curLand
+        swapTo(land)
+        block()
+        saveLayout()
+        swapTo(back)
+        homeSignal += 1
+    }
+
+    private fun swapTo(land: Boolean) {
+        if (land == curLand) return
+        saveLayout()
+        items.clear()
+        curLand = land
+        if (!loadLayout()) buildFromOther()
+        if (apps.isNotEmpty()) items.removeAll { it is AppItem && it.appId !in apps }
+    }
+
+    /** Il layout dell'altro orientamento non esiste ancora: copia icone, cartelle e widget interni. */
+    private fun buildFromOther() {
+        val key = if (curLand) "layout" else "layout_l"
+        val s = sp.getString(key, null)
+        items.clear()
+        pageCount = 1
+        if (s != null) {
+            try {
+                val src = decodeItems(JSONArray(s), true)
+                items.addAll(src.filter { it.page >= -1 })
+                val pg = sp.getInt(if (curLand) "pages" else "pages_l", 1).coerceAtLeast(1)
+                pageCount = pg
+            } catch (e: Exception) {
+                items.clear()
+            }
+        }
+        fit()
+    }
+
+    /** Chiamato quando cambia l'orientamento reale del telefono. */
+    fun syncOrientation(land: Boolean) {
+        if (land == curLand) return
+        swapTo(land)
+        editMode = false
+        openFolderId = null
+        homeSignal += 1
+    }
+
+    /** Adatta il layout attivo alla griglia e al numero di slot della dock. */
+    private fun fit() {
+        val n = curSlots
+        val out = items.filter { it.page == -1 && it.x >= n }
+        items.removeAll(out)
+        for (o in out) {
+            val (p, x, y) = findFree(0, o.spanX, o.spanY)
+            items.add(o.at(p, x, y))
+            ensurePages(p)
+        }
+        reflow()
+    }
+
     private fun reflow() {
-        val cols = settings.cols
-        val rows = settings.rows
+        val cols = curCols
+        val rows = curRows
         for (it in items.toList()) {
             if (it.page >= 0 && (it.x + it.spanX > cols || it.y + it.spanY > rows)) {
                 items.remove(it)

@@ -107,14 +107,18 @@ class LauncherSettings(private val sp: SharedPreferences) {
     /** orientazione scelta nelle impostazioni per modificare i valori dell'altra (null = quella reale) */
     var previewLand by mutableStateOf<Boolean?>(null)
     val landscape: Boolean get() = previewLand ?: actualLand
-    private val oriented = setOf("iconScale", "showLabels", "dockSize", "dockCorner", "drCols", "drRowH", "drIcon", "drLabels", "drLabelSize", "drTwoLine", "drTop", "drIndent")
+    private val oriented = setOf("iconScale", "showLabels", "dockSize", "dockCorner", "drCols", "drRowH", "drIcon", "drLabels", "drLabelSize", "drTwoLine", "drTop", "drIndent", "cols", "rows", "dockSlots", "searchBar", "pageIndicator", "pageEffect", "dockStyle", "dockOpacity", "dockGlass")
 
     var homeMode by mutableStateOf(sp.getString("homeMode", "drawer") ?: "drawer")
         private set
-    var cols by mutableIntStateOf(sp.getInt("cols", 4))
-        private set
-    var rows by mutableIntStateOf(sp.getInt("rows", 6))
-        private set
+    private var colsP by mutableIntStateOf(sp.getInt("cols", 4))
+    private var colsL by mutableIntStateOf(sp.getInt("cols_l", 8))
+    val cols: Int get() = if (landscape) colsL else colsP
+    private var rowsP by mutableIntStateOf(sp.getInt("rows", 6))
+    private var rowsL by mutableIntStateOf(sp.getInt("rows_l", 3))
+    val rows: Int get() = if (landscape) rowsL else rowsP
+    fun colsOf(l: Boolean) = if (l) colsL else colsP
+    fun rowsOf(l: Boolean) = if (l) rowsL else rowsP
     private var iconScaleP by mutableStateOf(sp.getFloat("iconScale", 1f))
     private var iconScaleL by mutableStateOf(sp.getFloat("iconScale_l", sp.getFloat("iconScale", 1f)))
     val iconScale: Float get() = if (landscape) iconScaleL else iconScaleP
@@ -123,8 +127,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     val showLabels: Boolean get() = if (landscape) showLabelsL else showLabelsP
     var themedIcons by mutableStateOf(sp.getBoolean("themedIcons", false))
         private set
-    var pageEffect by mutableStateOf(sp.getString("pageEffect", "slide") ?: "slide")
-        private set
+    private var pageEffectP by mutableStateOf(sp.getString("pageEffect", "slide") ?: "slide")
+    private var pageEffectL by mutableStateOf(sp.getString("pageEffect_l", sp.getString("pageEffect", "slide")) ?: "slide")
+    val pageEffect: String get() = if (landscape) pageEffectL else pageEffectP
     var animSpeed by mutableIntStateOf(sp.getInt("animSpeed", 1))
         private set
     var uninstallAnim by mutableStateOf(sp.getString("uninstallAnim", "boom") ?: "boom")
@@ -135,13 +140,20 @@ class LauncherSettings(private val sp: SharedPreferences) {
         private set
     var autoAddNew by mutableStateOf(sp.getBoolean("autoAddNew", false))
         private set
-    var dockSlots by mutableIntStateOf(sp.getInt("dockSlots", 4))
-        private set
-    var dockStyle by mutableStateOf(
-        (sp.getString("dockStyle", "glass") ?: "glass").let { if (it in listOf("glass", "tinted", "dark", "pill", "bar", "tiles", "none")) it else "glass" }
-    )
-    var dockOpacity by mutableStateOf(sp.getInt("dockOpacity", 60))
-    var dockGlass by mutableStateOf(sp.getBoolean("dockGlass", true))
+    private var dockSlotsP by mutableIntStateOf(sp.getInt("dockSlots", 4))
+    private var dockSlotsL by mutableIntStateOf(sp.getInt("dockSlots_l", sp.getInt("dockSlots", 4)))
+    val dockSlots: Int get() = if (landscape) dockSlotsL else dockSlotsP
+    fun dockSlotsOf(l: Boolean) = if (l) dockSlotsL else dockSlotsP
+    private fun dockStyleOk(it: String) = if (it in listOf("glass", "tinted", "dark", "pill", "bar", "tiles", "none")) it else "glass"
+    private var dockStyleP by mutableStateOf(dockStyleOk(sp.getString("dockStyle", "glass") ?: "glass"))
+    private var dockStyleL by mutableStateOf(dockStyleOk(sp.getString("dockStyle_l", sp.getString("dockStyle", "glass")) ?: "glass"))
+    val dockStyle: String get() = if (landscape) dockStyleL else dockStyleP
+    private var dockOpacityP by mutableStateOf(sp.getInt("dockOpacity", 60))
+    private var dockOpacityL by mutableStateOf(sp.getInt("dockOpacity_l", sp.getInt("dockOpacity", 60)))
+    val dockOpacity: Int get() = if (landscape) dockOpacityL else dockOpacityP
+    private var dockGlassP by mutableStateOf(sp.getBoolean("dockGlass", true))
+    private var dockGlassL by mutableStateOf(sp.getBoolean("dockGlass_l", sp.getBoolean("dockGlass", true)))
+    val dockGlass: Boolean get() = if (landscape) dockGlassL else dockGlassP
     private var dockSizeP by mutableStateOf(sp.getFloat("dockSize", 1f))
     private var dockSizeL by mutableStateOf(sp.getFloat("dockSize_l", sp.getFloat("dockSize", 1f)))
     val dockSize: Float get() = if (landscape) dockSizeL else dockSizeP
@@ -196,10 +208,12 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var folderBg by mutableStateOf(sp.getString("folderBg", "tonal") ?: "tonal")
     var folderCols by mutableStateOf(sp.getInt("folderCols", 3))
         private set
-    var pageIndicator by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
-        private set
-    var searchBar by mutableStateOf(sp.getString("searchBar", "home") ?: "home")
-        private set
+    private var pageIndicatorP by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
+    private var pageIndicatorL by mutableStateOf(sp.getString("pageIndicator_l", sp.getString("pageIndicator", "pill")) ?: "pill")
+    val pageIndicator: String get() = if (landscape) pageIndicatorL else pageIndicatorP
+    private var searchBarP by mutableStateOf(sp.getString("searchBar", "home") ?: "home")
+    private var searchBarL by mutableStateOf(sp.getString("searchBar_l", sp.getString("searchBar", "home")) ?: "home")
+    val searchBar: String get() = if (landscape) searchBarL else searchBarP
     var badges by mutableStateOf(sp.getString("badges", "off") ?: "off")
         private set
     var stackAutoRotate by mutableStateOf(sp.getBoolean("stackAutoRotate", true))
@@ -244,21 +258,21 @@ class LauncherSettings(private val sp: SharedPreferences) {
         e.apply()
         when (key) {
             "homeMode" -> homeMode = value as String
-            "cols" -> cols = value as Int
-            "rows" -> rows = value as Int
+            "cols" -> if (landscape) colsL = value as Int else colsP = value as Int
+            "rows" -> if (landscape) rowsL = value as Int else rowsP = value as Int
             "iconScale" -> if (landscape) iconScaleL = value as Float else iconScaleP = value as Float
             "showLabels" -> if (landscape) showLabelsL = value as Boolean else showLabelsP = value as Boolean
             "themedIcons" -> themedIcons = value as Boolean
-            "pageEffect" -> pageEffect = value as String
+            "pageEffect" -> if (landscape) pageEffectL = value as String else pageEffectP = value as String
             "animSpeed" -> animSpeed = value as Int
             "uninstallAnim" -> uninstallAnim = value as String
             "theme" -> theme = value as String
             "swipeDown" -> swipeDown = value as String
             "autoAddNew" -> autoAddNew = value as Boolean
-            "dockSlots" -> dockSlots = value as Int
-            "dockStyle" -> dockStyle = value as String
-            "dockOpacity" -> dockOpacity = value as Int
-            "dockGlass" -> dockGlass = value as Boolean
+            "dockSlots" -> if (landscape) dockSlotsL = value as Int else dockSlotsP = value as Int
+            "dockStyle" -> if (landscape) dockStyleL = value as String else dockStyleP = value as String
+            "dockOpacity" -> if (landscape) dockOpacityL = value as Int else dockOpacityP = value as Int
+            "dockGlass" -> if (landscape) dockGlassL = value as Boolean else dockGlassP = value as Boolean
             "dockSize" -> if (landscape) dockSizeL = value as Float else dockSizeP = value as Float
             "dockCorner" -> if (landscape) dockCornerL = value as Int else dockCornerP = value as Int
             "haptics" -> haptics = value as Boolean
@@ -291,8 +305,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "folderPreview" -> folderPreview = value as String
             "folderBg" -> folderBg = value as String
             "folderCols" -> folderCols = value as Int
-            "pageIndicator" -> pageIndicator = value as String
-            "searchBar" -> searchBar = value as String
+            "pageIndicator" -> if (landscape) pageIndicatorL = value as String else pageIndicatorP = value as String
+            "searchBar" -> if (landscape) searchBarL = value as String else searchBarP = value as String
             "badges" -> badges = value as String
             "stackAutoRotate" -> stackAutoRotate = value as Boolean
             "iconPack" -> iconPack = value as String

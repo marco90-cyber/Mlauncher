@@ -605,6 +605,7 @@ private fun FolderPreview(style: String, bgKey: String) {
 @Composable
 private fun PageWidgets(vm: LauncherViewModel) {
     val s = vm.settings
+    OrientationTabs(s)
     Group("Ricerca") {
         ChoiceRow(
             "Barra di ricerca",
@@ -683,6 +684,7 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
 @Composable
 private fun PageEffects(vm: LauncherViewModel) {
     val s = vm.settings
+    OrientationTabs(s)
     Group(null) {
         ChoiceRow(
             "Effetto cambio pagina",

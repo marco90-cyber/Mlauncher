@@ -28,6 +28,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     val isLand = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
         android.content.res.Configuration.ORIENTATION_LANDSCAPE
     SideEffect { vm.settings.actualLand = isLand }
+    LaunchedEffect(isLand) { vm.syncOrientation(isLand) }
     SideEffect {
         Haptics.enabled = vm.settings.haptics
         (view.context as? Activity)?.requestedOrientation =
