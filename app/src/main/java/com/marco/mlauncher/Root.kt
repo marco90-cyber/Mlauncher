@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
@@ -42,8 +45,16 @@ fun Root(vm: LauncherViewModel, host: Host) {
             else null
         )
     ) {
+        // la Home dietro la cartella aperta si sfoca (vetro smerigliato)
+        val blurRadius by androidx.compose.animation.core.animateDpAsState(
+            if (vm.openFolderId != null) 18.dp else 0.dp,
+            androidx.compose.animation.core.tween(Motion.FOLDER, easing = Motion.Standard),
+            label = "folderBlur"
+        )
         Box(Modifier.fillMaxSize()) {
-            if (vm.loaded) HomeScreen(vm, host)
+            Box(Modifier.fillMaxSize().blur(blurRadius)) {
+                if (vm.loaded) HomeScreen(vm, host)
+            }
             FolderOverlay(vm, host)
             AppsOverlay(vm, host)
             WidgetPicker(vm, host)

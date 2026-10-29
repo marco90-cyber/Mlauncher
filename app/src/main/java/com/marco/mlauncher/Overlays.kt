@@ -201,10 +201,14 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         .width(cardW)
                         .then(
                             if (followDock && dockSpec != null)
-                                Modifier.dockLook(
-                                    if (dockSpec.style == "bar") "pill" else dockSpec.style,
-                                    maxOf(dockSpec.opacity, 75), dockSpec.glass, 28.dp
-                                )
+                                // base opaca sotto il vetro: la cartella resta leggibile anche con la dock molto trasparente
+                                Modifier
+                                    .clip(RoundedCornerShape(28.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f))
+                                    .dockLook(
+                                        if (dockSpec.style == "bar") "pill" else dockSpec.style,
+                                        maxOf(dockSpec.opacity, 40), dockSpec.glass, 28.dp
+                                    )
                             else Modifier
                         )
                         .graphicsLayer {
