@@ -182,6 +182,11 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
             }
             item {
                 Group("Gesti") {
+                    SwitchRow(
+                        "Feedback tattile",
+                        "Vibrazione leggera nelle azioni principali",
+                        s.haptics
+                    ) { vm.setSetting("haptics", it) }
                     ChoiceRow(
                         "Scorri giù nella Home",
                         listOf("notifications" to "Apri le notifiche", "search" to "Cerca app"),

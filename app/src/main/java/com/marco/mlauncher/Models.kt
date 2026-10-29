@@ -130,6 +130,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
         private set
     var dockStyle by mutableStateOf(sp.getString("dockStyle", "hyperos") ?: "hyperos")
         private set
+    var haptics by mutableStateOf(sp.getBoolean("haptics", true))
+        private set
     var iconShape by mutableStateOf(sp.getString("iconShape", "ios") ?: "ios")
         private set
     var pageIndicator by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
@@ -192,6 +194,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "autoAddNew" -> autoAddNew = value as Boolean
             "dockSlots" -> dockSlots = value as Int
             "dockStyle" -> dockStyle = value as String
+            "haptics" -> haptics = value as Boolean
             "iconShape" -> iconShape = value as String
             "pageIndicator" -> pageIndicator = value as String
             "searchBar" -> searchBar = value as String

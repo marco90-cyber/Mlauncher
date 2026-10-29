@@ -120,6 +120,7 @@ interface Host {
     fun lockScreen(): Boolean
     fun openClockApp()
     fun requestBluetooth()
+    fun webSearch(query: String)
 }
 
 class DragState(val item: HomeItem, start: Offset) {
@@ -180,6 +181,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val view = androidx.compose.ui.platform.LocalView.current
     val pagerState = rememberPagerState { vm.pageCount }
     var gridRect by remember { mutableStateOf(Rect.Zero) }
     var dockRect by remember { mutableStateOf(Rect.Zero) }
@@ -227,9 +229,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     val zone = gridRect != Rect.Zero && d.pos.y < gridRect.top + folderZonePx
                     if (extra.isNotEmpty() && zone && main is AppItem) {
                         vm.createFolderFrom(main, extra)
+                        Haptics.confirm(view)
                     } else {
                         val t = targetOf(d.pos, main)
-                        if (t != null) vm.dropItem(main, t.first, t.second, t.third)
+                        if (t != null) {
+                            vm.dropItem(main, t.first, t.second, t.third)
+                            Haptics.confirm(view)
+                        } else {
+                            Haptics.reject(view)
+                        }
                         if (extra.isNotEmpty()) vm.gatherApps(extra, t?.first?.takeIf { it >= 0 } ?: vm.currentPage)
                     }
                 }
@@ -239,6 +247,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 val d = drag
                 if (d != null && d.item is AppItem && it is AppItem && it.id != d.item.id) {
                     if (it.id in d.collected) d.collected.remove(it.id) else d.collected.add(it.id)
+                    Haptics.tick(view)
                 }
             }
         )
@@ -249,7 +258,12 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     }
 
     LaunchedEffect(Unit) {
-        snapshotFlow { pagerState.currentPage }.collect { vm.currentPage = it }
+        var first = true
+        snapshotFlow { pagerState.currentPage }.collect {
+            vm.currentPage = it
+            if (!first) Haptics.tick(view)
+            first = false
+        }
     }
 
     // "Cerca nella pagina dov'è": porta alla pagina dell'app
@@ -623,6 +637,7 @@ private fun HomePage(
 ) {
     val s = vm.settings
     val haptic = LocalHapticFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val swipePx = with(LocalDensity.current) { 56.dp.toPx() }
     BoxWithConstraints(
         Modifier
@@ -632,11 +647,14 @@ private fun HomePage(
                 detectTapGestures(
                     onTap = { if (vm.editMode) vm.exitEdit() },
                     onDoubleTap = {
-                        if (!vm.editMode && vm.settings.doubleTapLock) host.lockScreen()
+                        if (!vm.editMode && vm.settings.doubleTapLock) {
+                            Haptics.confirm(view)
+                            host.lockScreen()
+                        }
                     },
                     onLongPress = {
                         if (!vm.editMode) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             vm.editMode = true
                         }
                     }
@@ -650,6 +668,7 @@ private fun HomePage(
                     onDragEnd = {
                         if (!vm.editMode && vm.openFolderId == null) {
                             if (total < -swipePx) {
+                                Haptics.tick(view)
                                 vm.overlay = Overlay.DRAWER
                             } else if (total > swipePx) {
                                 if (vm.settings.swipeDown == "search") vm.overlay = Overlay.DRAWER
@@ -768,7 +787,7 @@ private fun Modifier.itemGestures(
             val slop = viewConfiguration.touchSlop
             detectDragGesturesAfterLongPress(
                 onDragStart = { pos ->
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     lpPos = pos
                     started = false
                     if (vm.editMode) {
@@ -995,13 +1014,14 @@ private fun WidgetCell(
     val cs = MaterialTheme.colorScheme
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val holder = remember { BoundsHolder() }
     val curItem by rememberUpdatedState(item)
     val curCb by rememberUpdatedState(cb)
     val edit = vm.editMode
     val enterEdit: () -> Unit = {
         if (!vm.editMode) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             vm.editMode = true
         }
     }
@@ -1035,7 +1055,7 @@ private fun WidgetCell(
                     .pointerInput(item.id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { pos ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 curCb.start(curItem, holder.root + pos)
                             },
                             onDrag = { ch, _ -> curCb.move(holder.root + ch.position) },
@@ -1071,6 +1091,7 @@ private fun WidgetCell(
                                 acc += d
                                 val nx = (startSx + (acc.x / cwPx).roundToInt()).coerceIn(1, 4)
                                 val ny = (startSy + (acc.y / chPx).roundToInt()).coerceIn(1, 4)
+                                if (nx != curItem.spanX || ny != curItem.spanY) Haptics.tick(view)
                                 vm.resizeItem(curItem, nx, ny)
                             }
                         )

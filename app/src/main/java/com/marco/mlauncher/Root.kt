@@ -17,6 +17,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     val view = LocalView.current
     val lightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     SideEffect {
+        Haptics.enabled = vm.settings.haptics
         val window = (view.context as? Activity)?.window
         if (window != null) {
             val c = WindowCompat.getInsetsController(window, view)

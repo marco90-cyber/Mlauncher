@@ -299,6 +299,15 @@ class MainActivity : ComponentActivity(), Host {
         return svc.lock()
     }
 
+    override fun webSearch(query: String) {
+        try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(query)))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) { }
+    }
+
     override fun requestBluetooth() {
         btLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
     }

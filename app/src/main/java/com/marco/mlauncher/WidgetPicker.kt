@@ -237,7 +237,8 @@ private fun CardFrame(width: Int, onClick: () -> Unit, title: String, size: Stri
         ) {
             preview()
             // il tocco aggiunge il widget: non deve far partire l'app del widget
-            Box(Modifier.matchParentSize().clickable(onClick = onClick))
+            val v = androidx.compose.ui.platform.LocalView.current
+            Box(Modifier.matchParentSize().clickable { Haptics.confirm(v); onClick() })
         }
         Text(
             title,

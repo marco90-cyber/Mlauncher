@@ -48,6 +48,13 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items as listItems
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -210,7 +217,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                                 val slop = viewConfiguration.touchSlop
                                                 detectDragGesturesAfterLongPress(
                                                     onDragStart = { pos ->
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                         lpPos = pos
                                                         started = false
                                                     },
@@ -353,9 +360,17 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
                 value = query,
                 onValueChange = onQuery,
                 singleLine = true,
-                placeholder = { Text("Cerca app") },
+                textStyle = TextStyle(fontSize = 17.sp),
+                placeholder = { Text("Cerca app e altro", fontSize = 17.sp) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                shape = RoundedCornerShape(28.dp),
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { onQuery("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancella")
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(32.dp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = cs.surfaceContainerHigh,
                     unfocusedContainerColor = cs.surfaceContainerHigh,
@@ -371,10 +386,16 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
                 }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .heightIn(min = 58.dp)
                     .focusRequester(focus)
             )
-            val showGrid = !searchOnly || query.isNotBlank()
+            if (query.isNotBlank()) {
+                SearchResults(Modifier.weight(1f), list, query, vm, host)
+            } else if (searchOnly) {
+                EmptySearch(Modifier.weight(1f))
+            }
+            val showGrid = !searchOnly && query.isBlank()
             if (showGrid) {
                 Box(Modifier.weight(1f)) {
                     LazyVerticalGrid(
@@ -458,42 +479,7 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host) {
                 modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp)
             )
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
-                text = { Text("Aggiungi in Home") },
-                onClick = {
-                    menu = false
-                    vm.addToHome(app.id)
-                    Toast.makeText(ctx, "Aggiunta alla Home", Toast.LENGTH_SHORT).show()
-                }
-            )
-            DropdownMenuItem(
-                text = { Text("Trova in Home") },
-                onClick = {
-                    menu = false
-                    if (!vm.locateApp(app.id)) {
-                        Toast.makeText(ctx, "Quest'app non è nella Home", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            )
-            DropdownMenuItem(
-                text = { Text("Info app") },
-                onClick = {
-                    menu = false
-                    host.appInfo(app)
-                }
-            )
-            if (app.removable) {
-                DropdownMenuItem(
-                    text = { Text("Disinstalla") },
-                    onClick = {
-                        menu = false
-                        vm.overlay = Overlay.NONE
-                        host.uninstall(app)
-                    }
-                )
-            }
-        }
+        AppMenu(app, menu, { menu = false }, vm, host)
     }
 }
 
@@ -510,5 +496,195 @@ fun SettingsOverlay(vm: LauncherViewModel, host: Host) {
         exit = slideOutHorizontally(tween(dur)) { it } + fadeOut(tween(dur))
     ) {
         SettingsScreen(vm, host)
+    }
+}
+
+
+@Composable
+private fun AppMenu(app: AppEntry, expanded: Boolean, onDismiss: () -> Unit, vm: LauncherViewModel, host: Host) {
+    val ctx = LocalContext.current
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("Trova in Home") },
+            onClick = {
+                onDismiss()
+                if (!vm.locateApp(app.id)) {
+                    Toast.makeText(ctx, "Quest'app non è nella Home", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Info app") },
+            onClick = {
+                onDismiss()
+                host.appInfo(app)
+            }
+        )
+        if (app.removable) {
+            DropdownMenuItem(
+                text = { Text("Disinstalla") },
+                onClick = {
+                    onDismiss()
+                    vm.overlay = Overlay.NONE
+                    host.uninstall(app)
+                }
+            )
+        }
+    }
+}
+
+private fun highlighted(label: String, query: String, color: Color): androidx.compose.ui.text.AnnotatedString {
+    val q = query.trim()
+    val i = if (q.isEmpty()) -1 else label.indexOf(q, ignoreCase = true)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        if (i < 0) {
+            append(label)
+        } else {
+            append(label.substring(0, i))
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = color, fontWeight = FontWeight.Bold))
+            append(label.substring(i, i + q.length))
+            pop()
+            append(label.substring(i + q.length))
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ResultCard(app: AppEntry, query: String, vm: LauncherViewModel, host: Host, best: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    var menu by remember { mutableStateOf(false) }
+    val bounds = remember { BoundsHolder() }
+    val iconSize = if (best) 60.dp else 46.dp
+    Box {
+        Surface(
+            shape = RoundedCornerShape(if (best) 28.dp else 22.dp),
+            color = if (best) cs.primaryContainer else cs.surfaceContainerLow,
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { bounds.window = it.boundsInWindow() }
+                .combinedClickable(
+                    onClick = {
+                        vm.overlay = Overlay.NONE
+                        host.launch(app, bounds.window)
+                    },
+                    onLongClick = { menu = true }
+                )
+        ) {
+            Row(
+                Modifier.padding(horizontal = 16.dp, vertical = if (best) 16.dp else 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppIcon(app, iconSize, vm.settings.themedIcons)
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        highlighted(app.label, query, if (best) cs.onPrimaryContainer else cs.primary),
+                        color = if (best) cs.onPrimaryContainer else cs.onSurface,
+                        style = if (best) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (best) {
+                        Text(
+                            "Tocca per aprire",
+                            color = cs.onPrimaryContainer.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        }
+        AppMenu(app, menu, { menu = false }, vm, host)
+    }
+}
+
+@Composable
+private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: String, vm: LauncherViewModel, host: Host) {
+    val cs = MaterialTheme.colorScheme
+    LazyColumn(
+        modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (list.isNotEmpty()) {
+            item {
+                Text(
+                    "Migliore corrispondenza",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = cs.primary,
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                )
+            }
+            item { ResultCard(list.first(), query, vm, host, true) }
+            if (list.size > 1) {
+                item {
+                    Text(
+                        "Altre app",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = cs.primary,
+                        modifier = Modifier.padding(start = 8.dp, top = 8.dp)
+                    )
+                }
+                listItems(list.drop(1), key = { it.id }) { app -> ResultCard(app, query, vm, host, false) }
+            }
+        } else {
+            item {
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Nessuna app trovata", style = MaterialTheme.typography.titleMedium, color = cs.onSurface)
+                    Text(
+                        "Prova con un altro nome",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = cs.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        item {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = cs.secondaryContainer,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .clickable {
+                        vm.overlay = Overlay.NONE
+                        host.webSearch(query.trim())
+                    }
+            ) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = cs.onSecondaryContainer)
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        "Cerca \u201c${query.trim()}\u201d sul web",
+                        color = cs.onSecondaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptySearch(modifier: Modifier) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Default.Search,
+            contentDescription = null,
+            tint = cs.onSurfaceVariant.copy(alpha = 0.4f),
+            modifier = Modifier.size(64.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Cerca un'app", style = MaterialTheme.typography.titleMedium, color = cs.onSurfaceVariant)
     }
 }
