@@ -502,13 +502,18 @@ private fun PageDrawer(vm: LauncherViewModel) {
 private fun PageFolders(vm: LauncherViewModel) {
     val s = vm.settings
     Group("Aspetto") {
+        SwitchRow(
+            "Segui l'aspetto della dock",
+            "Le cartelle usano stile, vetro e trasparenza della dock",
+            s.folderFollowDock
+        ) { vm.setSetting("folderFollowDock", it) }
         ChoiceRow(
             "Anteprima della cartella",
             listOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72 (icone grandi)", "stack" to "Ventaglio"),
             s.folderPreview,
             preview = { FolderPreview(it, s.folderBg) }
         ) { vm.setSetting("folderPreview", it) }
-        ChoiceRow(
+        if (!s.folderFollowDock) ChoiceRow(
             "Sfondo della cartella",
             listOf("tonal" to "Tonale", "primary" to "Colore principale", "dark" to "Scuro trasparente", "glass" to "Vetro chiaro"),
             s.folderBg,

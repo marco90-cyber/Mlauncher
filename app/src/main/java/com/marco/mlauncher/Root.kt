@@ -36,7 +36,11 @@ fun Root(vm: LauncherViewModel, host: Host) {
 
     androidx.compose.runtime.CompositionLocalProvider(
         LocalIconShape provides vm.settings.iconShape,
-        LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg)
+        LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg),
+        LocalFolderDock provides (
+            if (vm.settings.folderFollowDock) with(vm.settings) { DockLookSpec(dockStyle, dockOpacity, dockGlass, dockCorner) }
+            else null
+        )
     ) {
         Box(Modifier.fillMaxSize()) {
             if (vm.loaded) HomeScreen(vm, host)

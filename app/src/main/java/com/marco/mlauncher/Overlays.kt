@@ -190,12 +190,22 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
                     }
                 ) {
+                val dockSpec = LocalFolderDock.current
+                val followDock = dockSpec != null && dockSpec.style != "none" && dockSpec.style != "tiles"
                 Surface(
                     shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
-                    shadowElevation = 12.dp,
+                    color = if (followDock) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
+                    shadowElevation = if (followDock) 0.dp else 12.dp,
                     modifier = Modifier
                         .width(cardW)
+                        .then(
+                            if (followDock && dockSpec != null)
+                                Modifier.dockLook(
+                                    if (dockSpec.style == "bar") "pill" else dockSpec.style,
+                                    maxOf(dockSpec.opacity, 75), dockSpec.glass, 28.dp
+                                )
+                            else Modifier
+                        )
                         .graphicsLayer {
                             val p = prog.value
                             val sc = startScale + (1f - startScale) * p

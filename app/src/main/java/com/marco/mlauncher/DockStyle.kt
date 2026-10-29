@@ -77,3 +77,8 @@ fun Modifier.dockTile(opacity: Int, glass: Boolean, corner: Dp): Modifier {
     }
     return m
 }
+
+/** Aspetto della dock da applicare anche alle cartelle (null = aspetto proprio delle cartelle). */
+data class DockLookSpec(val style: String, val opacity: Int, val glass: Boolean, val corner: Int)
+
+val LocalFolderDock = androidx.compose.runtime.compositionLocalOf<DockLookSpec?> { null }

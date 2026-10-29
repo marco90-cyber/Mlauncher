@@ -118,12 +118,16 @@ fun FolderIcon(folder: FolderItem, apps: Map<String, AppEntry>, iconSize: Dp, th
         "glass" -> androidx.compose.ui.graphics.Color.White.copy(alpha = 0.28f)
         else -> cs.surfaceContainerHighest.copy(alpha = 0.6f)
     }
+    val dock = LocalFolderDock.current
+    val iconCorner = minOf((dock?.corner ?: 0).dp, iconSize * 0.38f)
+    val base = Modifier.size(iconSize)
+    val look = when {
+        dock == null -> base.clip(iconShapeFor(iconSize, 0.30f)).background(bg)
+        dock.style == "none" || dock.style == "tiles" -> base.dockTile(maxOf(dock.opacity, 50), dock.glass, iconCorner)
+        else -> base.dockLook(if (dock.style == "bar") "pill" else dock.style, dock.opacity, dock.glass, iconCorner)
+    }
     Box(
-        Modifier
-            .size(iconSize)
-            .clip(iconShapeFor(iconSize, 0.30f))
-            .background(bg)
-            .padding(iconSize * 0.10f)
+        look.padding(iconSize * 0.10f)
     ) {
         when (preview) {
             "grid2" -> {
