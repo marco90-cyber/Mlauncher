@@ -175,6 +175,7 @@ class MainActivity : ComponentActivity(), Host {
             vm.overlay = Overlay.SETTINGS
             return
         }
+        vm.recordLaunch(app.id)
         val i = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(ComponentName(app.pkg, app.cls))

@@ -135,6 +135,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
         private set
+    var homeOrder by mutableStateOf(sp.getString("homeOrder", "name") ?: "name")
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
     var folderPreview by mutableStateOf(sp.getString("folderPreview", "grid") ?: "grid")
     var folderBg by mutableStateOf(sp.getString("folderBg", "tonal") ?: "tonal")
@@ -204,6 +205,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapPress" -> hapPress = value as Boolean
             "hapDrop" -> hapDrop = value as Boolean
             "hapTick" -> hapTick = value as Boolean
+            "homeOrder" -> homeOrder = value as String
             "iconShape" -> iconShape = value as String
             "folderPreview" -> folderPreview = value as String
             "folderBg" -> folderBg = value as String
