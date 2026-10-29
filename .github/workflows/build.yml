@@ -27,7 +27,8 @@ jobs:
             echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "Firma con la chiave privata"
           else
-            echo "::warning::Segreti di firma assenti: uso la vecchia chiave del progetto"
+            echo "::error::Segreto KEYSTORE_BASE64 mancante: impossibile firmare l'APK"
+            exit 1
           fi
       - name: Build release APK
         env:
