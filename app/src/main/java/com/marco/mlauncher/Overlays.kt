@@ -193,6 +193,16 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 ) {
                 val dockSpec = LocalFolderDock.current
                 val followDock = dockSpec != null && dockSpec.style != "none" && dockSpec.style != "tiles"
+                val csF = MaterialTheme.colorScheme
+                val fgColor = if (followDock && dockSpec != null) {
+                    val st = if (dockSpec.style == "bar") "pill" else dockSpec.style
+                    val base = when (st) {
+                        "tinted" -> csF.primaryContainer
+                        "pill" -> csF.surfaceContainer
+                        else -> Color.White
+                    }
+                    folderTextColor(st, dockSpec.opacity, base, csF.surfaceContainerHigh, csF.onSurface)
+                } else csF.onSurface
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = if (followDock) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
@@ -306,7 +316,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                             fontSize = 11.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
-                                            color = MaterialTheme.colorScheme.onSurface,
+                                            color = fgColor,
                                             modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp)
                                         )
                                     }
@@ -341,7 +351,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Medium,
                                     textAlign = TextAlign.Start,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = fgColor
                                 ),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,

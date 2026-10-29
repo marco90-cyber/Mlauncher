@@ -27,6 +27,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -341,7 +345,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
     ) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
             if (s.searchBar == "home") {
                 Row(
                     Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp, vertical = 6.dp),
@@ -741,13 +745,16 @@ private fun Dock(
     val cs = MaterialTheme.colorScheme
     val st = vm.settings
     val style = st.dockStyle
-    val margin = if (style == "bar") 0.dp else 16.dp
+    val bar = style == "bar"
+    val margin = if (bar) 0.dp else 16.dp
     val corner = st.dockCorner.dp
+    // la barra a tutta larghezza arriva fino al bordo: sotto le icone c'è lo spazio dei gesti di sistema
+    val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = margin, vertical = 6.dp)
-            .height(92.dp * st.dockSize)
+            .padding(start = margin, end = margin, top = 6.dp, bottom = if (bar) 0.dp else 6.dp + nav)
+            .height(92.dp * st.dockSize + (if (bar) nav else 0.dp))
             .dockLook(style, st.dockOpacity, st.dockGlass, corner)
             .onGloballyPositioned { onRect(it.boundsInRoot()) }
     ) {
@@ -761,7 +768,7 @@ private fun Dock(
                 }
             }
         }
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = if (bar) nav else 0.dp)) {
             val cw = maxWidth / vm.settings.dockSlots
             for (item in vm.items) {
                 if (item.page == -1) {
