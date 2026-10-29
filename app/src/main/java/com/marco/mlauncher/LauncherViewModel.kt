@@ -415,6 +415,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Mette la barra di ricerca sulla prima riga della prima pagina, spostando giù ciò che c'era. */
+    private fun placeSearchOnTop() {
+        val cols = curCols
+        val moved = items.filter { it.page == 0 && overlaps(it, 0, 0, 0, cols, 1) }.sortedBy { it.x }
+        items.removeAll(moved)
+        items.add(WidgetItem(UUID.randomUUID().toString(), WidgetRef("search"), 0, 0, 0, cols, 1))
+        val later = ArrayList<HomeItem>()
+        for (m in moved) {
+            if (areaFree(0, m.x, m.y + 1, m.spanX, m.spanY)) items.add(m.at(0, m.x, m.y + 1)) else later.add(m)
+        }
+        for (m in later) {
+            val (p, x, y) = findFree(0, m.spanX, m.spanY)
+            items.add(m.at(p, x, y))
+            ensurePages(p)
+        }
+    }
+
     fun moveInFolder(folderId: String, appId: String, index: Int) {
         val f = items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem ?: return
         val l = f.appIds.toMutableList()
@@ -704,10 +721,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             items.add(AppItem(a.id, -1, dx, 0))
             dx++
         }
-        // orologio e meteo di default
+        // barra di ricerca in cima, sotto orologio e meteo
+        items.add(WidgetItem(UUID.randomUUID().toString(), WidgetRef("search"), 0, 0, 0, curCols, 1))
         addInternalWidget("clock", 2, 2, 0)
         addInternalWidget("weather", 2, 2, 0)
-        addInternalWidget("search", 4, 1, 0)
         sp.edit().putBoolean("defaultWidgets", true).apply()
 
         run {
@@ -1264,10 +1281,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** La barra di ricerca fissa è diventata un widget: chi la usava la ritrova in Home, una volta sola per layout. */
     private fun migrateSearchBar() {
-        val flag = lk("searchWidget")
+        val flag = lk("searchWidgetTop")
         if (sp.getBoolean(flag, false)) return
+        // la versione precedente la metteva nel primo posto libero: la riporto in cima
+        val prev = items.firstOrNull { it is WidgetItem && it.ref.kind == "search" && it.page == 0 && it.y > 0 && sp.getBoolean(lk("searchWidget"), false) }
+        if (prev != null) items.remove(prev)
         val has = items.any { i -> refsOf(i).any { it.kind == "search" } }
-        if (!has && settings.searchBar != "none") addInternalWidget("search", 4, 1, 0)
+        if (!has && (prev != null || settings.searchBar != "none")) placeSearchOnTop()
         sp.edit().putBoolean(flag, true).apply()
     }
 
