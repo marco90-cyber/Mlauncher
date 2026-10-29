@@ -679,9 +679,23 @@ private fun PageDots(count: Int, state: PagerState, style: String, st: LauncherS
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (ios && showSearch) {
-                Icon(Icons.Default.Search, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Search, contentDescription = null, tint = fg, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Cerca", color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                // testo senza padding del font e centrato sulla riga: allineato alla lente
+                Text(
+                    "Cerca",
+                    color = fg,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    style = TextStyle(
+                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+                        lineHeight = 17.sp,
+                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both
+                        )
+                    )
+                )
             } else {
                 PageDotsContent(count, state, if (ios) "dots" else style, fg)
             }
