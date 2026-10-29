@@ -20,8 +20,14 @@ fun Root(vm: LauncherViewModel, host: Host) {
     val view = LocalView.current
     val lightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     androidx.compose.runtime.LaunchedEffect(vm.overlay) {
-        if (vm.overlay != Overlay.SETTINGS) vm.settingsPage = null
+        if (vm.overlay != Overlay.SETTINGS) {
+            vm.settingsPage = null
+            vm.settings.previewLand = null
+        }
     }
+    val isLand = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    SideEffect { vm.settings.actualLand = isLand }
     SideEffect {
         Haptics.enabled = vm.settings.haptics
         (view.context as? Activity)?.requestedOrientation =

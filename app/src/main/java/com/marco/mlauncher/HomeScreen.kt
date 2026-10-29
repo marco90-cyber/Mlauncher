@@ -750,10 +750,10 @@ private fun HomePage(
                     val mod = Modifier.offset(cw * item.x, ch * item.y)
                     val hidden = item.id in dragId
                     when (item) {
-                        is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels && !landscapeP, hidden, cb, onMenu, mod)
+                        is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
                         is FolderItem ->
                             if (item.big) BigFolderCell(item, vm, host, cw, ch, hidden, cb, onMenu, mod)
-                            else GridItem(item, vm, host, cw, ch, s.showLabels && !landscapeP, hidden, cb, onMenu, mod)
+                            else GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
                         is WidgetItem, is StackItem -> WidgetCell(item, vm, host, cw, ch, hidden, cb, mod)
                     }
                 }

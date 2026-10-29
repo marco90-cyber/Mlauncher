@@ -102,16 +102,25 @@ class WeatherData(
 )
 
 class LauncherSettings(private val sp: SharedPreferences) {
+    /** orientazione reale del telefono (aggiornata da Root) */
+    var actualLand by mutableStateOf(false)
+    /** orientazione scelta nelle impostazioni per modificare i valori dell'altra (null = quella reale) */
+    var previewLand by mutableStateOf<Boolean?>(null)
+    val landscape: Boolean get() = previewLand ?: actualLand
+    private val oriented = setOf("iconScale", "showLabels", "dockSize", "dockCorner", "drCols", "drRowH", "drIcon", "drLabels", "drLabelSize", "drTwoLine", "drTop", "drIndent")
+
     var homeMode by mutableStateOf(sp.getString("homeMode", "drawer") ?: "drawer")
         private set
     var cols by mutableIntStateOf(sp.getInt("cols", 4))
         private set
     var rows by mutableIntStateOf(sp.getInt("rows", 6))
         private set
-    var iconScale by mutableFloatStateOf(sp.getFloat("iconScale", 1f))
-        private set
-    var showLabels by mutableStateOf(sp.getBoolean("showLabels", true))
-        private set
+    private var iconScaleP by mutableStateOf(sp.getFloat("iconScale", 1f))
+    private var iconScaleL by mutableStateOf(sp.getFloat("iconScale_l", sp.getFloat("iconScale", 1f)))
+    val iconScale: Float get() = if (landscape) iconScaleL else iconScaleP
+    private var showLabelsP by mutableStateOf(sp.getBoolean("showLabels", true))
+    private var showLabelsL by mutableStateOf(sp.getBoolean("showLabels_l", false))
+    val showLabels: Boolean get() = if (landscape) showLabelsL else showLabelsP
     var themedIcons by mutableStateOf(sp.getBoolean("themedIcons", false))
         private set
     var pageEffect by mutableStateOf(sp.getString("pageEffect", "slide") ?: "slide")
@@ -133,21 +142,36 @@ class LauncherSettings(private val sp: SharedPreferences) {
     )
     var dockOpacity by mutableStateOf(sp.getInt("dockOpacity", 60))
     var dockGlass by mutableStateOf(sp.getBoolean("dockGlass", true))
-    var dockSize by mutableStateOf(sp.getFloat("dockSize", 1f))
-    var dockCorner by mutableStateOf(sp.getInt("dockCorner", 30))
-        private set
+    private var dockSizeP by mutableStateOf(sp.getFloat("dockSize", 1f))
+    private var dockSizeL by mutableStateOf(sp.getFloat("dockSize_l", sp.getFloat("dockSize", 1f)))
+    val dockSize: Float get() = if (landscape) dockSizeL else dockSizeP
+    private var dockCornerP by mutableStateOf(sp.getInt("dockCorner", 30))
+    private var dockCornerL by mutableStateOf(sp.getInt("dockCorner_l", sp.getInt("dockCorner", 30)))
+    val dockCorner: Int get() = if (landscape) dockCornerL else dockCornerP
     var haptics by mutableStateOf(sp.getBoolean("haptics", true))
     var hapPress by mutableStateOf(sp.getBoolean("hapPress", true))
     var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
         private set
     var drLayout by mutableStateOf(sp.getString("drLayout", "grid") ?: "grid")
-    var drCols by mutableStateOf(sp.getInt("drCols", 4))
-    var drRowH by mutableStateOf(sp.getFloat("drRowH", 1f))
-    var drIcon by mutableStateOf(sp.getFloat("drIcon", 1f))
-    var drLabels by mutableStateOf(sp.getBoolean("drLabels", true))
-    var drLabelSize by mutableStateOf(sp.getInt("drLabelSize", 11))
-    var drTwoLine by mutableStateOf(sp.getBoolean("drTwoLine", false))
+    private var drColsP by mutableStateOf(sp.getInt("drCols", 4))
+    private var drColsL by mutableStateOf(sp.getInt("drCols_l", 6))
+    val drCols: Int get() = if (landscape) drColsL else drColsP
+    private var drRowHP by mutableStateOf(sp.getFloat("drRowH", 1f))
+    private var drRowHL by mutableStateOf(sp.getFloat("drRowH_l", sp.getFloat("drRowH", 1f)))
+    val drRowH: Float get() = if (landscape) drRowHL else drRowHP
+    private var drIconP by mutableStateOf(sp.getFloat("drIcon", 1f))
+    private var drIconL by mutableStateOf(sp.getFloat("drIcon_l", sp.getFloat("drIcon", 1f)))
+    val drIcon: Float get() = if (landscape) drIconL else drIconP
+    private var drLabelsP by mutableStateOf(sp.getBoolean("drLabels", true))
+    private var drLabelsL by mutableStateOf(sp.getBoolean("drLabels_l", sp.getBoolean("drLabels", true)))
+    val drLabels: Boolean get() = if (landscape) drLabelsL else drLabelsP
+    private var drLabelSizeP by mutableStateOf(sp.getInt("drLabelSize", 11))
+    private var drLabelSizeL by mutableStateOf(sp.getInt("drLabelSize_l", sp.getInt("drLabelSize", 11)))
+    val drLabelSize: Int get() = if (landscape) drLabelSizeL else drLabelSizeP
+    private var drTwoLineP by mutableStateOf(sp.getBoolean("drTwoLine", false))
+    private var drTwoLineL by mutableStateOf(sp.getBoolean("drTwoLine_l", sp.getBoolean("drTwoLine", false)))
+    val drTwoLine: Boolean get() = if (landscape) drTwoLineL else drTwoLineP
     var drBg by mutableStateOf(sp.getString("drBg", "surface") ?: "surface")
     var drOpacity by mutableStateOf(sp.getInt("drOpacity", 97))
     var drSearchBar by mutableStateOf(sp.getBoolean("drSearchBar", true))
@@ -155,8 +179,12 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var drSuggest by mutableStateOf(sp.getBoolean("drSuggest", false))
     var drSort by mutableStateOf(sp.getString("drSort", "name") ?: "name")
     var drScrollbar by mutableStateOf(sp.getBoolean("drScrollbar", true))
-    var drTop by mutableStateOf(sp.getInt("drTop", 0))
-    var drIndent by mutableStateOf(sp.getInt("drIndent", 8))
+    private var drTopP by mutableStateOf(sp.getInt("drTop", 0))
+    private var drTopL by mutableStateOf(sp.getInt("drTop_l", sp.getInt("drTop", 0)))
+    val drTop: Int get() = if (landscape) drTopL else drTopP
+    private var drIndentP by mutableStateOf(sp.getInt("drIndent", 8))
+    private var drIndentL by mutableStateOf(sp.getInt("drIndent_l", sp.getInt("drIndent", 8)))
+    val drIndent: Int get() = if (landscape) drIndentL else drIndentP
     var drRemember by mutableStateOf(sp.getBoolean("drRemember", false))
     var folderBlur by mutableStateOf(sp.getInt("folderBlur", 18))
     var folderFollowDock by mutableStateOf(sp.getBoolean("folderFollowDock", true))
@@ -206,19 +234,20 @@ class LauncherSettings(private val sp: SharedPreferences) {
 
     fun set(key: String, value: Any) {
         val e = sp.edit()
+        val wk = if (key in oriented && landscape) key + "_l" else key
         when (value) {
-            is Int -> e.putInt(key, value)
-            is Float -> e.putFloat(key, value)
-            is Boolean -> e.putBoolean(key, value)
-            is String -> e.putString(key, value)
+            is Int -> e.putInt(wk, value)
+            is Float -> e.putFloat(wk, value)
+            is Boolean -> e.putBoolean(wk, value)
+            is String -> e.putString(wk, value)
         }
         e.apply()
         when (key) {
             "homeMode" -> homeMode = value as String
             "cols" -> cols = value as Int
             "rows" -> rows = value as Int
-            "iconScale" -> iconScale = value as Float
-            "showLabels" -> showLabels = value as Boolean
+            "iconScale" -> if (landscape) iconScaleL = value as Float else iconScaleP = value as Float
+            "showLabels" -> if (landscape) showLabelsL = value as Boolean else showLabelsP = value as Boolean
             "themedIcons" -> themedIcons = value as Boolean
             "pageEffect" -> pageEffect = value as String
             "animSpeed" -> animSpeed = value as Int
@@ -230,19 +259,19 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "dockStyle" -> dockStyle = value as String
             "dockOpacity" -> dockOpacity = value as Int
             "dockGlass" -> dockGlass = value as Boolean
-            "dockSize" -> dockSize = value as Float
-            "dockCorner" -> dockCorner = value as Int
+            "dockSize" -> if (landscape) dockSizeL = value as Float else dockSizeP = value as Float
+            "dockCorner" -> if (landscape) dockCornerL = value as Int else dockCornerP = value as Int
             "haptics" -> haptics = value as Boolean
             "hapPress" -> hapPress = value as Boolean
             "hapDrop" -> hapDrop = value as Boolean
             "hapTick" -> hapTick = value as Boolean
             "drLayout" -> drLayout = value as String
-            "drCols" -> drCols = value as Int
-            "drRowH" -> drRowH = value as Float
-            "drIcon" -> drIcon = value as Float
-            "drLabels" -> drLabels = value as Boolean
-            "drLabelSize" -> drLabelSize = value as Int
-            "drTwoLine" -> drTwoLine = value as Boolean
+            "drCols" -> if (landscape) drColsL = value as Int else drColsP = value as Int
+            "drRowH" -> if (landscape) drRowHL = value as Float else drRowHP = value as Float
+            "drIcon" -> if (landscape) drIconL = value as Float else drIconP = value as Float
+            "drLabels" -> if (landscape) drLabelsL = value as Boolean else drLabelsP = value as Boolean
+            "drLabelSize" -> if (landscape) drLabelSizeL = value as Int else drLabelSizeP = value as Int
+            "drTwoLine" -> if (landscape) drTwoLineL = value as Boolean else drTwoLineP = value as Boolean
             "drBg" -> drBg = value as String
             "drOpacity" -> drOpacity = value as Int
             "drSearchBar" -> drSearchBar = value as Boolean
@@ -250,8 +279,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "drSuggest" -> drSuggest = value as Boolean
             "drSort" -> drSort = value as String
             "drScrollbar" -> drScrollbar = value as Boolean
-            "drTop" -> drTop = value as Int
-            "drIndent" -> drIndent = value as Int
+            "drTop" -> if (landscape) drTopL = value as Int else drTopP = value as Int
+            "drIndent" -> if (landscape) drIndentL = value as Int else drIndentP = value as Int
             "drRemember" -> drRemember = value as Boolean
             "folderBlur" -> folderBlur = value as Int
             "folderFollowDock" -> folderFollowDock = value as Boolean

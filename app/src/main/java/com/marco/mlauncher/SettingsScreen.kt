@@ -251,9 +251,32 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     }
 }
 
+/** Scelta dell'orientazione di cui si stanno modificando i valori. */
+@Composable
+private fun OrientationTabs(s: LauncherSettings) {
+    Row(
+        Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        androidx.compose.material3.FilterChip(
+            selected = !s.landscape,
+            onClick = { s.previewLand = false },
+            label = { Text("Verticale") },
+            modifier = Modifier.weight(1f)
+        )
+        androidx.compose.material3.FilterChip(
+            selected = s.landscape,
+            onClick = { s.previewLand = true },
+            label = { Text("Orizzontale") },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
 @Composable
 private fun PageHome(vm: LauncherViewModel) {
     val s = vm.settings
+    OrientationTabs(s)
     Group("Griglia") {
         var askOrder by remember { mutableStateOf(false) }
         ChoiceRow(
@@ -329,6 +352,7 @@ private fun PageHome(vm: LauncherViewModel) {
 @Composable
 private fun PageDock(vm: LauncherViewModel) {
     val s = vm.settings
+    OrientationTabs(s)
     DockLivePreview(s)
     Group("Stile") {
         ChoiceRow(
@@ -439,6 +463,7 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
 @Composable
 private fun PageDrawer(vm: LauncherViewModel) {
     val s = vm.settings
+    OrientationTabs(s)
     Group("Layout") {
         ChoiceRow(
             "Disposizione",
