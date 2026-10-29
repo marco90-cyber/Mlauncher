@@ -109,7 +109,6 @@ fun AppIcon(app: AppEntry, iconSize: Dp, themed: Boolean, modifier: Modifier = M
 val LocalFolderStyle = androidx.compose.runtime.compositionLocalOf { "grid" to "tonal" }
 
 @Composable
-@Composable
 fun FolderIcon(folder: FolderItem, apps: Map<String, AppEntry>, iconSize: Dp, themed: Boolean) {
     val cs = MaterialTheme.colorScheme
     val (preview, bgKey) = LocalFolderStyle.current
