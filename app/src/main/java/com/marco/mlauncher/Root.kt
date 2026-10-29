@@ -24,6 +24,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
     }
     SideEffect {
         Haptics.enabled = vm.settings.haptics
+        (view.context as? Activity)?.requestedOrientation =
+            if (vm.settings.allowRotation) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         Haptics.onPress = vm.settings.hapPress
         Haptics.onDrop = vm.settings.hapDrop
         Haptics.onTick = vm.settings.hapTick

@@ -310,6 +310,11 @@ private fun PageHome(vm: LauncherViewModel) {
         SliderRow("Dimensione icone", "${(s.iconScale * 100).roundToInt()}%", s.iconScale, 0.8f..1.2f, 0, preview = { ShapePreview(s.iconShape, 30.dp * s.iconScale) }) {
             vm.setSetting("iconScale", (it * 20).roundToInt() / 20f)
         }
+        SwitchRow(
+            "Rotazione della Home",
+            "In orizzontale la dock passa a lato. Spento: la Home resta in verticale",
+            s.allowRotation
+        ) { vm.setSetting("allowRotation", it) }
         SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
         if (s.homeMode == "drawer") {
             SwitchRow(

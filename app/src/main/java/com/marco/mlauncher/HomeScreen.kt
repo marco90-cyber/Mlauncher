@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.navigationBars
@@ -382,7 +383,13 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             val navL = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
-                    Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
+                    if (s.searchBar != "none" && !edit) {
+                        Box(Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 12.dp, vertical = 3.dp)) {
+                            SearchPill { vm.overlay = Overlay.DRAWER }
+                        }
+                    } else {
+                        Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
+                    }
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
                     PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
                 }
