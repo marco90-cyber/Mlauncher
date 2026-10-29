@@ -46,6 +46,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
@@ -252,6 +255,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             }
         )
     }
+    var homeMenu by remember { mutableStateOf<Offset?>(null) }
     val onMenu: (HomeItem, Rect) -> Unit = { item, rect ->
         menuItem = item
         menuRect = rect
@@ -365,7 +369,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     pagerState = pagerState,
                     dragId = hiddenIds,
                     cb = cb,
-                    onMenu = onMenu
+                    onMenu = onMenu,
+                    onEmptyMenu = { homeMenu = it }
                 )
             }
             PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
@@ -414,6 +419,10 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 BarButton("Impostazioni") { vm.overlay = Overlay.SETTINGS }
                 BarButton("Fine") { vm.exitEdit() }
             }
+        }
+
+        homeMenu?.let { o ->
+            HomeMenu(o, vm, host) { homeMenu = null }
         }
 
         // menu rapido
@@ -633,9 +642,11 @@ private fun HomePage(
     pagerState: PagerState,
     dragId: Set<String>,
     cb: DragCallbacks,
-    onMenu: (HomeItem, Rect) -> Unit
+    onMenu: (HomeItem, Rect) -> Unit,
+    onEmptyMenu: (Offset) -> Unit
 ) {
     val s = vm.settings
+    var origin by remember { mutableStateOf(Offset.Zero) }
     val haptic = LocalHapticFeedback.current
     val view = androidx.compose.ui.platform.LocalView.current
     val swipePx = with(LocalDensity.current) { 56.dp.toPx() }
@@ -643,6 +654,7 @@ private fun HomePage(
         Modifier
             .fillMaxSize()
             .pageEffect(s.pageEffect, pagerState, page)
+            .onGloballyPositioned { origin = it.positionInRoot() }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { if (vm.editMode) vm.exitEdit() },
@@ -652,10 +664,10 @@ private fun HomePage(
                             host.lockScreen()
                         }
                     },
-                    onLongPress = {
+                    onLongPress = { off ->
                         if (!vm.editMode) {
                             if (Haptics.enabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            vm.editMode = true
+                            onEmptyMenu(origin + off)
                         }
                     }
                 )
@@ -1251,6 +1263,60 @@ internal fun QuickMenu(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val conf = LocalConfiguration.current
+    val menuW = 250.dp
+    val menuWpx = with(density) { menuW.toPx() }
+    val estH = with(density) { (4 * 56 + 16).dp.toPx() }
+    val screenW = with(density) { conf.screenWidthDp.dp.toPx() }
+    val screenH = with(density) { conf.screenHeightDp.dp.toPx() }
+    val margin = with(density) { 16.dp.toPx() }
+    val x = (at.x - menuWpx / 2f).coerceIn(margin, maxOf(margin, screenW - menuWpx - margin))
+    val y = if (at.y + estH + margin < screenH) at.y else maxOf(margin, at.y - estH)
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = IntOffset(x.roundToInt(), y.roundToInt()),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = cs.surfaceContainerHigh,
+            shadowElevation = 8.dp,
+            modifier = Modifier.width(menuW)
+        ) {
+            Column(Modifier.padding(vertical = 8.dp)) {
+                HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); host.pickWallpaper() }
+                HomeMenuRow(Icons.Default.Add, "Widget") { onDismiss(); vm.overlay = Overlay.WIDGETS }
+                HomeMenuRow(Icons.Default.Edit, "Modifica Home") { onDismiss(); vm.editMode = true }
+                HomeMenuRow(Icons.Default.Settings, "Impostazioni Home") { onDismiss(); vm.overlay = Overlay.SETTINGS }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).background(cs.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) { Icon(icon, null, tint = cs.onPrimaryContainer, modifier = Modifier.size(22.dp)) }
+        Spacer(Modifier.width(14.dp))
+        Text(text, color = cs.onSurface, fontSize = 15.sp, maxLines = 1)
     }
 }
 

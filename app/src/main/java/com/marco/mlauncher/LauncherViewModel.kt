@@ -86,6 +86,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         private set
 
     var overlay by mutableStateOf(Overlay.NONE)
+    /** pagina aperta nelle impostazioni (null = elenco delle categorie) */
+    var settingsPage by mutableStateOf<String?>(null)
     var editMode by mutableStateOf(false)
     var openFolderId by mutableStateOf<String?>(null)
     var homeSignal by mutableIntStateOf(0)

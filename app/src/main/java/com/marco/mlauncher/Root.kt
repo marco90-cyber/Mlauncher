@@ -16,6 +16,9 @@ import androidx.core.view.WindowCompat
 fun Root(vm: LauncherViewModel, host: Host) {
     val view = LocalView.current
     val lightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    androidx.compose.runtime.LaunchedEffect(vm.overlay) {
+        if (vm.overlay != Overlay.SETTINGS) vm.settingsPage = null
+    }
     SideEffect {
         Haptics.enabled = vm.settings.haptics
         val window = (view.context as? Activity)?.window
@@ -43,5 +46,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     BackHandler(enabled = vm.openFolderId != null) { vm.openFolderId = null }
     BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }
     BackHandler(enabled = vm.overlay == Overlay.WIDGETS) { vm.overlay = Overlay.NONE }
-    BackHandler(enabled = vm.overlay == Overlay.SETTINGS) { vm.overlay = Overlay.NONE }
+    BackHandler(enabled = vm.overlay == Overlay.SETTINGS) {
+        if (vm.settingsPage != null) vm.settingsPage = null else vm.overlay = Overlay.NONE
+    }
 }
