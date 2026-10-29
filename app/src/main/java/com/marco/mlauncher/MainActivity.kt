@@ -290,6 +290,14 @@ class MainActivity : ComponentActivity(), Host {
         } catch (e: Exception) { }
     }
 
+    override fun restartLauncher() {
+        val i = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        startActivity(i)
+        finishAffinity()
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
+
     override fun lockScreen(): Boolean {
         val svc = MLAccessibilityService.instance
         if (svc == null) {

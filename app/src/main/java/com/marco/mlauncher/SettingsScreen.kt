@@ -577,31 +577,53 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
     Group("Manutenzione") {
         var confirmReset by remember { mutableStateOf(false) }
         ListItem(
-            headlineContent = { Text("Riordina Home") },
-            supportingContent = { Text("Widget in alto, poche app e dock. Le altre restano nel cassetto") },
+            headlineContent = { Text("Ripristina Home") },
+            supportingContent = { Text("Riporta la Home come all'inizio: widget, icone predefinite e dock") },
             colors = prefColors(),
             modifier = Modifier.clickable { confirmReset = true }
         )
         if (confirmReset) {
             AlertDialog(
                 onDismissRequest = { confirmReset = false },
-                title = { Text("Riordinare la Home?") },
-                text = { Text("La disposizione attuale di icone, cartelle e widget verrà sostituita.") },
+                title = { Text("Ripristinare la Home?") },
+                text = { Text("La disposizione attuale di icone, cartelle e widget verrà sostituita. Le impostazioni restano.") },
                 confirmButton = {
                     TextButton(onClick = {
                         confirmReset = false
                         vm.resetHome()
                         vm.overlay = Overlay.NONE
-                    }) { Text("Riordina") }
+                    }) { Text("Ripristina") }
                 },
                 dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Annulla") } }
             )
         }
+        var confirmAll by remember { mutableStateOf(false) }
         ListItem(
-            headlineContent = { Text("Riavvia Home") },
-            supportingContent = { Text("Ricarica app, icone, meteo e widget") },
+            headlineContent = { Text("Ripristina Launcher") },
+            supportingContent = { Text("Porta tutto come all'inizio, impostazioni predefinite comprese") },
             colors = prefColors(),
-            modifier = Modifier.clickable { vm.restartHome() }
+            modifier = Modifier.clickable { confirmAll = true }
+        )
+        if (confirmAll) {
+            AlertDialog(
+                onDismissRequest = { confirmAll = false },
+                title = { Text("Ripristinare il Launcher?") },
+                text = { Text("Home, cartelle, widget, app nascoste e tutte le impostazioni tornano ai valori iniziali. Il Launcher si riavvia.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmAll = false
+                        vm.resetLauncher()
+                        host.restartLauncher()
+                    }) { Text("Ripristina tutto") }
+                },
+                dismissButton = { TextButton(onClick = { confirmAll = false }) { Text("Annulla") } }
+            )
+        }
+        ListItem(
+            headlineContent = { Text("Riavvia Launcher") },
+            supportingContent = { Text("Riavvio completo dell'app, senza perdere nulla") },
+            colors = prefColors(),
+            modifier = Modifier.clickable { host.restartLauncher() }
         )
     }
 }

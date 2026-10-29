@@ -124,6 +124,7 @@ interface Host {
     fun openClockApp()
     fun requestBluetooth()
     fun webSearch(query: String)
+    fun restartLauncher()
 }
 
 class DragState(val item: HomeItem, start: Offset) {

@@ -481,6 +481,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
+    /** Cancella layout, impostazioni, app nascoste: tutto come al primo avvio. */
+    fun resetLauncher() {
+        items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
+        items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
+        sp.edit().clear().commit()
+        ctx.getSharedPreferences("mlauncher_settings", Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
     fun discardWidgetId(id: Int) {
         try {
             widgetHost.deleteAppWidgetId(id)
