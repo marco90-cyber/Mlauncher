@@ -537,7 +537,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun arrangeHomeApps() {
         items.removeAll { it.page >= 1 && (it is AppItem || it is FolderItem) }
         val placed = placedAppIds()
-        val list = apps.values.filter { it.id !in placed && it.id !in hidden }
+        var list = apps.values.filter { it.id !in placed && it.id !in hidden }
         val byName = compareBy<AppEntry> { it.label.lowercase() }
         fun folders(groups: Map<String, List<AppEntry>>) {
             val loose = ArrayList<AppEntry>()
@@ -549,6 +549,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
             loose.sortedWith(byName).forEach { addApp(it.id, 1) }
         }
+        // cartelle automatiche per categoria: le app senza categoria restano in Home
+        if (settings.autoFolders || settings.homeOrder == "cat_folders") {
+            val groups = HashMap<String, MutableList<AppEntry>>()
+            for (a in list) categoryName(a)?.let { groups.getOrPut(it) { ArrayList() }.add(a) }
+            val inFolder = HashSet<String>()
+            for ((name, g) in groups.toSortedMap(compareBy { it.lowercase() })) {
+                if (g.size < 2) continue
+                val (p, x, y) = findFree(1)
+                items.add(FolderItem(UUID.randomUUID().toString(), name, g.sortedWith(byName).map { it.id }, p, x, y))
+                ensurePages(p)
+                g.forEach { inFolder.add(it.id) }
+            }
+            list = list.filter { it.id !in inFolder }
+        }
         when (settings.homeOrder) {
             "name_desc" -> list.sortedWith(byName.reversed()).forEach { addApp(it.id, 1) }
             "usage" -> list.sortedWith(
@@ -558,11 +572,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 try { pm.getPackageInfo(it.pkg, 0).firstInstallTime } catch (e: Exception) { 0L }
             }.forEach { addApp(it.id, 1) }
             "color" -> list.sortedBy { hueKey(it) }.forEach { addApp(it.id, 1) }
-            "cat_folders" -> {
-                val groups = HashMap<String, MutableList<AppEntry>>()
-                for (a in list) groups.getOrPut(categoryName(a) ?: "Altre app") { ArrayList() }.add(a)
-                folders(groups)
-            }
             "letter_folders" -> folders(
                 list.groupBy {
                     val c = it.label.trim().firstOrNull()?.uppercaseChar() ?: '#'
@@ -1097,7 +1106,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     arrangeHomeApps()
                 }
             }
-            "homeOrder" -> if (settings.homeMode == "all") arrangeHomeApps()
+            "homeOrder", "autoFolders" -> if (settings.homeMode == "all") arrangeHomeApps()
             "cols", "rows" -> reflow()
             "dockSlots" -> {
                 val n = settings.dockSlots

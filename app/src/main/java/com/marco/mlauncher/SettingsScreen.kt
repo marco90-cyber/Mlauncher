@@ -90,7 +90,6 @@ private val orderOptions = listOf(
     "usage" to "Più usate per prime",
     "recent" to "Installate di recente",
     "color" to "Per colore dell'icona",
-    "cat_folders" to "Cartelle per categoria",
     "letter_folders" to "Cartelle per lettera"
 )
 private val themeNames = mapOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro")
@@ -266,6 +265,11 @@ private fun PageHome(vm: LauncherViewModel) {
             if (it == "all") askOrder = true
         }
         if (s.homeMode == "all") {
+            SwitchRow(
+                "Cartelle automatiche",
+                "Raggruppa le app per categoria. Quelle senza categoria restano in Home",
+                s.autoFolders
+            ) { vm.setSetting("autoFolders", it) }
             ChoiceRow("Come disporre le app", orderOptions, s.homeOrder) { vm.setSetting("homeOrder", it) }
         }
         if (askOrder) {
