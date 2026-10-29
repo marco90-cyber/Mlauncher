@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity(), Host {
         )
         window.isNavigationBarContrastEnforced = false
         syncOrientation(resources.configuration)
+        vm.checkUpdate(auto = true)
         setContent {
             MLauncherTheme(vm.settings.theme) {
                 Root(vm, this@MainActivity)
@@ -171,7 +172,8 @@ class MainActivity : ComponentActivity(), Host {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
-            vm.onHomePressed()
+            // come Launcher3: conta come "già in Home" solo se la finestra aveva il focus
+            vm.onHomePressed(alreadyHome = hasWindowFocus())
         }
     }
 

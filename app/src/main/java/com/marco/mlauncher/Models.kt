@@ -91,6 +91,23 @@ data class StackItem(
     override fun sized(sx: Int, sy: Int): HomeItem = copy(spanX = sx, spanY = sy)
 }
 
+class UpdateInfo(val version: String, val code: Int, val url: String, val page: String)
+
+class City(val name: String, val lat: Double, val lon: Double, val area: String = "")
+
+class WeatherHour(val label: String, val code: Int, val isDay: Boolean, val temp: Int, val pop: Int)
+class WeatherDay(val label: String, val code: Int, val max: Int, val min: Int, val pop: Int)
+class WeatherDetail(
+    val feels: Int,
+    val humidity: Int,
+    val wind: Int,
+    val pop: Int,
+    val sunrise: String,
+    val sunset: String,
+    val hours: List<WeatherHour>,
+    val days: List<WeatherDay>
+)
+
 class WeatherData(
     val temp: Int,
     val code: Int,
@@ -169,6 +186,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
+    var homeOpensDrawer by mutableStateOf(sp.getBoolean("homeOpensDrawer", true))
+    var newAppDot by mutableStateOf(sp.getBoolean("newAppDot", true))
+    var autoUpdateCheck by mutableStateOf(sp.getBoolean("autoUpdateCheck", true))
     var indFollowDock by mutableStateOf(sp.getBoolean("indFollowDock", true))
         private set
     var drLayout by mutableStateOf(sp.getString("drLayout", "grid") ?: "grid")
@@ -287,6 +307,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapDrop" -> hapDrop = value as Boolean
             "hapTick" -> hapTick = value as Boolean
             "hapPage" -> hapPage = value as Boolean
+            "homeOpensDrawer" -> homeOpensDrawer = value as Boolean
+            "newAppDot" -> newAppDot = value as Boolean
+            "autoUpdateCheck" -> autoUpdateCheck = value as Boolean
             "indFollowDock" -> indFollowDock = value as Boolean
             "drLayout" -> drLayout = value as String
             "drCols" -> if (landscape) drColsL = value as Int else drColsP = value as Int

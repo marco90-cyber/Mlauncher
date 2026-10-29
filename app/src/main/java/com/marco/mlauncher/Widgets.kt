@@ -439,8 +439,12 @@ fun WeatherWidget(
     sample: Boolean = false
 ) {
     val cs = MaterialTheme.colorScheme
-    LaunchedEffect(vm.hasLocation, sample) {
-        if (!sample && vm.hasLocation) {
+    var showDetail by remember { mutableStateOf(false) }
+    var showCity by remember { mutableStateOf(false) }
+    if (showDetail) WeatherDetailDialog(vm, onCity = { showDetail = false; showCity = true }) { showDetail = false }
+    if (showCity) CityPickerDialog(vm, host) { showCity = false }
+    LaunchedEffect(vm.weatherReady, sample) {
+        if (!sample && vm.weatherReady) {
             vm.refreshWeather()
             while (true) {
                 delay(30 * 60_000L)
@@ -455,7 +459,12 @@ fun WeatherWidget(
             .background(cs.tertiaryContainer)
             .combinedClickable(
                 onClick = {
-                    if (!vm.hasLocation) host.requestLocation() else vm.refreshWeather(true)
+                    if (sample) Unit
+                    else if (!vm.weatherReady) showCity = true
+                    else {
+                        vm.refreshWeather()
+                        showDetail = true
+                    }
                 },
                 onLongClick = onLongPress
             )
@@ -465,7 +474,7 @@ fun WeatherWidget(
         if (w == null) {
             Box(Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    if (!vm.hasLocation) "Tocca per usare la tua posizione" else "Carico il meteo…",
+                    if (!vm.weatherReady) "Tocca per scegliere la città o usare la posizione" else "Carico il meteo…",
                     color = cs.onTertiaryContainer,
                     fontSize = 13.sp,
                     maxLines = 3

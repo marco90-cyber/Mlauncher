@@ -98,6 +98,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.composed
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.layout.boundsInWindow
@@ -462,9 +463,15 @@ private fun Modifier.drawerGestures(
     val view = androidx.compose.ui.platform.LocalView.current
     val tap by rememberUpdatedState(onTap)
     val menu by rememberUpdatedState(onMenu)
-    pointerInput(app.id) {
+    // effetto onda al tocco, come un normale pulsante
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    indication(interaction, androidx.compose.foundation.LocalIndication.current).pointerInput(app.id) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
+            interaction.tryEmit(press)
+            fun release() = interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
+            fun cancel() = interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Cancel(press))
             val slop = viewConfiguration.touchSlop
             var up = false
             var moved = false
@@ -478,10 +485,14 @@ private fun Modifier.drawerGestures(
                 }
             }
             if (up) {
+                release()
                 tap()
                 return@awaitEachGesture
             }
-            if (moved) return@awaitEachGesture
+            if (moved) {
+                cancel()
+                return@awaitEachGesture
+            }
             Haptics.press(view)
             menu(true)
             var dragging = false
@@ -497,6 +508,7 @@ private fun Modifier.drawerGestures(
                 val rootPos = bounds.root + c.position
                 if (!dragging && (c.position - down.position).getDistance() > slop * 1.5f) {
                     dragging = true
+                    cancel()
                     menu(false)
                     vm.startDrawerDrag(app.id, rootPos)
                 }
@@ -504,6 +516,8 @@ private fun Modifier.drawerGestures(
             }
             if (dragging) {
                 if (released) vm.endDrawerDrag() else vm.cancelDrawerDrag()
+            } else {
+                release()
             }
         }
     }
@@ -839,7 +853,22 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host, forceGri
                     Text(app.label, fontSize = (st.drLabelSize + 5).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             } else {
-                AppIcon(app, iconSz, st.themedIcons)
+                Box {
+                    AppIcon(app, iconSz, st.themedIcons)
+                    // puntino "nuova": app installata da poco e mai aperta
+                    if (st.newAppDot && app.id in vm.newApps) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .size(11.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(2.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                }
                 if (st.drLabels) {
                     Text(
                         app.label,

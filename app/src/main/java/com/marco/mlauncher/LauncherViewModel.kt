@@ -108,6 +108,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val exploding = mutableStateListOf<String>()
 
     var weather by mutableStateOf<WeatherData?>(null)
+    var weatherDetail by mutableStateOf<WeatherDetail?>(null)
+    /** città scelta a mano per il meteo (null = posizione del telefono) */
+    var weatherCity by mutableStateOf<City?>(null)
+        private set
+    val weatherReady: Boolean get() = hasLocation || weatherCity != null
         private set
     var hasLocation by mutableStateOf(false)
     var iconPacks by mutableStateOf<List<Pair<String, String>>>(emptyList())
@@ -522,7 +527,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun installTime(pkg: String): Long =
         try { pm.getPackageInfo(pkg, 0).firstInstallTime } catch (e: Exception) { 0L }
 
+    /** app installate da poco e mai aperte: puntino nel cassetto */
+    val newApps = mutableStateListOf<String>()
+
     fun recordLaunch(appId: String) {
+        if (newApps.remove(appId)) sp.edit().putStringSet("newApps", HashSet(newApps)).apply()
         val k = "use_$appId"
         sp.edit().putInt(k, sp.getInt(k, 0) + 1).apply()
     }
@@ -805,6 +814,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
         } else if (settings.autoAddNew && knownIds.isNotEmpty()) {
             ids.filter { it !in knownIds && it !in placed && it !in hidden }.forEach { addApp(it) }
+        }
+        if (knownIds.isNotEmpty()) {
+            val fresh = ids.filter { it !in knownIds && it !in newApps }
+            if (fresh.isNotEmpty()) {
+                newApps.addAll(fresh)
+                sp.edit().putStringSet("newApps", HashSet(newApps)).apply()
+            }
         }
         knownIds.addAll(ids)
         saveLayout()
@@ -1203,7 +1219,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
-    fun onHomePressed() {
+    /** [alreadyHome]: il tasto Home è stato premuto mentre la Home era già in primo piano. */
+    fun onHomePressed(alreadyHome: Boolean = false) {
+        // già sulla prima pagina, senza nulla di aperto: il tasto Home apre il cassetto
+        if (alreadyHome && settings.homeOpensDrawer && overlay == Overlay.NONE && openFolderId == null &&
+            !editMode && currentPage == 0
+        ) {
+            overlay = Overlay.DRAWER
+            return
+        }
         overlay = Overlay.NONE
         openFolderId = null
         if (editMode) exitEdit()
@@ -1483,7 +1507,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshWeather(force: Boolean = false) {
         checkLocationPermission()
-        if (!hasLocation || weatherBusy) return
+        if (!weatherReady || weatherBusy) return
         val w = weather
         if (!force && w != null && System.currentTimeMillis() - w.time < 20 * 60 * 1000L) return
         weatherBusy = true
@@ -1491,11 +1515,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             try {
                 val data = withContext(Dispatchers.IO) { fetchWeather() }
                 if (data != null) {
-                    weather = data
+                    weather = data.first
+                    weatherDetail = data.second
+                    sp.edit().putString("weatherRaw", data.third).apply()
+                    val wd = data.first
                     sp.edit().putString(
                         "weather",
-                        JSONObject().put("t", data.temp).put("c", data.code).put("d", data.isDay)
-                            .put("h", data.hi).put("l", data.lo).put("p", data.place).put("time", data.time).toString()
+                        JSONObject().put("t", wd.temp).put("c", wd.code).put("d", wd.isDay)
+                            .put("h", wd.hi).put("l", wd.lo).put("p", wd.place).put("time", wd.time).toString()
                     ).apply()
                 }
             } finally {
@@ -1504,13 +1531,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private suspend fun fetchWeather(): WeatherData? {
+    private suspend fun fetchWeather(): Triple<WeatherData, WeatherDetail?, String>? {
         return try {
-            val loc = findLocation() ?: return null
+            val city = weatherCity
+            val lat: Double
+            val lon: Double
+            if (city != null) {
+                lat = city.lat
+                lon = city.lon
+            } else {
+                val loc = findLocation() ?: return null
+                lat = loc.latitude
+                lon = loc.longitude
+            }
             val url = URL(
-                "https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}" +
-                    "&current=temperature_2m,weather_code,is_day" +
-                    "&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1"
+                "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
+                    "&current=temperature_2m,weather_code,is_day,apparent_temperature,relative_humidity_2m,wind_speed_10m" +
+                    "&hourly=temperature_2m,weather_code,is_day,precipitation_probability" +
+                    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
+                    "&timezone=auto&forecast_days=7"
             )
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
@@ -1519,8 +1558,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val j = JSONObject(txt)
             val cur = j.getJSONObject("current")
             val daily = j.getJSONObject("daily")
-            var place = ""
-            try {
+            var place = city?.name ?: ""
+            if (city == null) try {
                 @Suppress("DEPRECATION")
                 val list = Geocoder(ctx, Locale.getDefault()).getFromLocation(loc.latitude, loc.longitude, 1)
                 val a = list?.firstOrNull()
@@ -1528,7 +1567,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 // senza nome del luogo
             }
-            WeatherData(
+            Triple(WeatherData(
                 temp = cur.getDouble("temperature_2m").roundToInt(),
                 code = cur.getInt("weather_code"),
                 isDay = cur.optInt("is_day", 1) == 1,
@@ -1536,13 +1575,208 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 lo = daily.getJSONArray("temperature_2m_min").getDouble(0).roundToInt(),
                 place = place,
                 time = System.currentTimeMillis()
-            )
+            ), parseDetail(j), txt)
         } catch (e: Exception) {
             null
         }
     }
 
+    private fun parseDetail(j: JSONObject): WeatherDetail? = try {
+        val cur = j.getJSONObject("current")
+        val h = j.getJSONObject("hourly")
+        val d = j.getJSONObject("daily")
+        val ht = h.getJSONArray("time")
+        val now = cur.getString("time").take(13)
+        var start = 0
+        while (start < ht.length() && ht.getString(start).take(13) < now) start++
+        val hours = ArrayList<WeatherHour>()
+        for (i in start until minOf(start + 24, ht.length())) {
+            hours.add(
+                WeatherHour(
+                    if (i == start) "Ora" else ht.getString(i).substring(11, 16),
+                    h.getJSONArray("weather_code").optInt(i),
+                    h.getJSONArray("is_day").optInt(i, 1) == 1,
+                    h.getJSONArray("temperature_2m").optDouble(i).roundToInt(),
+                    h.getJSONArray("precipitation_probability").optInt(i, 0)
+                )
+            )
+        }
+        val dt = d.getJSONArray("time")
+        val days = ArrayList<WeatherDay>()
+        for (i in 0 until dt.length()) {
+            val date = java.time.LocalDate.parse(dt.getString(i))
+            val label = when (i) {
+                0 -> "Oggi"
+                1 -> "Domani"
+                else -> date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.ITALIAN)
+                    .replaceFirstChar { it.uppercase() }
+            }
+            days.add(
+                WeatherDay(
+                    label,
+                    d.getJSONArray("weather_code").optInt(i),
+                    d.getJSONArray("temperature_2m_max").optDouble(i).roundToInt(),
+                    d.getJSONArray("temperature_2m_min").optDouble(i).roundToInt(),
+                    d.getJSONArray("precipitation_probability_max").optInt(i, 0)
+                )
+            )
+        }
+        WeatherDetail(
+            feels = cur.optDouble("apparent_temperature").roundToInt(),
+            humidity = cur.optInt("relative_humidity_2m"),
+            wind = cur.optDouble("wind_speed_10m").roundToInt(),
+            pop = hours.firstOrNull()?.pop ?: 0,
+            sunrise = d.getJSONArray("sunrise").optString(0).drop(11).take(5),
+            sunset = d.getJSONArray("sunset").optString(0).drop(11).take(5),
+            hours = hours,
+            days = days
+        )
+    } catch (e: Exception) {
+        null
+    }
+
+    // ---------- aggiornamenti ----------
+
+    var updateInfo by mutableStateOf<UpdateInfo?>(null)
+        private set
+    var updateChecking by mutableStateOf(false)
+        private set
+    /** null = mai controllato; true = ultima versione; false = errore di rete */
+    var updateUpToDate by mutableStateOf<Boolean?>(null)
+        private set
+
+    val currentVersionCode: Int by lazy {
+        try {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
+        } catch (e: Exception) {
+            0
+        }
+    }
+    val currentVersionName: String by lazy {
+        try {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /** Legge l'ultima release su GitHub; [auto] = controllo silenzioso all'avvio (al massimo ogni 6 ore). */
+    fun checkUpdate(auto: Boolean = false) {
+        if (updateChecking) return
+        if (auto) {
+            if (!settings.autoUpdateCheck) return
+            if (System.currentTimeMillis() - sp.getLong("updateCheckTime", 0L) < 6 * 3600_000L) {
+                restoreUpdateCache()
+                return
+            }
+        }
+        updateChecking = true
+        viewModelScope.launch {
+            val res = withContext(Dispatchers.IO) {
+                try {
+                    val conn = URL("https://api.github.com/repos/marco90-cyber/Mlauncher/releases/latest")
+                        .openConnection() as HttpURLConnection
+                    conn.connectTimeout = 8000
+                    conn.readTimeout = 8000
+                    conn.setRequestProperty("Accept", "application/vnd.github+json")
+                    val j = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                    val tag = j.getString("tag_name").removePrefix("v")
+                    val code = tag.substringAfterLast('.').toIntOrNull() ?: 0
+                    val assets = j.optJSONArray("assets")
+                    var url = ""
+                    if (assets != null) for (i in 0 until assets.length()) {
+                        val a = assets.getJSONObject(i)
+                        if (a.optString("name").endsWith(".apk")) url = a.optString("browser_download_url")
+                    }
+                    UpdateInfo(tag, code, url, j.optString("html_url"))
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            updateChecking = false
+            if (res == null) {
+                updateUpToDate = false
+                return@launch
+            }
+            sp.edit().putLong("updateCheckTime", System.currentTimeMillis())
+                .putString("updateCache", JSONObject().put("v", res.version).put("c", res.code).put("u", res.url).put("p", res.page).toString())
+                .apply()
+            applyUpdate(res)
+        }
+    }
+
+    private fun applyUpdate(res: UpdateInfo) {
+        if (res.code > currentVersionCode) {
+            updateInfo = res
+            updateUpToDate = null
+        } else {
+            updateInfo = null
+            updateUpToDate = true
+        }
+    }
+
+    private fun restoreUpdateCache() {
+        val str = sp.getString("updateCache", null) ?: return
+        try {
+            val o = JSONObject(str)
+            applyUpdate(UpdateInfo(o.getString("v"), o.getInt("c"), o.optString("u"), o.optString("p")))
+        } catch (e: Exception) {
+            // cache non valida
+        }
+    }
+
+    /** Cerca una città per nome (geocoding di Open-Meteo). */
+    suspend fun searchCity(q: String): List<City> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL(
+                "https://geocoding-api.open-meteo.com/v1/search?name=" +
+                    java.net.URLEncoder.encode(q.trim(), "UTF-8") + "&count=8&language=it&format=json"
+            )
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            val j = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val arr = j.optJSONArray("results") ?: return@withContext emptyList()
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                City(
+                    o.getString("name"), o.getDouble("latitude"), o.getDouble("longitude"),
+                    listOf(o.optString("admin1"), o.optString("country")).filter { it.isNotBlank() }.joinToString(", ")
+                )
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** null = torna alla posizione del telefono */
+    fun setWeatherCity(c: City?) {
+        weatherCity = c
+        val e = sp.edit()
+        if (c == null) e.remove("weatherCity")
+        else e.putString("weatherCity", JSONObject().put("n", c.name).put("la", c.lat).put("lo", c.lon).put("a", c.area).toString())
+        e.apply()
+        weather = null
+        weatherDetail = null
+        refreshWeather(true)
+    }
+
     private fun loadWeatherCache() {
+        sp.getString("weatherCity", null)?.let {
+            try {
+                val o = JSONObject(it)
+                weatherCity = City(o.getString("n"), o.getDouble("la"), o.getDouble("lo"), o.optString("a"))
+            } catch (e: Exception) {
+                // città non valida
+            }
+        }
+        sp.getString("weatherRaw", null)?.let {
+            try {
+                weatherDetail = parseDetail(JSONObject(it))
+            } catch (e: Exception) {
+                // cache non valida
+            }
+        }
         val s = sp.getString("weather", null) ?: return
         try {
             val o = JSONObject(s)
@@ -1566,6 +1800,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     init {
         sp.getStringSet("known", null)?.let { knownIds.addAll(it) }
+        sp.getStringSet("newApps", null)?.let { newApps.addAll(it) }
         hasLayout = loadLayout()
         loadWeatherCache()
         checkLocationPermission()

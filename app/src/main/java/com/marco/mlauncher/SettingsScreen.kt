@@ -168,12 +168,12 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "icons" -> PageIcons(vm, host)
                     "folders" -> PageFolders(vm)
                     "drawer" -> PageDrawer(vm)
-                    "widgets" -> PageWidgets(vm)
+                    "widgets" -> PageWidgets(vm, host)
                     "gestures" -> PageGestures(vm, host)
                     "effects" -> PageEffects(vm)
                     "look" -> PageLook(vm)
                     "backup" -> PageBackup(vm, host)
-                    else -> PageInfo()
+                    else -> PageInfo(vm, host)
                 }
                 Spacer(Modifier.height(16.dp))
             }
@@ -230,7 +230,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         Cat("effects", "Effetti e animazioni", "Cambio pagina: ${effectNames[s.pageEffect] ?: ""}", Icons.Default.Favorite),
         Cat("look", "Aspetto", "Tema ${(themeNames[s.theme] ?: "").lowercase()}", Icons.Default.Create),
         Cat("backup", "Backup e manutenzione", "Esporta, ripristina, riordina", Icons.Default.Build),
-        Cat("info", "Informazioni", "MLauncher", Icons.Default.Info)
+        Cat("info", "Informazioni", vm.updateInfo?.let { "Aggiornamento ${it.version} disponibile" } ?: "MLauncher ${vm.currentVersionName}", Icons.Default.Info)
     )
     Group(null) {
         cats.forEach { c ->
@@ -463,6 +463,13 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
 private fun PageDrawer(vm: LauncherViewModel) {
     val s = vm.settings
     OrientationTabs(s)
+    Group("Nuove app") {
+        SwitchRow(
+            "Puntino sulle app nuove",
+            "Segna le app appena installate finché non le apri",
+            s.newAppDot
+        ) { vm.setSetting("newAppDot", it) }
+    }
     Group("Layout") {
         ChoiceRow(
             "Disposizione",
@@ -608,9 +615,21 @@ private fun FolderPreview(style: String, bgKey: String, shapeKey: String = "squi
 }
 
 @Composable
-private fun PageWidgets(vm: LauncherViewModel) {
+private fun PageWidgets(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     OrientationTabs(s)
+    var cityDlg by remember { mutableStateOf(false) }
+    if (cityDlg) CityPickerDialog(vm, host) { cityDlg = false }
+    Group("Meteo") {
+        ListItem(
+            headlineContent = { Text("Città del meteo") },
+            supportingContent = {
+                Text(vm.weatherCity?.let { c -> c.name + (if (c.area.isNotEmpty()) " \u00b7 " + c.area else "") } ?: "Posizione del telefono")
+            },
+            colors = prefColors(),
+            modifier = Modifier.clickable { cityDlg = true }
+        )
+    }
     Group("Ricerca") {
         Text(
             "La barra di ricerca è un widget: tieni premuto sulla Home → Widget → Barra di ricerca. Puoi spostarla e ridimensionarla come gli altri.",
@@ -632,6 +651,11 @@ private fun PageWidgets(vm: LauncherViewModel) {
 private fun PageGestures(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     Group("Gesti") {
+        SwitchRow(
+            "Tasto Home apre il cassetto",
+            "Se sei già sulla prima pagina della Home",
+            s.homeOpensDrawer
+        ) { vm.setSetting("homeOpensDrawer", it) }
         ChoiceRow(
             "Scorri giù nella Home",
             listOf("notifications" to "Apri le notifiche", "search" to "Cerca app"),
@@ -830,13 +854,54 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
 }
 
 @Composable
-private fun PageInfo() {
+private fun PageInfo(vm: LauncherViewModel, host: Host) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     Group(null) {
         ListItem(
             headlineContent = { Text("MLauncher") },
-            supportingContent = { Text("Launcher in stile HyperOS con colori Material You. Android 12 o successivo.") },
+            supportingContent = { Text("Versione ${vm.currentVersionName}. Launcher in stile HyperOS con colori Material You. Android 12 o successivo.") },
             colors = prefColors()
         )
+    }
+    Group("Aggiornamenti") {
+        val up = vm.updateInfo
+        ListItem(
+            headlineContent = {
+                Text(
+                    when {
+                        vm.updateChecking -> "Controllo in corso\u2026"
+                        up != null -> "Nuova versione ${up.version} disponibile"
+                        vm.updateUpToDate == true -> "Hai l'ultima versione"
+                        vm.updateUpToDate == false -> "Impossibile controllare (sei online?)"
+                        else -> "Controlla aggiornamenti"
+                    }
+                )
+            },
+            supportingContent = {
+                Text(if (up != null) "Tocca per scaricare l'APK e installarlo sopra quello attuale" else "Cerca una nuova versione su GitHub")
+            },
+            colors = prefColors(),
+            modifier = Modifier.clickable {
+                if (up != null) {
+                    val link = up.url.ifEmpty { up.page }
+                    try {
+                        ctx.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (e: Exception) {
+                        // nessun browser
+                    }
+                } else {
+                    vm.checkUpdate()
+                }
+            }
+        )
+        SwitchRow(
+            "Controlla all'avvio",
+            "Al massimo una volta ogni 6 ore",
+            vm.settings.autoUpdateCheck
+        ) { vm.setSetting("autoUpdateCheck", it) }
     }
     Group("Realizzazione") {
         Credit("Marco", "Idea, richieste e collaudo")
