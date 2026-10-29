@@ -108,12 +108,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val exploding = mutableStateListOf<String>()
 
     var weather by mutableStateOf<WeatherData?>(null)
+        private set
     var weatherDetail by mutableStateOf<WeatherDetail?>(null)
     /** città scelta a mano per il meteo (null = posizione del telefono) */
     var weatherCity by mutableStateOf<City?>(null)
         private set
     val weatherReady: Boolean get() = hasLocation || weatherCity != null
-        private set
     var hasLocation by mutableStateOf(false)
     var iconPacks by mutableStateOf<List<Pair<String, String>>>(emptyList())
         private set
@@ -1561,7 +1561,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             var place = city?.name ?: ""
             if (city == null) try {
                 @Suppress("DEPRECATION")
-                val list = Geocoder(ctx, Locale.getDefault()).getFromLocation(loc.latitude, loc.longitude, 1)
+                val list = Geocoder(ctx, Locale.getDefault()).getFromLocation(lat, lon, 1)
                 val a = list?.firstOrNull()
                 place = a?.locality ?: a?.subAdminArea ?: a?.adminArea ?: ""
             } catch (e: Exception) {
