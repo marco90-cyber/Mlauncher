@@ -1637,6 +1637,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ---------- aggiornamenti ----------
 
+    /** testo dell'ultimo errore che ha chiuso l'app (null = nessuno) */
+    var lastCrash by mutableStateOf<String?>(null)
+
+    fun loadCrash() {
+        val f = MLApp.crashFile(ctx)
+        lastCrash = if (f.exists()) try { f.readText() } catch (e: Exception) { null } else null
+    }
+
+    fun clearCrash() {
+        try { MLApp.crashFile(ctx).delete() } catch (e: Exception) { }
+        lastCrash = null
+    }
+
     var updateInfo by mutableStateOf<UpdateInfo?>(null)
         private set
     var updateChecking by mutableStateOf(false)

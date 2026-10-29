@@ -105,6 +105,7 @@ class MainActivity : ComponentActivity(), Host {
         window.isNavigationBarContrastEnforced = false
         syncOrientation(resources.configuration)
         vm.checkUpdate(auto = true)
+        vm.loadCrash()
         setContent {
             MLauncherTheme(vm.settings.theme) {
                 Root(vm, this@MainActivity)
