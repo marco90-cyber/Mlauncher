@@ -79,6 +79,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
+import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -519,7 +520,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
                         columns = GridCells.Fixed(if (listMode) 1 else s.drCols),
                         state = gridState,
                         contentPadding = PaddingValues(
-                            start = s.drIndent.dp, end = s.drIndent.dp + (if (s.drScrollbar) 18.dp else 0.dp),
+                            start = s.drIndent.dp, end = s.drIndent.dp + (if (s.drScrollbar) 30.dp else 0.dp),
                             top = 8.dp + s.drTop.dp, bottom = 8.dp
                         ),
                         modifier = Modifier.fillMaxSize()
@@ -540,43 +541,173 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
                         }
                         items(list, key = { it.id }) { app -> DrawerApp(app, vm, host) }
                     }
-                    if (!searchOnly && query.isBlank() && list.isNotEmpty() && s.drScrollbar && s.drSort.startsWith("name")) {
-                        val letters = remember(list) { list.map { letterOf(it.label) }.distinct() }
-                        val firstIndex = remember(list) {
-                            val m = LinkedHashMap<Char, Int>()
-                            list.forEachIndexed { i, a -> m.getOrPut(letterOf(a.label)) { i } }
-                            m
-                        }
-                        var barH by remember { mutableIntStateOf(1) }
-                        val jump: (Float) -> Unit = { y ->
-                            val idx = ((y / barH) * letters.size).toInt().coerceIn(0, letters.size - 1)
-                            val target = firstIndex[letters[idx]] ?: 0
-                            scope.launch { gridState.scrollToItem(target) }
-                        }
-                        Column(
-                            Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxHeight()
-                                .padding(vertical = 12.dp)
-                                .width(26.dp)
-                                .onSizeChanged { barH = it.height.coerceAtLeast(1) }
-                                .pointerInput(letters) { detectTapGestures { o -> jump(o.y) } }
-                                .pointerInput(letters) {
-                                    detectVerticalDragGestures(
-                                        onDragStart = { o -> jump(o.y) },
-                                        onVerticalDrag = { c, _ -> jump(c.position.y) }
-                                    )
-                                },
-                            verticalArrangement = Arrangement.SpaceEvenly,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            letters.forEach {
-                                Text(it.toString(), fontSize = 10.sp, color = cs.primary)
-                            }
-                        }
+                    if (!searchOnly && query.isBlank() && list.isNotEmpty() && s.drScrollbar) {
+                        DrawerScrollBar(list, gridState, s.drSort.startsWith("name"))
                     }
                 }
             }
+        }
+    }
+}
+
+/** Barra laterale: indicatore di posizione, striscia A-Z con ingrandimento e bolla della lettera. */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.DrawerScrollBar(
+    list: List<AppEntry>,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    byName: Boolean
+) {
+    val cs = MaterialTheme.colorScheme
+    val view = androidx.compose.ui.platform.LocalView.current
+    val dens = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val letters = remember(list, byName) { if (byName) list.map { letterOf(it.label) }.distinct() else emptyList() }
+    val firstIndex = remember(list, byName) {
+        val m = LinkedHashMap<Char, Int>()
+        if (byName) list.forEachIndexed { i, a -> m.getOrPut(letterOf(a.label)) { i } }
+        m
+    }
+    var barH by remember { mutableIntStateOf(1) }
+    var touchY by remember { mutableStateOf<Float?>(null) }
+    var active by remember { mutableStateOf<Char?>(null) }
+    var lastKey by remember { mutableIntStateOf(-1) }
+    var show by remember { mutableStateOf(false) }
+    val touching = touchY != null
+    LaunchedEffect(gridState.isScrollInProgress, touching) {
+        if (gridState.isScrollInProgress || touching) show = true
+        else {
+            delay(1500)
+            show = false
+        }
+    }
+    val thumbAlpha by androidx.compose.animation.core.animateFloatAsState(
+        if (show) 1f else 0f, tween(200), label = "thumb"
+    )
+    // feedback tattile scorrendo la lista: un tick a ogni nuova lettera (o ogni 12 icone)
+    LaunchedEffect(list, byName) {
+        androidx.compose.runtime.snapshotFlow {
+            val i = gridState.firstVisibleItemIndex
+            if (byName) letterOf(list.getOrNull(i)?.label ?: "").code else i / 12
+        }.drop(1).collect { if (touchY == null) Haptics.tick(view) }
+    }
+    val touch: (Float) -> Unit = { y ->
+        val yy = y.coerceIn(0f, barH.toFloat())
+        touchY = yy
+        if (byName && letters.isNotEmpty()) {
+            val idx = ((yy / barH) * letters.size).toInt().coerceIn(0, letters.size - 1)
+            val l = letters[idx]
+            if (l != active) {
+                active = l
+                Haptics.tick(view)
+            }
+            scope.launch { gridState.scrollToItem(firstIndex[l] ?: 0) }
+        } else {
+            val total = gridState.layoutInfo.totalItemsCount
+            val target = ((yy / barH) * (total - 1)).toInt().coerceIn(0, maxOf(0, total - 1))
+            if (target / 12 != lastKey) {
+                lastKey = target / 12
+                Haptics.tick(view)
+            }
+            scope.launch { gridState.scrollToItem(target) }
+        }
+    }
+    val release: () -> Unit = {
+        touchY = null
+        active = null
+    }
+    val thumbH = 56.dp
+    val thumbPx = with(dens) { thumbH.toPx() }
+    val info = gridState.layoutInfo
+    val denom = maxOf(1, info.totalItemsCount - info.visibleItemsInfo.size)
+    val frac = (gridState.firstVisibleItemIndex.toFloat() / denom).coerceIn(0f, 1f)
+
+    Box(
+        Modifier
+            .align(Alignment.CenterEnd)
+            .fillMaxHeight()
+            .padding(vertical = 12.dp)
+            .width(30.dp)
+            .onSizeChanged { barH = it.height.coerceAtLeast(1) }
+            .pointerInput(letters, byName) {
+                detectTapGestures(onPress = { o ->
+                    touch(o.y)
+                    tryAwaitRelease()
+                    release()
+                })
+            }
+            .pointerInput(letters, byName) {
+                detectVerticalDragGestures(
+                    onDragStart = { o -> touch(o.y) },
+                    onVerticalDrag = { c, _ -> touch(c.position.y) },
+                    onDragEnd = release,
+                    onDragCancel = release
+                )
+            }
+    ) {
+        // binario sottile sempre visibile: suggerisce che la lista scorre
+        Box(
+            Modifier.align(Alignment.CenterEnd).padding(end = 3.dp).fillMaxHeight().width(2.dp)
+                .clip(CircleShape).background(cs.onSurface.copy(alpha = 0.14f))
+        )
+        // maniglia di posizione
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset { IntOffset(0, ((barH - thumbPx) * frac).toInt().coerceAtLeast(0)) }
+                .padding(end = 1.dp)
+                .width(if (touching) 7.dp else 5.dp)
+                .height(thumbH)
+                .clip(CircleShape)
+                .background(cs.primary.copy(alpha = thumbAlpha))
+        )
+        if (byName && letters.isNotEmpty()) {
+            Column(
+                Modifier.align(Alignment.CenterStart).fillMaxHeight().width(20.dp),
+                verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                letters.forEachIndexed { i, l ->
+                    val ty = touchY
+                    val center = (i + 0.5f) / letters.size * barH
+                    val sc = if (ty == null) 1f else {
+                        val d = (ty - center) / (barH.toFloat() / letters.size * 2.2f)
+                        1f + 1.1f * kotlin.math.exp(-d * d)
+                    }
+                    Text(
+                        l.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = if (l == active) FontWeight.Bold else FontWeight.Medium,
+                        color = cs.primary,
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = sc
+                            scaleY = sc
+                            translationX = -(sc - 1f) * 26f
+                        }
+                    )
+                }
+            }
+        }
+    }
+    // bolla grande con la lettera attuale, a sinistra del dito
+    val ty = touchY
+    val al = active
+    if (ty != null && al != null && byName) {
+        val bubble = 72.dp
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset {
+                    IntOffset(
+                        -(48.dp.roundToPx()),
+                        (ty + 12.dp.toPx() - bubble.toPx() / 2f).toInt().coerceAtLeast(0)
+                    )
+                }
+                .size(bubble)
+                .clip(RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 36.dp, bottomEnd = 10.dp))
+                .background(cs.primary),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(al.toString(), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = cs.onPrimary)
         }
     }
 }
