@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -143,6 +144,7 @@ fun WidgetContent(
 //  Barra di ricerca (widget)
 // ---------------------------------------------------------------------
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SearchWidget(vm: LauncherViewModel, onLongPress: () -> Unit, modifier: Modifier, sample: Boolean = false) {
     val cs = MaterialTheme.colorScheme
