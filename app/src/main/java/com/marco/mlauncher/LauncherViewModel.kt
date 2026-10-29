@@ -584,10 +584,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         addInternalWidget("weather", 2, 2, 0)
         sp.edit().putBoolean("defaultWidgets", true).apply()
 
-        if (settings.homeMode == "all") {
-            val placed = placedAppIds()
-            sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id) }
-        } else {
+        run {
             // poche icone in Home, il resto sta nel cassetto
             val rows = settings.rows
             val cols = settings.cols
@@ -598,13 +595,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 "com.google.android.apps.docs", "com.google.android.apps.youtube.music"
             ).mapNotNull { app(it)?.id }
             val row = ArrayList<HomeItem>()
-            if (folderApps.size >= 2) row.add(FolderItem(UUID.randomUUID().toString(), "Google", folderApps, 0, 0, rows - 2))
+            if (folderApps.size >= 2) row.add(FolderItem(UUID.randomUUID().toString(), "Google", folderApps, 0, 0, rows - 1))
             apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }
-                ?.let { row.add(AppItem(it.id, 0, 0, rows - 2)) }
-            app("com.google.android.apps.photos")?.let { row.add(AppItem(it.id, 0, 0, rows - 2)) }
-            app("com.android.vending")?.let { row.add(AppItem(it.id, 0, 0, rows - 2)) }
-            row.take(cols).forEachIndexed { i, it -> items.add(it.at(0, i, rows - 2)) }
-            gmail?.let { items.add(AppItem(it.id, 0, cols - 1, rows - 3)) }
+                ?.let { row.add(AppItem(it.id, 0, 0, rows - 1)) }
+            app("com.google.android.apps.photos")?.let { row.add(AppItem(it.id, 0, 0, rows - 1)) }
+            app("com.android.vending")?.let { row.add(AppItem(it.id, 0, 0, rows - 1)) }
+            row.take(cols).forEachIndexed { i, it -> items.add(it.at(0, i, rows - 1)) }
+            gmail?.let { items.add(AppItem(it.id, 0, cols - 1, rows - 2)) }
+        }
+        if (settings.homeMode == "all") {
+            // la prima pagina resta pulita: le altre app partono dalla seconda
+            val placed = placedAppIds()
+            sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
         }
         apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
             if (it.id !in placedAppIds()) addApp(it.id)
@@ -653,7 +655,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         val placed = placedAppIds()
         if (settings.homeMode == "all") {
-            sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id) }
+            sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
         } else if (settings.autoAddNew && knownIds.isNotEmpty()) {
             ids.filter { it !in knownIds && it !in placed && it !in hidden }.forEach { addApp(it) }
         }
@@ -993,7 +995,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     resetHome()
                 } else if (value == "all") {
                     val placed = placedAppIds()
-                    sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id) }
+                    sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
                     saveLayout()
                 }
             }
