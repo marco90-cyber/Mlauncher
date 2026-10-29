@@ -63,8 +63,10 @@ fun WidgetPicker(vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
     AnimatedVisibility(
         visible = vm.overlay == Overlay.WIDGETS,
-        enter = fadeIn() + slideInVertically { it / 2 },
-        exit = fadeOut() + slideOutVertically { it / 2 }
+        enter = fadeIn(androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.StandardDecelerate)) +
+            slideInVertically(androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate)) { it / 2 },
+        exit = fadeOut(androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.StandardAccelerate)) +
+            slideOutVertically(androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.EmphasizedAccelerate)) { it / 2 }
     ) {
         Box(
             Modifier

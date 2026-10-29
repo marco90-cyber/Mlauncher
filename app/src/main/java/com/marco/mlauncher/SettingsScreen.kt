@@ -132,10 +132,14 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
             targetState = page,
             modifier = Modifier.padding(pad),
             transitionSpec = {
+                val inSpec = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(Motion.SHEET, easing = Motion.EmphasizedDecelerate)
+                val outSpec = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(Motion.SHEET, easing = Motion.EmphasizedAccelerate)
+                val fIn = androidx.compose.animation.core.tween<Float>(Motion.SHEET, easing = Motion.StandardDecelerate)
+                val fOut = androidx.compose.animation.core.tween<Float>(Motion.FADE, easing = Motion.StandardAccelerate)
                 if (targetState != null) {
-                    (slideInHorizontally { it / 4 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 4 } + fadeOut())
+                    (slideInHorizontally(inSpec) { it / 4 } + fadeIn(fIn)) togetherWith (slideOutHorizontally(outSpec) { -it / 4 } + fadeOut(fOut))
                 } else {
-                    (slideInHorizontally { -it / 4 } + fadeIn()) togetherWith (slideOutHorizontally { it / 4 } + fadeOut())
+                    (slideInHorizontally(inSpec) { -it / 4 } + fadeIn(fIn)) togetherWith (slideOutHorizontally(outSpec) { it / 4 } + fadeOut(fOut))
                 }
             },
             label = "settingsPage"

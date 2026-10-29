@@ -192,7 +192,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     var menuItem by remember { mutableStateOf<HomeItem?>(null) }
     var menuRect by remember { mutableStateOf(Rect.Zero) }
     val edit = vm.editMode
-    val topPad by animateDpAsState(if (edit) 56.dp else 6.dp, label = "topPad")
+    val topPad by animateDpAsState(if (edit) 56.dp else 6.dp, androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate), label = "topPad")
     val folderZonePx = with(density) { 48.dp.toPx() }
     val switchPx = with(density) { 60.dp.toPx() }
     val dragRef by rememberUpdatedState(drag)
@@ -356,6 +356,12 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             HorizontalPager(
                 state = pagerState,
                 beyondViewportPageCount = 8,
+                flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
+                    pagerState,
+                    snapAnimationSpec = androidx.compose.animation.core.tween(
+                        (Motion.PAGE_SNAP * s.animFactor).toInt(), easing = Motion.Standard
+                    )
+                ),
                 userScrollEnabled = drag == null,
                 modifier = Modifier
                     .weight(1f)
@@ -400,8 +406,10 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(top = 6.dp),
-            enter = fadeIn() + slideInVertically { -it },
-            exit = fadeOut() + slideOutVertically { -it }
+            enter = fadeIn(androidx.compose.animation.core.tween(Motion.FADE, easing = Motion.StandardDecelerate)) +
+                slideInVertically(androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate)) { -it },
+            exit = fadeOut(androidx.compose.animation.core.tween(Motion.FADE, easing = Motion.StandardAccelerate)) +
+                slideOutVertically(androidx.compose.animation.core.tween(Motion.REORDER, easing = Motion.EmphasizedAccelerate)) { -it }
         ) {
             Row(
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),

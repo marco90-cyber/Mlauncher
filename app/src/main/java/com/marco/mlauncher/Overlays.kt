@@ -77,6 +77,8 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -124,12 +126,23 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
     val dur = (240 * s.animFactor).toInt()
     val ctx = LocalContext.current
 
-    AnimatedVisibility(
-        visible = folder != null && shown != null,
-        enter = fadeIn(tween(dur)),
-        exit = fadeOut(tween(dur))
+    // animazione come in Lawnchair (FolderAnimationManager): 200 ms, curva standard Material,
+    // la cartella cresce dall'icona. Un solo valore di avanzamento letto solo in fase di disegno.
+    val prog = remember { androidx.compose.animation.core.Animatable(0f) }
+    val opening = folder != null
+    LaunchedEffect(opening) {
+        prog.animateTo(
+            if (opening) 1f else 0f,
+            tween(
+                ((if (opening) Motion.FOLDER else Motion.FOLDER_CLOSE) * s.animFactor).toInt(),
+                easing = Motion.Standard
+            )
+        )
+    }
+    val geo = remember { floatArrayOf(0.5f, 0.5f) }
+    run {
     ) {
-        if (shown != null) {
+        if (shown != null && (folder != null || prog.value > 0.001f)) {
             var name by remember(shown.folderId) { mutableStateOf(shown.name) }
             val nameRef = rememberUpdatedState(name)
             val folderId = shown.folderId
@@ -147,7 +160,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.18f))
+                    .drawBehind { drawRect(Color.Black.copy(alpha = 0.18f * prog.value)) }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -165,35 +178,32 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val hasAnchor = anchor != Rect.Zero
                 val cx = if (hasAnchor) anchor.center.x else sw / 2f
                 val cardX = (cx - cardWpx / 2f).coerceIn(m, maxOf(m, sw - cardWpx - m))
+                val startScale = if (hasAnchor) (anchor.width / cardWpx).coerceIn(0.2f, 0.7f) else 0.85f
+                Box(
+                    Modifier.layout { measurable, c ->
+                        val pl = measurable.measure(c.copy(minWidth = 0, minHeight = 0))
+                        val y = when {
+                            !hasAnchor -> (sh - pl.height) / 2f
+                            else -> anchor.bottom + m * 0.75f - pl.height
+                        }.coerceIn(m, maxOf(m, sh - pl.height - m))
+                        geo[0] = ((cx - cardX) / cardWpx).coerceIn(0f, 1f)
+                        geo[1] = if (hasAnchor) ((anchor.center.y - y) / pl.height).coerceIn(0f, 1f) else 0.5f
+                        layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
+                    }
+                ) {
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
                     shadowElevation = 12.dp,
                     modifier = Modifier
-                        .animateEnterExit(
-                            enter = scaleIn(
-                                tween(dur),
-                                initialScale = 0.4f,
-                                transformOrigin = TransformOrigin(
-                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), 0.8f
-                                )
-                            ) + fadeIn(tween(dur)),
-                            exit = scaleOut(
-                                tween(dur),
-                                targetScale = 0.4f,
-                                transformOrigin = TransformOrigin(
-                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), 0.8f
-                                )
-                            ) + fadeOut(tween(dur))
-                        )
                         .width(cardW)
-                        .layout { measurable, c ->
-                            val pl = measurable.measure(c)
-                            val y = when {
-                                !hasAnchor -> (sh - pl.height) / 2f
-                                else -> anchor.bottom + m * 0.75f - pl.height
-                            }.coerceIn(m, maxOf(m, sh - pl.height - m))
-                            layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
+                        .graphicsLayer {
+                            val p = prog.value
+                            val sc = startScale + (1f - startScale) * p
+                            scaleX = sc
+                            scaleY = sc
+                            transformOrigin = TransformOrigin(geo[0], geo[1])
+                            alpha = minOf(1f, p * 4f)
                         }
                         .onGloballyPositioned { cardRect = it.boundsInRoot() }
                         .pointerInput(Unit) { detectTapGestures { } }
@@ -290,7 +300,13 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                             }
                         }
                         Box(Modifier.fillMaxWidth().height(90.dp * ((minOf(ids.size, perPage) + fCols - 1) / fCols))) {
-                            androidx.compose.foundation.pager.HorizontalPager(state = fPager, modifier = Modifier.fillMaxSize()) { pg ->
+                            androidx.compose.foundation.pager.HorizontalPager(
+                                state = fPager,
+                                flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
+                                    fPager, snapAnimationSpec = tween(Motion.PAGE_SNAP, easing = Motion.Standard)
+                                ),
+                                modifier = Modifier.fillMaxSize()
+                            ) { pg ->
                                 val slice = ids.drop(pg * perPage).take(perPage)
                                 Column(Modifier.fillMaxSize()) {
                                     slice.chunked(fCols).forEach { rowIds ->
@@ -341,6 +357,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         }
                     }
                 }
+                }
             }
             val da = dragApp?.let { vm.apps[it] }
             if (da != null) {
@@ -372,8 +389,18 @@ fun AppsOverlay(vm: LauncherViewModel, host: Host) {
     LaunchedEffect(visible) { if (!visible) query = "" }
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(dur)) + slideInVertically(tween(dur)) { it / 4 },
-        exit = fadeOut(tween(dur)) + slideOutVertically(tween(dur)) { it / 4 }
+        enter = fadeIn(tween((Motion.FADE * s.animFactor).toInt(), easing = Motion.StandardDecelerate)) +
+            slideInVertically(tween((Motion.ALL_APPS_OPEN * s.animFactor).toInt(), easing = Motion.EmphasizedDecelerate)) { it / 3 } +
+            androidx.compose.animation.scaleIn(
+                tween((Motion.ALL_APPS_OPEN * s.animFactor).toInt(), easing = Motion.EmphasizedDecelerate),
+                initialScale = 0.92f
+            ),
+        exit = fadeOut(tween((Motion.ALL_APPS_CLOSE * s.animFactor).toInt(), easing = Motion.StandardAccelerate)) +
+            slideOutVertically(tween((Motion.ALL_APPS_CLOSE * s.animFactor).toInt(), easing = Motion.EmphasizedAccelerate)) { it / 3 } +
+            androidx.compose.animation.scaleOut(
+                tween((Motion.ALL_APPS_CLOSE * s.animFactor).toInt(), easing = Motion.EmphasizedAccelerate),
+                targetScale = 0.92f
+            )
     ) {
         DrawerContent(vm, host, query) { query = it }
     }
@@ -547,11 +574,12 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host) {
 
 @Composable
 fun SettingsOverlay(vm: LauncherViewModel, host: Host) {
-    val dur = (280 * vm.settings.animFactor).toInt()
     AnimatedVisibility(
         visible = vm.overlay == Overlay.SETTINGS,
-        enter = slideInHorizontally(tween(dur)) { it } + fadeIn(tween(dur)),
-        exit = slideOutHorizontally(tween(dur)) { it } + fadeOut(tween(dur))
+        enter = slideInHorizontally(tween((Motion.SHEET * vm.settings.animFactor).toInt(), easing = Motion.EmphasizedDecelerate)) { it / 2 } +
+            fadeIn(tween((Motion.SHEET * vm.settings.animFactor).toInt(), easing = Motion.StandardDecelerate)),
+        exit = slideOutHorizontally(tween((Motion.SHEET * vm.settings.animFactor).toInt(), easing = Motion.EmphasizedAccelerate)) { it / 2 } +
+            fadeOut(tween((Motion.SHEET * vm.settings.animFactor).toInt(), easing = Motion.StandardAccelerate))
     ) {
         SettingsScreen(vm, host)
     }
