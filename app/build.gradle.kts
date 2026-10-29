@@ -20,10 +20,19 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../mlauncher.jks")
-            storePassword = "mlauncher"
-            keyAlias = "mlauncher"
-            keyPassword = "mlauncher"
+            // chiave privata dai segreti di GitHub; finché non ci sono si usa la vecchia chiave del progetto
+            val ks = System.getenv("KEYSTORE_FILE")
+            if (!ks.isNullOrEmpty() && file(ks).exists()) {
+                storeFile = file(ks)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            } else {
+                storeFile = file("../mlauncher.jks")
+                storePassword = "mlauncher"
+                keyAlias = "mlauncher"
+                keyPassword = "mlauncher"
+            }
         }
     }
 

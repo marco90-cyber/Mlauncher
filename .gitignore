@@ -5,3 +5,6 @@ local.properties
 *.iml
 captures/
 .DS_Store
+
+# chiavi di firma private
+*-release.jks
