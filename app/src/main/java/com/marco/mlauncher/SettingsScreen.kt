@@ -94,7 +94,6 @@ private val orderOptions = listOf(
 )
 private val themeNames = mapOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro")
 private val dockNames = mapOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno")
-private val searchNames = mapOf("home" to "in alto nella Home", "dock" to "sopra la dock", "none" to "nascosta")
 
 private fun pageTitle(key: String?) = when (key) {
     "home" -> "Schermata Home"
@@ -226,7 +225,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         *(if (s.homeMode == "drawer") arrayOf(
             Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
         ) else emptyArray()),
-        Cat("widgets", "Widget e ricerca", "Ricerca ${searchNames[s.searchBar] ?: ""}", Icons.Default.Search),
+        Cat("widgets", "Widget e ricerca", "Orologio, meteo, batteria, ricerca", Icons.Default.Search),
         Cat("gestures", "Gesti e feedback", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
         Cat("effects", "Effetti e animazioni", "Cambio pagina: ${effectNames[s.pageEffect] ?: ""}", Icons.Default.Favorite),
         Cat("look", "Aspetto", "Tema ${(themeNames[s.theme] ?: "").lowercase()}", Icons.Default.Create),
@@ -607,11 +606,12 @@ private fun PageWidgets(vm: LauncherViewModel) {
     val s = vm.settings
     OrientationTabs(s)
     Group("Ricerca") {
-        ChoiceRow(
-            "Barra di ricerca",
-            listOf("home" to "In alto nella Home", "dock" to "Sopra la dock", "none" to "Nascosta"),
-            s.searchBar
-        ) { vm.setSetting("searchBar", it) }
+        Text(
+            "La barra di ricerca è un widget: tieni premuto sulla Home → Widget → Barra di ricerca. Puoi spostarla e ridimensionarla come gli altri.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
     }
     Group("Widget") {
         SwitchRow(

@@ -133,8 +133,57 @@ fun WidgetContent(
         "clock" -> ClockWidget(host, onLongPress, modifier)
         "analog" -> AnalogClockWidget(host, onLongPress, modifier)
         "battery" -> BatteryWidget(host, onLongPress, modifier)
+        "search" -> SearchWidget(vm, onLongPress, modifier, sample)
         "weather" -> WeatherWidget(vm, host, onLongPress, modifier, sample)
         else -> ExtWidget(ref, vm, onLongPress, modifier)
+    }
+}
+
+// ---------------------------------------------------------------------
+//  Barra di ricerca (widget)
+// ---------------------------------------------------------------------
+
+@Composable
+fun SearchWidget(vm: LauncherViewModel, onLongPress: () -> Unit, modifier: Modifier, sample: Boolean = false) {
+    val cs = MaterialTheme.colorScheme
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val h = minOf(maxHeight, if (sample) 30.dp else 50.dp)
+        val compact = maxWidth < 120.dp
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(h)
+                .clip(CircleShape)
+                .background(cs.surfaceContainerHigh.copy(alpha = 0.9f))
+                .combinedClickable(
+                    onClick = {
+                        if (!sample) {
+                            vm.searchFocus = true
+                            vm.overlay = Overlay.DRAWER
+                        }
+                    },
+                    onLongClick = onLongPress
+                )
+                .padding(horizontal = if (sample) 10.dp else 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.Icon(
+                androidx.compose.material.icons.Icons.Default.Search,
+                contentDescription = "Cerca",
+                tint = cs.primary,
+                modifier = Modifier.size(if (sample) 16.dp else 22.dp)
+            )
+            if (!compact) {
+                Spacer(Modifier.width(if (sample) 6.dp else 12.dp))
+                Text(
+                    "Cerca app e altro",
+                    color = cs.onSurfaceVariant,
+                    fontSize = if (sample) 10.sp else 15.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 

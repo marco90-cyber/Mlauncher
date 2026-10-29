@@ -409,13 +409,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 // con il telefono ruotato dall'altra parte la dock sta a sinistra, come in Launcher3
                 if (seascape) dockContent()
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
-                    if (s.searchBar != "none" && !edit) {
-                        Box(Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 12.dp, vertical = 3.dp)) {
-                            SearchPill { vm.overlay = Overlay.DRAWER }
-                        }
-                    } else {
-                        Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
-                    }
+                    Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
                     PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
                 }
@@ -428,25 +422,9 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
             )
         ) {
-            if (s.searchBar == "home") {
-                Row(
-                    Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (!edit) {
-                        Box(Modifier.weight(1f)) { SearchPill { vm.overlay = Overlay.DRAWER } }
-                    }
-                }
-            } else {
-                Spacer(Modifier.height(topPad))
-            }
+            Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
             PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
-            if (s.searchBar == "dock" && !edit) {
-                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)) {
-                    SearchPill { vm.overlay = Overlay.DRAWER }
-                }
-            }
             Dock(
                 vm = vm,
                 host = host,
@@ -612,22 +590,6 @@ private fun SettingsButton(onClick: () -> Unit) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = cs.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun SearchPill(onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Surface(
-        shape = CircleShape,
-        color = cs.surfaceContainerHigh.copy(alpha = 0.85f),
-        modifier = Modifier.fillMaxWidth().height(46.dp).clickable(onClick = onClick)
-    ) {
-        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Search, contentDescription = null, tint = cs.onSurfaceVariant)
-            Spacer(Modifier.width(10.dp))
-            Text("Cerca app e altro", color = cs.onSurfaceVariant, fontSize = 15.sp)
         }
     }
 }
@@ -1271,6 +1233,7 @@ private fun StackManage(stack: StackItem, vm: LauncherViewModel, modifier: Modif
                                     "clock" -> "Orologio"
                                     "analog" -> "Orologio analogico"
                                     "battery" -> "Batteria"
+                                    "search" -> "Ricerca"
                                     "weather" -> "Meteo"
                                     else -> vm.widgetMgr.getAppWidgetInfo(r.widgetId)
                                         ?.provider?.packageName ?: "Widget"

@@ -464,7 +464,9 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
         else visible.filter { it.label.contains(query.trim(), ignoreCase = true) }
     }
     LaunchedEffect(Unit) {
-        if (searchOnly) {
+        val wantFocus = searchOnly || vm.searchFocus
+        vm.searchFocus = false
+        if (wantFocus) {
             delay(150)
             try {
                 focus.requestFocus()

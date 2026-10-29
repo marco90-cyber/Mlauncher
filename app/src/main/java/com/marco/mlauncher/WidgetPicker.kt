@@ -152,6 +152,9 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                     item { InternalCard(vm, host, "Batteria", "battery", 2, 1) }
                     item { InternalCard(vm, host, "Batteria", "battery", 2, 2) }
                     item { InternalCard(vm, host, "Batteria", "battery", 4, 2) }
+                    item { InternalCard(vm, host, "Barra di ricerca", "search", 4, 1) }
+                    item { InternalCard(vm, host, "Barra di ricerca", "search", 3, 1) }
+                    item { InternalCard(vm, host, "Ricerca (icona)", "search", 1, 1) }
                     item { InternalCard(vm, host, "Meteo", "weather", 2, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 4, 2) }
                     item { EmptyStackCard(vm, 2, 2) }

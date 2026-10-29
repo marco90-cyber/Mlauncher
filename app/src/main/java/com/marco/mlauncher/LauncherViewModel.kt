@@ -87,6 +87,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         private set
 
     var overlay by mutableStateOf(Overlay.NONE)
+    /** il cassetto deve aprirsi con la tastiera sulla ricerca (tocco sul widget di ricerca) */
+    var searchFocus by mutableStateOf(false)
     /** pagina aperta nelle impostazioni (null = elenco delle categorie) */
     var settingsPage by mutableStateOf<String?>(null)
     var editMode by mutableStateOf(false)
@@ -705,6 +707,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         // orologio e meteo di default
         addInternalWidget("clock", 2, 2, 0)
         addInternalWidget("weather", 2, 2, 0)
+        addInternalWidget("search", 4, 1, 0)
         sp.edit().putBoolean("defaultWidgets", true).apply()
 
         run {
@@ -769,6 +772,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             placeDefaultWidgetsOnTop()
             sp.edit().putBoolean("defaultWidgets", true).putBoolean("defaultWidgetsTop", true).apply()
         }
+        migrateSearchBar()
         if (!sp.getBoolean("settingsIcon", false)) {
             apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
                 if (it.id !in placedAppIds()) addApp(it.id)
@@ -1194,6 +1198,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
             }
         }
+        if (hasLayout && apps.isNotEmpty()) migrateSearchBar()
         if (hasLayout) saveLayout()
     }
 
@@ -1255,6 +1260,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
         }
         return best
+    }
+
+    /** La barra di ricerca fissa è diventata un widget: chi la usava la ritrova in Home, una volta sola per layout. */
+    private fun migrateSearchBar() {
+        val flag = lk("searchWidget")
+        if (sp.getBoolean(flag, false)) return
+        val has = items.any { i -> refsOf(i).any { it.kind == "search" } }
+        if (!has && settings.searchBar != "none") addInternalWidget("search", 4, 1, 0)
+        sp.edit().putBoolean(flag, true).apply()
     }
 
     /** Chiamato quando cambia l'orientamento reale del telefono. */
