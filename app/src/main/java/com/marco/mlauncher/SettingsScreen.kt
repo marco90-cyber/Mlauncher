@@ -741,6 +741,11 @@ private fun PageLook(vm: LauncherViewModel) {
             s.pageIndicator,
             preview = { IndicatorPreview(it) }
         ) { vm.setSetting("pageIndicator", it) }
+        SwitchRow(
+            "Indicatore come la dock",
+            "Prende stile, trasparenza ed effetto vetro della dock",
+            s.indFollowDock
+        ) { vm.setSetting("indFollowDock", it) }
         Text(
             "Con qualsiasi stile: tieni premuto sull'indicatore e scorri per cambiare pagina al volo.",
             style = MaterialTheme.typography.bodySmall,

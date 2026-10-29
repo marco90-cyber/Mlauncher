@@ -60,6 +60,28 @@ fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp): 
     return m
 }
 
+/** Colore leggibile su un elemento con l'aspetto della dock appoggiato sullo sfondo (es. indicatore di pagina). */
+@Composable
+fun dockContentColor(style: String, opacity: Int): Color {
+    val cs = MaterialTheme.colorScheme
+    if (style == "none") return Color.White
+    val (base, a0) = when (style) {
+        "tinted" -> cs.primaryContainer to 0.55f
+        "dark" -> Color.Black to 0.38f
+        "pill" -> cs.surfaceContainer to 0.85f
+        "bar" -> cs.surfaceContainerHigh to 0.70f
+        "tiles" -> cs.surfaceContainerHighest to 0.30f
+        else -> Color.White to 0.28f
+    }
+    val a = (a0 * opacity / 60f).coerceIn(0f, 1f)
+    val bd = Color(0xFF3A3A3A)
+    val r = base.red * a + bd.red * (1 - a)
+    val g = base.green * a + bd.green * (1 - a)
+    val b = base.blue * a + bd.blue * (1 - a)
+    val lum = 0.2126f * r + 0.7152f * g + 0.0722f * b
+    return if (lum > 0.5f) Color(0xFF1B1B1F) else Color.White
+}
+
 /** Tessera singola dietro a ogni icona (stile "Tessere singole"). */
 @Composable
 fun Modifier.dockTile(opacity: Int, glass: Boolean, corner: Dp): Modifier {

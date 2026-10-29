@@ -165,6 +165,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
+    var indFollowDock by mutableStateOf(sp.getBoolean("indFollowDock", true))
         private set
     var drLayout by mutableStateOf(sp.getString("drLayout", "grid") ?: "grid")
     private var drColsP by mutableStateOf(sp.getInt("drCols", 4))
@@ -281,6 +282,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapDrop" -> hapDrop = value as Boolean
             "hapTick" -> hapTick = value as Boolean
             "hapPage" -> hapPage = value as Boolean
+            "indFollowDock" -> indFollowDock = value as Boolean
             "drLayout" -> drLayout = value as String
             "drCols" -> if (landscape) drColsL = value as Int else drColsP = value as Int
             "drRowH" -> if (landscape) drRowHL = value as Float else drRowHP = value as Float

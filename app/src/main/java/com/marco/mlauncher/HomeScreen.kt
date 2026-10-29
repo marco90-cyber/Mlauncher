@@ -415,7 +415,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
                     Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
-                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
+                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
                 }
                 if (!seascape) dockContent()
             }
@@ -428,7 +428,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         ) {
             Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
-            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
+            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
             Dock(
                 vm = vm,
                 host = host,
@@ -608,7 +608,7 @@ private fun BarButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PageDots(count: Int, state: PagerState, style: String, onSearch: () -> Unit) {
+private fun PageDots(count: Int, state: PagerState, style: String, st: LauncherSettings, onSearch: () -> Unit) {
     val scope = rememberCoroutineScope()
     val view = androidx.compose.ui.platform.LocalView.current
     var scrubbing by remember { mutableStateOf(false) }
@@ -650,13 +650,22 @@ private fun PageDots(count: Int, state: PagerState, style: String, onSearch: () 
         contentAlignment = Alignment.Center
     ) {
         if (style == "none" || (count <= 1 && !ios)) return@Box
-        val capsule = ios || scrubbing
-        Row(
-            Modifier
-                .graphicsLayer { scaleX = scale; scaleY = scale }
+        // l'indicatore può prendere l'aspetto della dock (stile, trasparenza, vetro)
+        val follow = st.indFollowDock && st.dockStyle != "none"
+        val capsule = ios || scrubbing || follow
+        val fg = if (follow) dockContentColor(st.dockStyle, st.dockOpacity) else Color.White
+        val look = when {
+            follow && st.dockStyle == "tiles" -> Modifier.dockTile(st.dockOpacity, st.dockGlass, 50.dp)
+            follow -> Modifier.dockLook(if (st.dockStyle == "bar") "pill" else st.dockStyle, st.dockOpacity, st.dockGlass, 50.dp)
+            else -> Modifier
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = if (capsule) 0.22f else 0f))
                 .border(1.dp, Color.White.copy(alpha = if (ios) 0.28f else 0f), CircleShape)
+        }
+        Row(
+            Modifier
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .then(look)
                 .then(
                     if (ios) Modifier.pointerInput(Unit) {
                         detectTapGestures(onTap = {
@@ -670,20 +679,20 @@ private fun PageDots(count: Int, state: PagerState, style: String, onSearch: () 
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (ios && showSearch) {
-                Icon(Icons.Default.Search, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Search, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Cerca", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text("Cerca", color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             } else {
-                PageDotsContent(count, state, if (ios) "dots" else style)
+                PageDotsContent(count, state, if (ios) "dots" else style, fg)
             }
         }
     }
 }
 
 @Composable
-private fun PageDotsContent(count: Int, state: PagerState, style: String) {
+private fun PageDotsContent(count: Int, state: PagerState, style: String, fg: Color) {
     val current = state.currentPage
-    val white = Color.White
+    val white = fg
     Row(verticalAlignment = Alignment.CenterVertically) {
         when (style) {
             "dots" -> repeat(count) { i ->
