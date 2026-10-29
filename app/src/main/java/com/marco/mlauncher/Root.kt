@@ -47,7 +47,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     ) {
         // la Home dietro la cartella aperta si sfoca (vetro smerigliato)
         val blurRadius by androidx.compose.animation.core.animateDpAsState(
-            if (vm.openFolderId != null) 18.dp else 0.dp,
+            if (vm.openFolderId != null) vm.settings.folderBlur.dp else 0.dp,
             androidx.compose.animation.core.tween(Motion.FOLDER, easing = Motion.Standard),
             label = "folderBlur"
         )

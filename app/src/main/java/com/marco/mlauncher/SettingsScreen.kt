@@ -521,6 +521,10 @@ private fun PageFolders(vm: LauncherViewModel) {
         ) { vm.setSetting("folderBg", it) }
     }
     Group("Cartella aperta") {
+        SliderRow("Sfocatura dello sfondo", if (s.folderBlur == 0) "Nessuna" else "${s.folderBlur} dp", s.folderBlur.toFloat(), 0f..40f, 0) {
+            val v = (it / 2f).roundToInt() * 2
+            if (v != s.folderBlur) vm.setSetting("folderBlur", v)
+        }
         SliderRow("Colonne", "${s.folderCols}", s.folderCols.toFloat(), 3f..5f, 1) {
             val v = it.roundToInt()
             if (v != s.folderCols) vm.setSetting("folderCols", v)

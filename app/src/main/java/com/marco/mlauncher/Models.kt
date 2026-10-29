@@ -158,6 +158,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var drTop by mutableStateOf(sp.getInt("drTop", 0))
     var drIndent by mutableStateOf(sp.getInt("drIndent", 8))
     var drRemember by mutableStateOf(sp.getBoolean("drRemember", false))
+    var folderBlur by mutableStateOf(sp.getInt("folderBlur", 18))
     var folderFollowDock by mutableStateOf(sp.getBoolean("folderFollowDock", true))
     var autoFolders by mutableStateOf(sp.getBoolean("autoFolders", false))
     var homeOrder by mutableStateOf(sp.getString("homeOrder", "name") ?: "name")
@@ -251,6 +252,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "drTop" -> drTop = value as Int
             "drIndent" -> drIndent = value as Int
             "drRemember" -> drRemember = value as Boolean
+            "folderBlur" -> folderBlur = value as Int
             "folderFollowDock" -> folderFollowDock = value as Boolean
             "autoFolders" -> autoFolders = value as Boolean
             "homeOrder" -> homeOrder = value as String
