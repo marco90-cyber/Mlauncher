@@ -83,6 +83,15 @@ private val effectNames = mapOf(
     "slide" to "Scorrimento", "fade" to "Dissolvenza", "cube" to "Cubo", "rotate" to "Rotazione", "cascade" to "Cascata"
 )
 private val folderNames = mapOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72", "stack" to "Ventaglio")
+private val orderOptions = listOf(
+    "name" to "Per nome (A-Z)",
+    "name_desc" to "Per nome (Z-A)",
+    "usage" to "Più usate per prime",
+    "recent" to "Installate di recente",
+    "color" to "Per colore dell'icona",
+    "cat_folders" to "Cartelle per categoria",
+    "letter_folders" to "Cartelle per lettera"
+)
 private val themeNames = mapOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro")
 private val dockNames = mapOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno")
 private val searchNames = mapOf("home" to "in alto nella Home", "dock" to "sopra la dock", "none" to "nascosta")
@@ -241,11 +250,43 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
 private fun PageHome(vm: LauncherViewModel) {
     val s = vm.settings
     Group("Griglia") {
+        var askOrder by remember { mutableStateOf(false) }
         ChoiceRow(
             "Modalità Home",
             listOf("drawer" to "Home e cassetto app", "all" to "Tutte le app in Home"),
             s.homeMode
-        ) { vm.setSetting("homeMode", it) }
+        ) {
+            vm.setSetting("homeMode", it)
+            if (it == "all") askOrder = true
+        }
+        if (s.homeMode == "all") {
+            ChoiceRow("Come disporre le app", orderOptions, s.homeOrder) { vm.setSetting("homeOrder", it) }
+        }
+        if (askOrder) {
+            AlertDialog(
+                onDismissRequest = { askOrder = false },
+                title = { Text("Come vuoi le app in Home?") },
+                text = {
+                    Column {
+                        orderOptions.forEach { (k, l) ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    vm.setSetting("homeOrder", k)
+                                    askOrder = false
+                                }.padding(vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = k == s.homeOrder, onClick = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(l)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = { TextButton(onClick = { askOrder = false }) { Text("Chiudi") } }
+            )
+        }
         SliderRow("Colonne", "${s.cols}", s.cols.toFloat(), 4f..6f, 1, preview = { GridPreview(s.cols, s.rows) }) {
             val v = it.roundToInt()
             if (v != s.cols) vm.setSetting("cols", v)

@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -481,6 +482,93 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
+    fun recordLaunch(appId: String) {
+        val k = "use_$appId"
+        sp.edit().putInt(k, sp.getInt(k, 0) + 1).apply()
+    }
+
+    private fun hueKey(a: AppEntry): Float {
+        return try {
+            val bm = a.icon.asAndroidBitmap().copy(Bitmap.Config.ARGB_8888, false)
+            val sm = Bitmap.createScaledBitmap(bm, 8, 8, true)
+            var sx = 0f; var sy = 0f; var w = 0f; var br = 0f
+            val hsv = FloatArray(3)
+            for (y in 0 until 8) for (x in 0 until 8) {
+                val c = sm.getPixel(x, y)
+                if (android.graphics.Color.alpha(c) < 40) continue
+                android.graphics.Color.colorToHSV(c, hsv)
+                br += hsv[2]
+                val wt = hsv[1] * hsv[2]
+                sx += kotlin.math.cos(Math.toRadians(hsv[0].toDouble())).toFloat() * wt
+                sy += kotlin.math.sin(Math.toRadians(hsv[0].toDouble())).toFloat() * wt
+                w += wt
+            }
+            if (w < 2f) 400f + br else {
+                val h = Math.toDegrees(kotlin.math.atan2(sy, sx).toDouble()).toFloat()
+                if (h < 0) h + 360f else h
+            }
+        } catch (e: Exception) { 500f }
+    }
+
+    private fun categoryName(a: AppEntry): String? {
+        val info = try { pm.getApplicationInfo(a.pkg, 0) } catch (e: Exception) { return null }
+        if (a.pkg.startsWith("com.google.")) return "Google"
+        if (info.flags and ApplicationInfo.FLAG_SYSTEM != 0) return "Sistema"
+        return when (info.category) {
+            ApplicationInfo.CATEGORY_GAME -> "Giochi"
+            ApplicationInfo.CATEGORY_AUDIO -> "Musica"
+            ApplicationInfo.CATEGORY_VIDEO -> "Video"
+            ApplicationInfo.CATEGORY_IMAGE -> "Foto"
+            ApplicationInfo.CATEGORY_SOCIAL -> "Social"
+            ApplicationInfo.CATEGORY_NEWS -> "Notizie"
+            ApplicationInfo.CATEGORY_MAPS -> "Mappe"
+            ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Produttività"
+            ApplicationInfo.CATEGORY_ACCESSIBILITY -> "Accessibilità"
+            else -> null
+        }
+    }
+
+    /** Dispone le app non ancora in Home dalla seconda pagina in poi, secondo "homeOrder". */
+    fun arrangeHomeApps() {
+        items.removeAll { it.page >= 1 && (it is AppItem || it is FolderItem) }
+        val placed = placedAppIds()
+        val list = apps.values.filter { it.id !in placed && it.id !in hidden }
+        val byName = compareBy<AppEntry> { it.label.lowercase() }
+        fun folders(groups: Map<String, List<AppEntry>>) {
+            val loose = ArrayList<AppEntry>()
+            for ((name, g) in groups.toSortedMap(compareBy { it.lowercase() })) {
+                if (g.size < 2) { loose.addAll(g); continue }
+                val (p, x, y) = findFree(1)
+                items.add(FolderItem(UUID.randomUUID().toString(), name, g.sortedWith(byName).map { it.id }, p, x, y))
+                ensurePages(p)
+            }
+            loose.sortedWith(byName).forEach { addApp(it.id, 1) }
+        }
+        when (settings.homeOrder) {
+            "name_desc" -> list.sortedWith(byName.reversed()).forEach { addApp(it.id, 1) }
+            "usage" -> list.sortedWith(
+                compareByDescending<AppEntry> { sp.getInt("use_${it.id}", 0) }.then(byName)
+            ).forEach { addApp(it.id, 1) }
+            "recent" -> list.sortedByDescending {
+                try { pm.getPackageInfo(it.pkg, 0).firstInstallTime } catch (e: Exception) { 0L }
+            }.forEach { addApp(it.id, 1) }
+            "color" -> list.sortedBy { hueKey(it) }.forEach { addApp(it.id, 1) }
+            "cat_folders" -> {
+                val groups = HashMap<String, MutableList<AppEntry>>()
+                for (a in list) groups.getOrPut(categoryName(a) ?: "Altre app") { ArrayList() }.add(a)
+                folders(groups)
+            }
+            "letter_folders" -> folders(
+                list.groupBy {
+                    val c = it.label.trim().firstOrNull()?.uppercaseChar() ?: '#'
+                    if (c.isLetter()) c.toString() else "#"
+                }
+            )
+            else -> list.sortedWith(byName).forEach { addApp(it.id, 1) }
+        }
+        saveLayout()
+    }
+
     /** Cancella layout, impostazioni, app nascoste: tutto come al primo avvio. */
     fun resetLauncher() {
         items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
@@ -613,8 +701,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         if (settings.homeMode == "all") {
             // la prima pagina resta pulita: le altre app partono dalla seconda
-            val placed = placedAppIds()
-            sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
+            arrangeHomeApps()
         }
         apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
             if (it.id !in placedAppIds()) addApp(it.id)
@@ -1002,11 +1089,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     // con il cassetto in Home restano solo le icone predefinite
                     resetHome()
                 } else if (value == "all") {
-                    val placed = placedAppIds()
-                    sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
-                    saveLayout()
+                    arrangeHomeApps()
                 }
             }
+            "homeOrder" -> if (settings.homeMode == "all") arrangeHomeApps()
             "cols", "rows" -> reflow()
             "dockSlots" -> {
                 val n = settings.dockSlots
