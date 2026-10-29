@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -269,6 +271,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         )
     }
     var homeMenu by remember { mutableStateOf<Offset?>(null) }
+    // come Launcher3: alla rotazione i trascinamenti e i menu aperti vengono annullati
+    LaunchedEffect(landscape) {
+        drag = null
+        menuItem = null
+        homeMenu = null
+        vm.folderAnchor = Rect.Zero
+        gridRect = Rect.Zero
+        dockRect = Rect.Zero
+    }
     val onMenu: (HomeItem, Rect) -> Unit = { item, rect ->
         menuItem = item
         menuRect = rect
@@ -381,7 +392,22 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         }
         if (landscape) {
             val navL = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+            val seascape = androidx.compose.ui.platform.LocalView.current.display?.rotation ==
+                android.view.Surface.ROTATION_270
+            val dockContent: @Composable () -> Unit = {
+                Dock(
+                    vm = vm, host = host, dragId = hiddenIds, cb = cb, onMenu = onMenu,
+                    onRect = { dockRect = it }, vertical = true
+                )
+            }
+            Row(
+                Modifier.fillMaxSize().windowInsetsPadding(
+                    WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                        .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+                )
+            ) {
+                // con il telefono ruotato dall'altra parte la dock sta a sinistra, come in Launcher3
+                if (seascape) dockContent()
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
                     if (s.searchBar != "none" && !edit) {
                         Box(Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 12.dp, vertical = 3.dp)) {
@@ -393,13 +419,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
                     PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
                 }
-                Dock(
-                    vm = vm, host = host, dragId = hiddenIds, cb = cb, onMenu = onMenu,
-                    onRect = { dockRect = it }, vertical = true
-                )
+                if (!seascape) dockContent()
             }
         } else {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+        Column(
+            Modifier.fillMaxSize().windowInsetsPadding(
+                WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                    .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+            )
+        ) {
             if (s.searchBar == "home") {
                 Row(
                     Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp, vertical = 6.dp),
@@ -788,7 +816,8 @@ private fun Dock(
         Box(
             Modifier
                 .fillMaxHeight()
-                .padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp + navB)
+                .padding(horizontal = 6.dp, vertical = 8.dp)
+                .padding(bottom = navB)
                 .width(84.dp * st.dockSize)
                 .dockLook(style, st.dockOpacity, st.dockGlass, st.dockCorner.dp)
                 .onGloballyPositioned { onRect(it.boundsInRoot()) }

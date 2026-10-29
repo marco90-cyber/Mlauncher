@@ -41,6 +41,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -234,7 +236,9 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         val fCols = s.folderCols
-                        val perPage = fCols * 3
+                        val isLandF = LocalConfiguration.current.orientation ==
+                            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                        val perPage = fCols * (if (isLandF) 2 else 3)
                         val ids = shown.appIds
                         val pageN = maxOf(1, (ids.size + perPage - 1) / perPage)
                         val fPager = androidx.compose.foundation.pager.rememberPagerState { pageN }
@@ -480,7 +484,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
         Column(
             Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
+                .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                 .imePadding()
         ) {
             if (s.drSearchBar || searchOnly) TextField(
