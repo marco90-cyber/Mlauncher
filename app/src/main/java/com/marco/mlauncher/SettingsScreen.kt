@@ -320,11 +320,11 @@ private fun PageHome(vm: LauncherViewModel) {
                 dismissButton = { TextButton(onClick = { askOrder = false }) { Text("Chiudi") } }
             )
         }
-        SliderRow("Colonne", "${s.cols}", s.cols.toFloat(), 4f..6f, 1, preview = { GridPreview(s.cols, s.rows) }) {
+        SliderRow("Colonne", "${s.cols}", s.cols.toFloat(), if (s.landscape) 5f..10f else 4f..6f, if (s.landscape) 4 else 1, preview = { GridPreview(s.cols, s.rows) }) {
             val v = it.roundToInt()
             if (v != s.cols) vm.setSetting("cols", v)
         }
-        SliderRow("Righe", "${s.rows}", s.rows.toFloat(), 5f..8f, 2, preview = { GridPreview(s.cols, s.rows) }) {
+        SliderRow("Righe", "${s.rows}", s.rows.toFloat(), if (s.landscape) 2f..5f else 5f..8f, 2, preview = { GridPreview(s.cols, s.rows) }) {
             val v = it.roundToInt()
             if (v != s.rows) vm.setSetting("rows", v)
         }
@@ -873,7 +873,7 @@ private fun ShapePreview(key: String, size: Dp) {
 private fun GridPreview(cols: Int, rows: Int) {
     val cs = MaterialTheme.colorScheme
     Column(
-        Modifier.size(34.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(3.dp),
+        Modifier.size(if (cols > rows) 52.dp else 34.dp, 34.dp).clip(RoundedCornerShape(6.dp)).background(cs.surfaceContainerHighest).padding(3.dp),
         verticalArrangement = Arrangement.SpaceEvenly
     ) {
         repeat(rows) {

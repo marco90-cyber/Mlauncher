@@ -114,11 +114,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var pendingUninstall: AppEntry? = null
     private var hasLayout = false
     /** orientamento del layout attualmente caricato in [items] */
-    private var curLand = false
-    private val curCols get() = settings.colsOf(curLand)
-    private val curRows get() = settings.rowsOf(curLand)
-    private val curSlots get() = settings.dockSlotsOf(curLand)
-    private fun lk(k: String) = if (curLand) k + "_l" else k
+    var layoutLand by mutableStateOf(false)
+        private set
+    /** dimensioni del layout caricato: la Home usa queste, così icone e griglia sono sempre coerenti */
+    val gridCols: Int get() = settings.colsOf(layoutLand)
+    val gridRows: Int get() = settings.rowsOf(layoutLand)
+    val dockCount: Int get() = settings.dockSlotsOf(layoutLand)
+    private val curCols get() = gridCols
+    private val curRows get() = gridRows
+    private val curSlots get() = dockCount
+    private fun lk(k: String) = if (layoutLand) k + "_l" else k
+    private fun otherKey(k: String) = if (layoutLand) k else k + "_l"
     private val knownIds = HashSet<String>()
     private var weatherBusy = false
 
@@ -591,6 +597,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Cancella layout, impostazioni, app nascoste: tutto come al primo avvio. */
     fun resetLauncher() {
+        discardExtOf(otherKey("layout"))
         items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
         items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
         sp.edit().clear().commit()
@@ -784,9 +791,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun decodeRef(o: JSONObject) = WidgetRef(o.getString("k"), o.optInt("w", -1), o.optString("p", ""))
 
-    private fun encodeItems(): JSONArray {
+    private fun encodeItems(list: List<HomeItem> = items): JSONArray {
         val arr = JSONArray()
-        for (it in items) {
+        for (it in list) {
             val o = JSONObject().put("page", it.page).put("x", it.x).put("y", it.y)
             when (it) {
                 is AppItem -> o.put("t", "app").put("app", it.appId)
@@ -880,18 +887,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val o = JSONObject(text)
             val list = decodeItems(o.getJSONArray("layout"), true)
             settings.load(o.getJSONObject("settings"))
-            curLand = false
+            layoutLand = false
             items.clear()
             items.addAll(list)
             pageCount = o.optInt("pages", 1).coerceAtLeast(1)
             val e = sp.edit().remove("layout_l").remove("pages_l")
-            o.optJSONArray("layout_l")?.let { e.putString("layout_l", it.toString()).putInt("pages_l", o.optInt("pages_l", 1)) }
+            o.optJSONArray("layout_l")?.let {
+                e.putString("layout_l", encodeItems(decodeItems(it, true)).toString()).putInt("pages_l", o.optInt("pages_l", 1))
+            }
             e.apply()
             hidden.clear()
             val h = o.optJSONArray("hidden")
             if (h != null) for (i in 0 until h.length()) hidden.add(h.getString(i))
             hasLayout = true
             saveLayout()
+            if (settings.actualLand) swapTo(true)
             refresh(null)
             true
         } catch (e: Exception) {
@@ -981,11 +991,39 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun resetHome() {
         items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
         items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
+        discardExtOf(otherKey("layout"))
         editMode = false
         openFolderId = null
+        // la Home predefinita nasce sempre in verticale; l'orizzontale si ricava da quella
+        val land = layoutLand
+        items.clear()
+        layoutLand = false
         buildDefault()
         saveLayout()
+        sp.edit().remove("layout_l").remove("pages_l").apply()
+        if (land) {
+            items.clear()
+            layoutLand = true
+            buildFromOther()
+            saveLayout()
+        }
         homeSignal += 1
+    }
+
+    /** Libera gli id dei widget esterni salvati nel layout [key] (quello non attivo). */
+    private fun discardExtOf(key: String) {
+        val str = sp.getString(key, null) ?: return
+        try {
+            decodeItems(JSONArray(str), false).forEach { i -> refsOf(i).filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
+        } catch (e: Exception) {
+            // layout illeggibile
+        }
+    }
+
+    /** Dopo un riordino globale l'altro orientamento viene rigenerato da questo alla prossima rotazione. */
+    private fun dropOtherLayout() {
+        discardExtOf(otherKey("layout"))
+        sp.edit().remove(otherKey("layout")).remove(otherKey("pages")).apply()
     }
 
     /** Mette un elemento grande dove vuole e sposta in posti liberi quelli che occupavano l'area. */
@@ -1116,9 +1154,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     resetHome()
                 } else if (value == "all") {
                     arrangeHomeApps()
+                    dropOtherLayout()
                 }
             }
-            "homeOrder", "autoFolders" -> if (settings.homeMode == "all") arrangeHomeApps()
+            "homeOrder", "autoFolders" -> if (settings.homeMode == "all") {
+                arrangeHomeApps()
+                dropOtherLayout()
+            }
             "cols", "rows", "dockSlots" -> inOrientation(settings.landscape) { fit() }
             "iconPack" -> reloadIcons()
         }
@@ -1126,11 +1168,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Esegue [block] sul layout dell'orientamento [land] (anche se non è quello attivo). */
     private fun inOrientation(land: Boolean, block: () -> Unit) {
-        if (land == curLand) {
+        if (land == layoutLand) {
             block()
             return
         }
-        val back = curLand
+        val back = layoutLand
         swapTo(land)
         block()
         saveLayout()
@@ -1139,36 +1181,85 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun swapTo(land: Boolean) {
-        if (land == curLand) return
+        if (land == layoutLand) return
         saveLayout()
         items.clear()
-        curLand = land
+        layoutLand = land
         if (!loadLayout()) buildFromOther()
-        if (apps.isNotEmpty()) items.removeAll { it is AppItem && it.appId !in apps }
-    }
-
-    /** Il layout dell'altro orientamento non esiste ancora: copia icone, cartelle e widget interni. */
-    private fun buildFromOther() {
-        val key = if (curLand) "layout" else "layout_l"
-        val s = sp.getString(key, null)
-        items.clear()
-        pageCount = 1
-        if (s != null) {
-            try {
-                val src = decodeItems(JSONArray(s), true)
-                items.addAll(src.filter { it.page >= -1 })
-                val pg = sp.getInt(if (curLand) "pages" else "pages_l", 1).coerceAtLeast(1)
-                pageCount = pg
-            } catch (e: Exception) {
-                items.clear()
+        if (apps.isNotEmpty()) {
+            items.removeAll { it is AppItem && it.appId !in apps }
+            // app installate mentre era attivo l'altro orientamento
+            if (settings.homeMode == "all") {
+                val placed = placedAppIds()
+                sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
             }
         }
-        fit()
+        if (hasLayout) saveLayout()
+    }
+
+    /**
+     * Il layout di questo orientamento non esiste ancora: copio icone, cartelle e widget interni
+     * dall'altro (i widget esterni no, non si possono duplicare) mantenendo la posizione relativa:
+     * ciò che stava in basso resta in basso, a destra resta a destra.
+     */
+    private fun buildFromOther() {
+        items.clear()
+        pageCount = 1
+        val str = sp.getString(otherKey("layout"), null) ?: return
+        val src = try {
+            decodeItems(JSONArray(str), true)
+        } catch (e: Exception) {
+            return
+        }
+        val oc = settings.colsOf(!layoutLand)
+        val orr = settings.rowsOf(!layoutLand)
+        val cols = curCols
+        val rows = curRows
+        val overflow = ArrayList<HomeItem>()
+        for (d in src.filter { it.page == -1 }.sortedBy { it.x }) {
+            if (d.x < curSlots && areaFree(-1, d.x, 0, 1, 1)) items.add(d) else overflow.add(d)
+        }
+        val grid = src.filter { it.page >= 0 }.sortedWith(
+            compareByDescending<HomeItem> { it.spanX * it.spanY }.thenBy { it.page }.thenBy { it.y }.thenBy { it.x }
+        )
+        for (it in grid) {
+            val n = it.sized(minOf(it.spanX, cols), minOf(it.spanY, rows))
+            val fx = if (oc - it.spanX > 0) it.x.toFloat() / (oc - it.spanX) else 0f
+            val fy = if (orr - it.spanY > 0) it.y.toFloat() / (orr - it.spanY) else 0f
+            val tx = (fx * (cols - n.spanX)).roundToInt().coerceIn(0, cols - n.spanX)
+            val ty = (fy * (rows - n.spanY)).roundToInt().coerceIn(0, rows - n.spanY)
+            val spot = nearestFree(n.page, tx, ty, n.spanX, n.spanY)
+            if (spot != null) {
+                items.add(n.at(n.page, spot.first, spot.second))
+                ensurePages(n.page)
+            } else {
+                overflow.add(n)
+            }
+        }
+        for (o in overflow) {
+            val (p, x, y) = findFree(maxOf(o.page, 0), o.spanX, o.spanY)
+            items.add(o.at(p, x, y))
+            ensurePages(p)
+        }
+    }
+
+    private fun nearestFree(page: Int, tx: Int, ty: Int, sx: Int, sy: Int): Pair<Int, Int>? {
+        var best: Pair<Int, Int>? = null
+        var bd = Int.MAX_VALUE
+        for (y in 0..(curRows - sy)) for (x in 0..(curCols - sx)) {
+            if (!areaFree(page, x, y, sx, sy)) continue
+            val d = (x - tx) * (x - tx) + 2 * (y - ty) * (y - ty)
+            if (d < bd) {
+                bd = d
+                best = x to y
+            }
+        }
+        return best
     }
 
     /** Chiamato quando cambia l'orientamento reale del telefono. */
     fun syncOrientation(land: Boolean) {
-        if (land == curLand) return
+        if (land == layoutLand) return
         swapTo(land)
         editMode = false
         openFolderId = null

@@ -84,6 +84,18 @@ class MainActivity : ComponentActivity(), Host {
     private var pendingWidgetId = -1
     private var pendingInfo: AppWidgetProviderInfo? = null
 
+    /** Cambia layout prima che la Home venga ridisegnata, così non c'è un frame con la griglia sbagliata. */
+    private fun syncOrientation(c: android.content.res.Configuration) {
+        val land = c.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        vm.settings.actualLand = land
+        vm.syncOrientation(land)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        syncOrientation(newConfig)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -91,6 +103,7 @@ class MainActivity : ComponentActivity(), Host {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
         window.isNavigationBarContrastEnforced = false
+        syncOrientation(resources.configuration)
         setContent {
             MLauncherTheme(vm.settings.theme) {
                 Root(vm, this@MainActivity)

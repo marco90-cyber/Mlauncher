@@ -210,21 +210,21 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     fun targetOf(p: Offset, item: HomeItem): Triple<Int, Int, Int>? {
         if (item.spanX == 1 && item.spanY == 1 && dockRect != Rect.Zero && dockRect.contains(p)) {
             val x = if (landscape) {
-                val h = dockRect.height / s.dockSlots
-                ((p.y - dockRect.top) / h).toInt().coerceIn(0, s.dockSlots - 1)
+                val h = dockRect.height / vm.dockCount
+                ((p.y - dockRect.top) / h).toInt().coerceIn(0, vm.dockCount - 1)
             } else {
-                val w = dockRect.width / s.dockSlots
-                ((p.x - dockRect.left) / w).toInt().coerceIn(0, s.dockSlots - 1)
+                val w = dockRect.width / vm.dockCount
+                ((p.x - dockRect.left) / w).toInt().coerceIn(0, vm.dockCount - 1)
             }
             return Triple(-1, x, 0)
         }
         if (gridRect != Rect.Zero && gridRect.contains(p)) {
-            val cw = gridRect.width / s.cols
-            val ch = gridRect.height / s.rows
+            val cw = gridRect.width / vm.gridCols
+            val ch = gridRect.height / vm.gridRows
             val fx = (p.x - gridRect.left) / cw
             val fy = (p.y - gridRect.top) / ch
-            val x = (fx - item.spanX / 2f).roundToInt().coerceIn(0, maxOf(0, s.cols - item.spanX))
-            val y = (fy - item.spanY / 2f).roundToInt().coerceIn(0, maxOf(0, s.rows - item.spanY))
+            val x = (fx - item.spanX / 2f).roundToInt().coerceIn(0, maxOf(0, vm.gridCols - item.spanX))
+            val y = (fy - item.spanY / 2f).roundToInt().coerceIn(0, maxOf(0, vm.gridRows - item.spanY))
             return Triple(pagerState.currentPage, x, y)
         }
         return null
@@ -530,15 +530,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             if (t != null) {
                 val rect = if (t.first < 0) {
                     if (landscape) {
-                        val h = dockRect.height / s.dockSlots
+                        val h = dockRect.height / vm.dockCount
                         Rect(dockRect.left, dockRect.top + t.second * h, dockRect.right, dockRect.top + (t.second + 1) * h)
                     } else {
-                        val w = dockRect.width / s.dockSlots
+                        val w = dockRect.width / vm.dockCount
                         Rect(dockRect.left + t.second * w, dockRect.top, dockRect.left + (t.second + 1) * w, dockRect.bottom)
                     }
                 } else {
-                    val w = gridRect.width / s.cols
-                    val h = gridRect.height / s.rows
+                    val w = gridRect.width / vm.gridCols
+                    val h = gridRect.height / vm.gridRows
                     Rect(
                         gridRect.left + t.second * w, gridRect.top + t.third * h,
                         gridRect.left + (t.second + d.item.spanX) * w, gridRect.top + (t.third + d.item.spanY) * h
@@ -554,8 +554,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             }
             val di = d.item
             val isBlock = di.spanX > 1 || di.spanY > 1
-            val cellWpx = if (gridRect.width > 0f) gridRect.width / s.cols else 200f
-            val cellHpx = if (gridRect.height > 0f) gridRect.height / s.rows else 200f
+            val cellWpx = if (gridRect.width > 0f) gridRect.width / vm.gridCols else 200f
+            val cellHpx = if (gridRect.height > 0f) gridRect.height / vm.gridRows else 200f
             val pw = if (isBlock) cellWpx * di.spanX else with(density) { (64.dp * s.iconScale).toPx() }
             val ph = if (isBlock) cellHpx * di.spanY else pw
             Box(
@@ -723,7 +723,6 @@ private fun HomePage(
     onEmptyMenu: (Offset) -> Unit
 ) {
     val s = vm.settings
-    val landscapeP = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var origin by remember { mutableStateOf(Offset.Zero) }
     val haptic = LocalHapticFeedback.current
     val view = androidx.compose.ui.platform.LocalView.current
@@ -769,8 +768,8 @@ private fun HomePage(
                 )
             }
     ) {
-        val cw = maxWidth / s.cols
-        val ch = maxHeight / s.rows
+        val cw = maxWidth / vm.gridCols
+        val ch = maxHeight / vm.gridRows
         SideEffectCells(vm, cw, ch)
         for (item in vm.items) {
             if (item.page == page) {
@@ -824,7 +823,7 @@ private fun Dock(
         ) {
             if (style == "tiles") {
                 Column(Modifier.fillMaxSize()) {
-                    repeat(st.dockSlots) {
+                    repeat(vm.dockCount) {
                         Box(
                             Modifier.weight(1f).fillMaxSize().padding(horizontal = 2.dp, vertical = 3.dp)
                                 .dockTile(st.dockOpacity, st.dockGlass, minOf(st.dockCorner.dp, 26.dp))
@@ -833,7 +832,7 @@ private fun Dock(
                 }
             }
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val chV = maxHeight / st.dockSlots
+                val chV = maxHeight / vm.dockCount
                 for (item in vm.items) {
                     if (item.page == -1) {
                         key(item.id) {
@@ -866,7 +865,7 @@ private fun Dock(
     ) {
         if (style == "tiles") {
             Row(Modifier.fillMaxSize()) {
-                repeat(st.dockSlots) {
+                repeat(vm.dockCount) {
                     Box(
                         Modifier.weight(1f).fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
                             .dockTile(st.dockOpacity, st.dockGlass, minOf(corner, 26.dp))
@@ -875,7 +874,7 @@ private fun Dock(
             }
         }
         BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = if (bar) nav else 0.dp)) {
-            val cw = maxWidth / vm.settings.dockSlots
+            val cw = maxWidth / vm.dockCount
             for (item in vm.items) {
                 if (item.page == -1) {
                     key(item.id) {
