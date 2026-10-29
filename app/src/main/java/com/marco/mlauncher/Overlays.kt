@@ -97,6 +97,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.composed
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -455,13 +458,13 @@ private fun Modifier.drawerGestures(
     bounds: BoundsHolder,
     onTap: () -> Unit,
     onMenu: (Boolean) -> Unit
-): Modifier = androidx.compose.ui.composed {
+): Modifier = composed {
     val view = androidx.compose.ui.platform.LocalView.current
     val tap by rememberUpdatedState(onTap)
     val menu by rememberUpdatedState(onMenu)
     pointerInput(app.id) {
-        androidx.compose.foundation.gestures.awaitEachGesture {
-            val down = androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
             val slop = viewConfiguration.touchSlop
             var up = false
             var moved = false
