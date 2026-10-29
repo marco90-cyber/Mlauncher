@@ -201,11 +201,17 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     val folderZonePx = with(density) { 48.dp.toPx() }
     val switchPx = with(density) { 60.dp.toPx() }
     val dragRef by rememberUpdatedState(drag)
+    val landscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     fun targetOf(p: Offset, item: HomeItem): Triple<Int, Int, Int>? {
         if (item.spanX == 1 && item.spanY == 1 && dockRect != Rect.Zero && dockRect.contains(p)) {
-            val w = dockRect.width / s.dockSlots
-            val x = ((p.x - dockRect.left) / w).toInt().coerceIn(0, s.dockSlots - 1)
+            val x = if (landscape) {
+                val h = dockRect.height / s.dockSlots
+                ((p.y - dockRect.top) / h).toInt().coerceIn(0, s.dockSlots - 1)
+            } else {
+                val w = dockRect.width / s.dockSlots
+                ((p.x - dockRect.left) / w).toInt().coerceIn(0, s.dockSlots - 1)
+            }
             return Triple(-1, x, 0)
         }
         if (gridRect != Rect.Zero && gridRect.contains(p)) {
@@ -345,19 +351,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
     ) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
-            if (s.searchBar == "home") {
-                Row(
-                    Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (!edit) {
-                        Box(Modifier.weight(1f)) { SearchPill { vm.overlay = Overlay.DRAWER } }
-                    }
-                }
-            } else {
-                Spacer(Modifier.height(topPad))
-            }
+        val pagerContent: @Composable (Modifier) -> Unit = { mod ->
             HorizontalPager(
                 state = pagerState,
                 beyondViewportPageCount = 8,
@@ -368,9 +362,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     )
                 ),
                 userScrollEnabled = drag == null,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                modifier = mod
                     .onGloballyPositioned { gridRect = it.boundsInRoot() }
             ) { page ->
                 HomePage(
@@ -384,6 +376,35 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     onEmptyMenu = { homeMenu = it }
                 )
             }
+        }
+        if (landscape) {
+            val navL = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+                Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
+                    Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
+                    pagerContent(Modifier.weight(1f).fillMaxWidth())
+                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
+                }
+                Dock(
+                    vm = vm, host = host, dragId = hiddenIds, cb = cb, onMenu = onMenu,
+                    onRect = { dockRect = it }, vertical = true
+                )
+            }
+        } else {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+            if (s.searchBar == "home") {
+                Row(
+                    Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (!edit) {
+                        Box(Modifier.weight(1f)) { SearchPill { vm.overlay = Overlay.DRAWER } }
+                    }
+                }
+            } else {
+                Spacer(Modifier.height(topPad))
+            }
+            pagerContent(Modifier.weight(1f).fillMaxWidth())
             PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator)
             if (s.searchBar == "dock" && !edit) {
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)) {
@@ -398,6 +419,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 onMenu = onMenu,
                 onRect = { dockRect = it }
             )
+        }
+
         }
 
         // barra modifica
@@ -470,8 +493,13 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             val t = targetOf(d.pos, d.item)
             if (t != null) {
                 val rect = if (t.first < 0) {
-                    val w = dockRect.width / s.dockSlots
-                    Rect(dockRect.left + t.second * w, dockRect.top, dockRect.left + (t.second + 1) * w, dockRect.bottom)
+                    if (landscape) {
+                        val h = dockRect.height / s.dockSlots
+                        Rect(dockRect.left, dockRect.top + t.second * h, dockRect.right, dockRect.top + (t.second + 1) * h)
+                    } else {
+                        val w = dockRect.width / s.dockSlots
+                        Rect(dockRect.left + t.second * w, dockRect.top, dockRect.left + (t.second + 1) * w, dockRect.bottom)
+                    }
                 } else {
                     val w = gridRect.width / s.cols
                     val h = gridRect.height / s.rows
@@ -659,6 +687,7 @@ private fun HomePage(
     onEmptyMenu: (Offset) -> Unit
 ) {
     val s = vm.settings
+    val landscapeP = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var origin by remember { mutableStateOf(Offset.Zero) }
     val haptic = LocalHapticFeedback.current
     val view = androidx.compose.ui.platform.LocalView.current
@@ -713,10 +742,10 @@ private fun HomePage(
                     val mod = Modifier.offset(cw * item.x, ch * item.y)
                     val hidden = item.id in dragId
                     when (item) {
-                        is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
+                        is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels && !landscapeP, hidden, cb, onMenu, mod)
                         is FolderItem ->
                             if (item.big) BigFolderCell(item, vm, host, cw, ch, hidden, cb, onMenu, mod)
-                            else GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
+                            else GridItem(item, vm, host, cw, ch, s.showLabels && !landscapeP, hidden, cb, onMenu, mod)
                         is WidgetItem, is StackItem -> WidgetCell(item, vm, host, cw, ch, hidden, cb, mod)
                     }
                 }
@@ -740,11 +769,51 @@ private fun Dock(
     dragId: Set<String>,
     cb: DragCallbacks,
     onMenu: (HomeItem, Rect) -> Unit,
-    onRect: (Rect) -> Unit
+    onRect: (Rect) -> Unit,
+    vertical: Boolean = false
 ) {
     val cs = MaterialTheme.colorScheme
     val st = vm.settings
-    val style = st.dockStyle
+    val style = if (vertical && st.dockStyle == "bar") "pill" else st.dockStyle
+    if (vertical) {
+        val navB = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp + navB)
+                .width(84.dp * st.dockSize)
+                .dockLook(style, st.dockOpacity, st.dockGlass, st.dockCorner.dp)
+                .onGloballyPositioned { onRect(it.boundsInRoot()) }
+        ) {
+            if (style == "tiles") {
+                Column(Modifier.fillMaxSize()) {
+                    repeat(st.dockSlots) {
+                        Box(
+                            Modifier.weight(1f).fillMaxSize().padding(horizontal = 2.dp, vertical = 3.dp)
+                                .dockTile(st.dockOpacity, st.dockGlass, minOf(st.dockCorner.dp, 26.dp))
+                        )
+                    }
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val chV = maxHeight / st.dockSlots
+                for (item in vm.items) {
+                    if (item.page == -1) {
+                        key(item.id) {
+                            GridItem(
+                                item = item, vm = vm, host = host,
+                                cellW = maxWidth, cellH = chV,
+                                labels = false, scale = st.dockSize,
+                                hidden = item.id in dragId, cb = cb, onMenu = onMenu,
+                                modifier = Modifier.offset(0.dp, chV * item.x)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
     val bar = style == "bar"
     val margin = if (bar) 0.dp else 16.dp
     val corner = st.dockCorner.dp
