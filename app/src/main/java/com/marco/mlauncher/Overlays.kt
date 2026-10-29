@@ -141,7 +141,6 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
     }
     val geo = remember { floatArrayOf(0.5f, 0.5f) }
     run {
-    ) {
         if (shown != null && (folder != null || prog.value > 0.001f)) {
             var name by remember(shown.folderId) { mutableStateOf(shown.name) }
             val nameRef = rememberUpdatedState(name)
