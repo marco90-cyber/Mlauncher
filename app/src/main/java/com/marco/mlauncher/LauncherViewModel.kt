@@ -568,8 +568,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val dockPkgs = listOfNotNull(
             resolvePkg(Intent(Intent.ACTION_DIAL)),
             resolvePkg(Intent(Intent.ACTION_VIEW, Uri.parse("sms:"))),
-            resolvePkg(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))),
-            resolvePkg(Intent(MediaStore.ACTION_IMAGE_CAPTURE))
+            byPkg["com.google.android.contacts"]?.firstOrNull()?.pkg
+                ?: byPkg["com.android.contacts"]?.firstOrNull()?.pkg,
+            resolvePkg(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")))
         ).distinct()
         var dx = 0
         for (pkg in dockPkgs) {
@@ -587,17 +588,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val placed = placedAppIds()
             sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id) }
         } else {
-            // pochi elementi in Home, come sui launcher Samsung: il resto sta nel cassetto
-            val preferred = listOf(
-                "com.google.android.apps.photos", "com.google.android.gm",
-                "com.google.android.apps.maps", "com.android.vending"
-            )
-            val placed = placedAppIds()
-            for (pkg in preferred) {
-                val a = byPkg[pkg]?.firstOrNull() ?: continue
-                if (a.id in placed) continue
-                addApp(a.id)
-            }
+            // poche icone in Home, il resto sta nel cassetto
+            val rows = settings.rows
+            val cols = settings.cols
+            fun app(pkg: String) = byPkg[pkg]?.firstOrNull()
+            val gmail = app("com.google.android.gm")
+            val folderApps = listOf(
+                "com.google.android.googlequicksearchbox", "com.google.android.gm",
+                "com.google.android.apps.docs", "com.google.android.apps.youtube.music"
+            ).mapNotNull { app(it)?.id }
+            val row = ArrayList<HomeItem>()
+            if (folderApps.size >= 2) row.add(FolderItem(UUID.randomUUID().toString(), "Google", folderApps, 0, 0, rows - 2))
+            apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }
+                ?.let { row.add(AppItem(it.id, 0, 0, rows - 2)) }
+            app("com.google.android.apps.photos")?.let { row.add(AppItem(it.id, 0, 0, rows - 2)) }
+            app("com.android.vending")?.let { row.add(AppItem(it.id, 0, 0, rows - 2)) }
+            row.take(cols).forEachIndexed { i, it -> items.add(it.at(0, i, rows - 2)) }
+            gmail?.let { items.add(AppItem(it.id, 0, cols - 1, rows - 3)) }
         }
         apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
             if (it.id !in placedAppIds()) addApp(it.id)
@@ -981,7 +988,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         settings.set(key, value)
         when (key) {
             "homeMode" -> {
-                if (value == "all") {
+                if (value == "drawer") {
+                    // con il cassetto in Home restano solo le icone predefinite
+                    resetHome()
+                } else if (value == "all") {
                     val placed = placedAppIds()
                     sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id) }
                     saveLayout()
