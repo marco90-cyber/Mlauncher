@@ -1750,7 +1750,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** null = torna alla posizione del telefono */
-    fun setWeatherCity(c: City?) {
+    fun chooseWeatherCity(c: City?) {
         weatherCity = c
         val e = sp.edit()
         if (c == null) e.remove("weatherCity")

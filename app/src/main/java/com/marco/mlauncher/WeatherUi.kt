@@ -230,7 +230,7 @@ fun CityPickerDialog(vm: LauncherViewModel, host: Host, onDismiss: () -> Unit) {
                         .clip(RoundedCornerShape(16.dp))
                         .background(if (vm.weatherCity == null && vm.hasLocation) cs.secondaryContainer else cs.surfaceContainerHighest)
                         .clickable {
-                            vm.setWeatherCity(null)
+                            vm.chooseWeatherCity(null)
                             if (!vm.hasLocation) host.requestLocation()
                             onDismiss()
                         }
@@ -271,7 +271,7 @@ fun CityPickerDialog(vm: LauncherViewModel, host: Host, onDismiss: () -> Unit) {
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
-                                        vm.setWeatherCity(c)
+                                        vm.chooseWeatherCity(c)
                                         onDismiss()
                                     }
                                     .padding(horizontal = 8.dp, vertical = 10.dp)
