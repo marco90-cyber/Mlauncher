@@ -141,6 +141,23 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
         private set
+    var drLayout by mutableStateOf(sp.getString("drLayout", "grid") ?: "grid")
+    var drCols by mutableStateOf(sp.getInt("drCols", 4))
+    var drRowH by mutableStateOf(sp.getFloat("drRowH", 1f))
+    var drIcon by mutableStateOf(sp.getFloat("drIcon", 1f))
+    var drLabels by mutableStateOf(sp.getBoolean("drLabels", true))
+    var drLabelSize by mutableStateOf(sp.getInt("drLabelSize", 11))
+    var drTwoLine by mutableStateOf(sp.getBoolean("drTwoLine", false))
+    var drBg by mutableStateOf(sp.getString("drBg", "surface") ?: "surface")
+    var drOpacity by mutableStateOf(sp.getInt("drOpacity", 97))
+    var drSearchBar by mutableStateOf(sp.getBoolean("drSearchBar", true))
+    var drSearchBg by mutableStateOf(sp.getBoolean("drSearchBg", true))
+    var drSuggest by mutableStateOf(sp.getBoolean("drSuggest", false))
+    var drSort by mutableStateOf(sp.getString("drSort", "name") ?: "name")
+    var drScrollbar by mutableStateOf(sp.getBoolean("drScrollbar", true))
+    var drTop by mutableStateOf(sp.getInt("drTop", 0))
+    var drIndent by mutableStateOf(sp.getInt("drIndent", 8))
+    var drRemember by mutableStateOf(sp.getBoolean("drRemember", false))
     var homeOrder by mutableStateOf(sp.getString("homeOrder", "name") ?: "name")
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
     var folderPreview by mutableStateOf(sp.getString("folderPreview", "grid") ?: "grid")
@@ -215,6 +232,23 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapPress" -> hapPress = value as Boolean
             "hapDrop" -> hapDrop = value as Boolean
             "hapTick" -> hapTick = value as Boolean
+            "drLayout" -> drLayout = value as String
+            "drCols" -> drCols = value as Int
+            "drRowH" -> drRowH = value as Float
+            "drIcon" -> drIcon = value as Float
+            "drLabels" -> drLabels = value as Boolean
+            "drLabelSize" -> drLabelSize = value as Int
+            "drTwoLine" -> drTwoLine = value as Boolean
+            "drBg" -> drBg = value as String
+            "drOpacity" -> drOpacity = value as Int
+            "drSearchBar" -> drSearchBar = value as Boolean
+            "drSearchBg" -> drSearchBg = value as Boolean
+            "drSuggest" -> drSuggest = value as Boolean
+            "drSort" -> drSort = value as String
+            "drScrollbar" -> drScrollbar = value as Boolean
+            "drTop" -> drTop = value as Int
+            "drIndent" -> drIndent = value as Int
+            "drRemember" -> drRemember = value as Boolean
             "homeOrder" -> homeOrder = value as String
             "iconShape" -> iconShape = value as String
             "folderPreview" -> folderPreview = value as String

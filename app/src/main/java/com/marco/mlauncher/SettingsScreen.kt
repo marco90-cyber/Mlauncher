@@ -102,6 +102,7 @@ private fun pageTitle(key: String?) = when (key) {
     "dock" -> "Dock"
     "icons" -> "Icone e notifiche"
     "folders" -> "Cartelle"
+    "drawer" -> "Cassetto app"
     "widgets" -> "Widget e ricerca"
     "gestures" -> "Gesti e feedback"
     "effects" -> "Effetti e animazioni"
@@ -168,6 +169,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "dock" -> PageDock(vm)
                     "icons" -> PageIcons(vm, host)
                     "folders" -> PageFolders(vm)
+                    "drawer" -> PageDrawer(vm)
                     "widgets" -> PageWidgets(vm)
                     "gestures" -> PageGestures(vm, host)
                     "effects" -> PageEffects(vm)
@@ -222,6 +224,9 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 ${DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""}", Icons.Default.Menu),
         Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""}", Icons.Default.Star),
         Cat("folders", "Cartelle", "Anteprima: ${folderNames[s.folderPreview] ?: ""}", Icons.Default.List),
+        *(if (s.homeMode == "drawer") arrayOf(
+            Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
+        ) else emptyArray()),
         Cat("widgets", "Widget e ricerca", "Ricerca ${searchNames[s.searchBar] ?: ""}", Icons.Default.Search),
         Cat("gestures", "Gesti e feedback", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
         Cat("effects", "Effetti e animazioni", "Cambio pagina: ${effectNames[s.pageEffect] ?: ""}", Icons.Default.Favorite),
@@ -418,6 +423,73 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
                 },
                 confirmButton = { TextButton(onClick = { hiddenOpen = false }) { Text("Chiudi") } }
             )
+        }
+    }
+}
+
+@Composable
+private fun PageDrawer(vm: LauncherViewModel) {
+    val s = vm.settings
+    Group("Layout") {
+        ChoiceRow(
+            "Disposizione",
+            listOf("grid" to "Griglia", "list" to "Elenco"),
+            s.drLayout
+        ) { vm.setSetting("drLayout", it) }
+        ChoiceRow(
+            "Ordine delle app",
+            listOf("name" to "Per nome (A-Z)", "name_desc" to "Per nome (Z-A)", "usage" to "Più usate", "recent" to "Installate di recente"),
+            s.drSort
+        ) { vm.setSetting("drSort", it) }
+    }
+    Group("Generale") {
+        SwitchRow("Barra di ricerca", "In cima al cassetto", s.drSearchBar) { vm.setSetting("drSearchBar", it) }
+        SwitchRow("Sfondo della barra di ricerca", null, s.drSearchBg) { vm.setSetting("drSearchBg", it) }
+        SwitchRow("App suggerite", "Le 4 più usate in cima", s.drSuggest) { vm.setSetting("drSuggest", it) }
+        SwitchRow("Barra laterale A-Z", "Scorri veloce tra le lettere", s.drScrollbar) { vm.setSetting("drScrollbar", it) }
+        SwitchRow("Ricorda la posizione", "Riapre il cassetto dove l'avevi lasciato", s.drRemember) { vm.setSetting("drRemember", it) }
+    }
+    Group("Stile") {
+        ChoiceRow(
+            "Colore di sfondo",
+            listOf("surface" to "Superficie", "tonal" to "Tonale (colore principale)", "neutral" to "Neutro", "dark" to "Nero"),
+            s.drBg
+        ) { vm.setSetting("drBg", it) }
+        SliderRow("Opacità dello sfondo", "${s.drOpacity}%", s.drOpacity.toFloat(), 0f..100f, 19) {
+            val v = (it / 5f).roundToInt() * 5
+            if (v != s.drOpacity) vm.setSetting("drOpacity", v)
+        }
+    }
+    if (s.drLayout == "grid") Group("Griglia") {
+        SliderRow("Colonne", "${s.drCols}", s.drCols.toFloat(), 3f..6f, 2) {
+            val v = it.roundToInt()
+            if (v != s.drCols) vm.setSetting("drCols", v)
+        }
+    }
+    Group("Spaziatura") {
+        SliderRow("Altezza delle righe", "${(s.drRowH * 100).roundToInt()}%", s.drRowH, 0.6f..1.6f, 9) {
+            vm.setSetting("drRowH", (it * 20).roundToInt() / 20f)
+        }
+        SliderRow("Rientro laterale", "${s.drIndent} dp", s.drIndent.toFloat(), 0f..32f, 0) {
+            val v = it.roundToInt()
+            if (v != s.drIndent) vm.setSetting("drIndent", v)
+        }
+        SliderRow("Margine superiore", "${s.drTop} dp", s.drTop.toFloat(), 0f..48f, 0) {
+            val v = it.roundToInt()
+            if (v != s.drTop) vm.setSetting("drTop", v)
+        }
+    }
+    Group("Icone") {
+        SliderRow("Dimensione icone", "${(s.drIcon * 100).roundToInt()}%", s.drIcon, 0.7f..1.4f, 13) {
+            vm.setSetting("drIcon", (it * 20).roundToInt() / 20f)
+        }
+        SwitchRow("Mostra i nomi", null, s.drLabels) { vm.setSetting("drLabels", it) }
+        if (s.drLabels) {
+            SliderRow("Dimensione del testo", "${s.drLabelSize} sp", s.drLabelSize.toFloat(), 9f..16f, 6) {
+                val v = it.roundToInt()
+                if (v != s.drLabelSize) vm.setSetting("drLabelSize", v)
+            }
+            SwitchRow("Nome su due righe", null, s.drTwoLine) { vm.setSetting("drTwoLine", it) }
         }
     }
 }

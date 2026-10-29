@@ -482,6 +482,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
+    var drawerScroll = 0
+    fun useCount(appId: String) = sp.getInt("use_$appId", 0)
+    fun installTime(pkg: String): Long =
+        try { pm.getPackageInfo(pkg, 0).firstInstallTime } catch (e: Exception) { 0L }
+
     fun recordLaunch(appId: String) {
         val k = "use_$appId"
         sp.edit().putInt(k, sp.getInt(k, 0) + 1).apply()

@@ -415,11 +415,22 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val focus = remember { FocusRequester() }
-    val gridState = rememberLazyGridState()
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = if (s.drRemember) vm.drawerScroll else 0
+    )
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { vm.drawerScroll = gridState.firstVisibleItemIndex }
+    }
     val scope = rememberCoroutineScope()
     val searchOnly = s.homeMode == "all"
-    val list = remember(query, vm.sortedApps, vm.hidden.toList()) {
-        val visible = vm.sortedApps.filter { it.id !in vm.hidden }
+    val list = remember(query, vm.sortedApps, vm.hidden.toList(), s.drSort) {
+        val base = when (s.drSort) {
+            "name_desc" -> vm.sortedApps.reversed()
+            "usage" -> vm.sortedApps.sortedByDescending { vm.useCount(it.id) }
+            "recent" -> vm.sortedApps.sortedByDescending { vm.installTime(it.pkg) }
+            else -> vm.sortedApps
+        }
+        val visible = base.filter { it.id !in vm.hidden }
         if (query.isBlank()) visible
         else visible.filter { it.label.contains(query.trim(), ignoreCase = true) }
     }
@@ -433,14 +444,21 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
             }
         }
     }
-    Surface(Modifier.fillMaxSize(), color = cs.surface.copy(alpha = 0.97f)) {
+    val bgColor = when (s.drBg) {
+        "tonal" -> cs.primaryContainer
+        "dark" -> Color.Black
+        "neutral" -> cs.surfaceContainerHighest
+        else -> cs.surface
+    }
+    val fg = if (s.drBg == "dark") Color.White else if (s.drBg == "tonal") cs.onPrimaryContainer else cs.onSurface
+    Surface(Modifier.fillMaxSize(), color = bgColor.copy(alpha = s.drOpacity / 100f), contentColor = fg) {
         Column(
             Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .imePadding()
         ) {
-            TextField(
+            if (s.drSearchBar || searchOnly) TextField(
                 value = query,
                 onValueChange = onQuery,
                 singleLine = true,
@@ -456,8 +474,8 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
                 },
                 shape = RoundedCornerShape(32.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = cs.surfaceContainerHigh,
-                    unfocusedContainerColor = cs.surfaceContainerHigh,
+                    focusedContainerColor = if (s.drSearchBg) cs.surfaceContainerHigh else Color.Transparent,
+                    unfocusedContainerColor = if (s.drSearchBg) cs.surfaceContainerHigh else Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
@@ -482,15 +500,37 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
             val showGrid = !searchOnly && query.isBlank()
             if (showGrid) {
                 Box(Modifier.weight(1f)) {
+                    val listMode = s.drLayout == "list"
+                    val suggested = remember(list, s.drSuggest, vm.homeSignal) {
+                        if (!s.drSuggest) emptyList()
+                        else list.filter { vm.useCount(it.id) > 0 }.sortedByDescending { vm.useCount(it.id) }.take(4)
+                    }
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(s.cols),
+                        columns = GridCells.Fixed(if (listMode) 1 else s.drCols),
                         state = gridState,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                        contentPadding = PaddingValues(
+                            start = s.drIndent.dp, end = s.drIndent.dp + (if (s.drScrollbar) 18.dp else 0.dp),
+                            top = 8.dp + s.drTop.dp, bottom = 8.dp
+                        ),
                         modifier = Modifier.fillMaxSize()
                     ) {
+                        if (suggested.isNotEmpty()) {
+                            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                                Surface(
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = cs.surfaceContainerHigh.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                ) {
+                                    Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                        suggested.forEach { a -> Box(Modifier.weight(1f)) { DrawerApp(a, vm, host, forceGrid = true) } }
+                                        repeat(4 - suggested.size) { Spacer(Modifier.weight(1f)) }
+                                    }
+                                }
+                            }
+                        }
                         items(list, key = { it.id }) { app -> DrawerApp(app, vm, host) }
                     }
-                    if (!searchOnly && query.isBlank() && list.isNotEmpty()) {
+                    if (!searchOnly && query.isBlank() && list.isNotEmpty() && s.drScrollbar && s.drSort.startsWith("name")) {
                         val letters = remember(list) { list.map { letterOf(it.label) }.distinct() }
                         val firstIndex = remember(list) {
                             val m = LinkedHashMap<Char, Int>()
@@ -533,7 +573,9 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host) {
+private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host, forceGrid: Boolean = false) {
+    val st = vm.settings
+    val listMode = st.drLayout == "list" && !forceGrid
     var menu by remember { mutableStateOf(false) }
     val bounds = remember { BoundsHolder() }
     val ctx = LocalContext.current
@@ -550,18 +592,29 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host) {
                     },
                     onLongClick = { menu = true }
                 )
-                .padding(vertical = 8.dp),
+                .padding(vertical = (8f * st.drRowH).dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            AppIcon(app, 52.dp * vm.settings.iconScale, vm.settings.themedIcons)
-            Text(
-                app.label,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp)
-            )
+            val iconSz = 52.dp * st.drIcon
+            if (listMode) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AppIcon(app, iconSz * 0.8f, st.themedIcons)
+                    Spacer(Modifier.width(16.dp))
+                    Text(app.label, fontSize = (st.drLabelSize + 5).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            } else {
+                AppIcon(app, iconSz, st.themedIcons)
+                if (st.drLabels) {
+                    Text(
+                        app.label,
+                        fontSize = st.drLabelSize.sp,
+                        maxLines = if (st.drTwoLine) 2 else 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp)
+                    )
+                }
+            }
         }
         AppMenu(app, menu, { menu = false }, vm, host)
     }
