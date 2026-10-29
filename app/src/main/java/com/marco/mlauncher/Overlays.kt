@@ -14,6 +14,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -146,7 +147,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f))
+                    .background(Color.Black.copy(alpha = 0.18f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -156,7 +157,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val conf = LocalConfiguration.current
                 val anchor = vm.folderAnchor
                 val cols = s.folderCols
-                val cardW = minOf((cols * 76 + 32).dp, (conf.screenWidthDp - 32).dp)
+                val cardW = minOf((cols * 72 + 24).dp, (conf.screenWidthDp - 32).dp)
                 val cardWpx = with(dens) { cardW.toPx() }
                 val sw = with(dens) { conf.screenWidthDp.dp.toPx() }
                 val sh = with(dens) { conf.screenHeightDp.dp.toPx() }
@@ -164,7 +165,6 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val hasAnchor = anchor != Rect.Zero
                 val cx = if (hasAnchor) anchor.center.x else sw / 2f
                 val cardX = (cx - cardWpx / 2f).coerceIn(m, maxOf(m, sw - cardWpx - m))
-                val below = hasAnchor && anchor.bottom < sh * 0.5f
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
@@ -175,14 +175,14 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 tween(dur),
                                 initialScale = 0.4f,
                                 transformOrigin = TransformOrigin(
-                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), if (below) 0f else 1f
+                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), 0.8f
                                 )
                             ) + fadeIn(tween(dur)),
                             exit = scaleOut(
                                 tween(dur),
                                 targetScale = 0.4f,
                                 transformOrigin = TransformOrigin(
-                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), if (below) 0f else 1f
+                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), 0.8f
                                 )
                             ) + fadeOut(tween(dur))
                         )
@@ -191,44 +191,21 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                             val pl = measurable.measure(c)
                             val y = when {
                                 !hasAnchor -> (sh - pl.height) / 2f
-                                below -> anchor.bottom + m / 2f
-                                else -> anchor.top - pl.height - m / 2f
+                                else -> anchor.bottom + m * 0.75f - pl.height
                             }.coerceIn(m, maxOf(m, sh - pl.height - m))
                             layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
                         }
                         .onGloballyPositioned { cardRect = it.boundsInRoot() }
                         .pointerInput(Unit) { detectTapGestures { } }
                 ) {
-                    Column(Modifier.padding(16.dp)) {
-                        TextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = {
-                                vm.renameFolder(folderId, name)
-                                focusManager.clearFocus()
-                            }),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(s.folderCols),
-                            modifier = Modifier.heightIn(max = 380.dp),
-                            contentPadding = PaddingValues(top = 8.dp)
-                        ) {
-                            items(shown.appIds, key = { it }) { appId ->
+                    Column(Modifier.padding(12.dp)) {
+                        val fCols = s.folderCols
+                        val perPage = fCols * 3
+                        val ids = shown.appIds
+                        val pageN = maxOf(1, (ids.size + perPage - 1) / perPage)
+                        val fPager = androidx.compose.foundation.pager.rememberPagerState { pageN }
+                        val cell: @Composable (String) -> Unit = { appId ->
+                            run {
                                 val app = vm.apps[appId]
                                 if (app != null) {
                                     val b = remember { BoundsHolder() }
@@ -312,13 +289,56 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 }
                             }
                         }
-                        Text(
-                            "Tieni premuta e trascina per riordinare, o fuori per toglierla",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                        )
+                        Box(Modifier.fillMaxWidth().height(90.dp * ((minOf(ids.size, perPage) + fCols - 1) / fCols))) {
+                            androidx.compose.foundation.pager.HorizontalPager(state = fPager, modifier = Modifier.fillMaxSize()) { pg ->
+                                val slice = ids.drop(pg * perPage).take(perPage)
+                                Column(Modifier.fillMaxSize()) {
+                                    slice.chunked(fCols).forEach { rowIds ->
+                                        Row(Modifier.fillMaxWidth().height(90.dp)) {
+                                            rowIds.forEach { id -> Box(Modifier.weight(1f)) { cell(id) } }
+                                            repeat(fCols - rowIds.size) { Spacer(Modifier.weight(1f)) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.Start,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = {
+                                    vm.renameFolder(folderId, name)
+                                    focusManager.clearFocus()
+                                }),
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (pageN > 1) {
+                                Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    repeat(pageN) { d ->
+                                        Box(
+                                            Modifier.size(8.dp).clip(CircleShape).background(
+                                                if (d == fPager.currentPage) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

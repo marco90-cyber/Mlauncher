@@ -138,7 +138,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
     var folderPreview by mutableStateOf(sp.getString("folderPreview", "grid") ?: "grid")
     var folderBg by mutableStateOf(sp.getString("folderBg", "tonal") ?: "tonal")
-    var folderCols by mutableStateOf(sp.getInt("folderCols", 4))
+    var folderCols by mutableStateOf(sp.getInt("folderCols", 3))
         private set
     var pageIndicator by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
         private set
