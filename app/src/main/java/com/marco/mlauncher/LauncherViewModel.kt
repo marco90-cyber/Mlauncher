@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import java.net.HttpURLConnection
@@ -95,6 +96,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var searchFocus by mutableStateOf(false)
     /** pagina aperta nelle impostazioni (null = elenco delle categorie) */
     var settingsPage by mutableStateOf<String?>(null)
+    /** testo cercato nelle impostazioni e voce da evidenziare dopo averla aperta */
+    var settingsQuery by mutableStateOf("")
+    var settingsHighlight by mutableStateOf<String?>(null)
     var editMode by mutableStateOf(false)
     var openFolderId by mutableStateOf<String?>(null)
     /** posizione della cartella toccata: la cartella aperta nasce da lì */
@@ -303,7 +307,90 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return result
     }
 
+    // ---------- cache delle icone: la Home compare subito anche dopo che il sistema ha chiuso il Launcher ----------
+
+    private val iconDir get() = java.io.File(ctx.cacheDir, "icons")
+    private val cacheLock = kotlinx.coroutines.sync.Mutex()
+
+    private fun saveAppCache(list: List<AppEntry>, pack: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            cacheLock.withLock {
+                try {
+                    val dir = iconDir
+                    dir.deleteRecursively()
+                    dir.mkdirs()
+                    val arr = JSONArray()
+                    fun put(b: ImageBitmap?, name: String): Boolean {
+                        if (b == null) return false
+                        return try {
+                            java.io.FileOutputStream(java.io.File(dir, name)).use { b.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    list.forEachIndexed { i, a ->
+                        if (!put(a.icon, "${i}i.png")) return@forEachIndexed
+                        arr.put(
+                            JSONObject().put("p", a.pkg).put("c", a.cls).put("l", a.label).put("r", a.removable).put("n", i)
+                                .put("m", put(a.mono, "${i}m.png")).put("w", put(a.raw, "${i}w.png"))
+                        )
+                    }
+                    java.io.File(dir, "index.json").writeText(JSONObject().put("pack", pack).put("apps", arr).toString())
+                } catch (e: Exception) {
+                    AppLog.e("Salvataggio cache icone non riuscito", e)
+                }
+            }
+        }
+    }
+
+    private suspend fun loadAppCache(pack: String): List<AppEntry>? = withContext(Dispatchers.IO) {
+        cacheLock.withLock {
+            try {
+                val dir = iconDir
+                val idx = java.io.File(dir, "index.json")
+                if (!idx.exists()) return@withLock null
+                val j = JSONObject(idx.readText())
+                if (j.optString("pack") != pack) return@withLock null
+                val arr = j.getJSONArray("apps")
+                fun img(name: String): ImageBitmap? =
+                    android.graphics.BitmapFactory.decodeFile(java.io.File(dir, name).path)?.asImageBitmap()
+                val out = ArrayList<AppEntry>()
+                for (k in 0 until arr.length()) {
+                    val o = arr.getJSONObject(k)
+                    val n = o.getInt("n")
+                    val icon = img("${n}i.png") ?: continue
+                    out.add(
+                        AppEntry(
+                            o.getString("p"), o.getString("c"), o.getString("l"), icon,
+                            if (o.optBoolean("m")) img("${n}m.png") else null,
+                            o.optBoolean("r"),
+                            if (o.optBoolean("w")) img("${n}w.png") else null
+                        )
+                    )
+                }
+                out
+            } catch (e: Exception) {
+                AppLog.e("Cache icone non leggibile", e)
+                null
+            }
+        }
+    }
+
+    private fun loadFromCache() {
+        val t0 = System.currentTimeMillis()
+        val pack = settings.iconPack
+        viewModelScope.launch {
+            val list = loadAppCache(pack) ?: return@launch
+            if (loaded || list.isEmpty()) return@launch
+            apps = list.associateBy { it.id }
+            sortedApps = list.sortedBy { it.label.lowercase() }
+            loaded = true
+            AppLog.i("Home mostrata dalla cache: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
+        }
+    }
+
     fun refresh(pkg: String?) {
+        val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             val packName = settings.iconPack
             val fresh = withContext(Dispatchers.Default) {
@@ -328,6 +415,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             sortedApps = map.values.sortedBy { it.label.lowercase() }
             reconcile()
             loaded = true
+            if (pkg == null) AppLog.i("App caricate: ${map.size} in ${System.currentTimeMillis() - t0} ms")
+            else AppLog.i("Aggiornato il pacchetto $pkg")
+            saveAppCache(map.values.toList(), packName)
         }
     }
 
@@ -1362,6 +1452,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Chiamato quando cambia l'orientamento reale del telefono. */
     fun syncOrientation(land: Boolean) {
         if (land == layoutLand) return
+        AppLog.i("Orientamento: " + if (land) "orizzontale" else "verticale")
         swapTo(land)
         editMode = false
         openFolderId = null
@@ -1577,6 +1668,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 time = System.currentTimeMillis()
             ), parseDetail(j), txt)
         } catch (e: Exception) {
+            AppLog.w("Meteo non disponibile: ${e.javaClass.simpleName} ${e.message ?: ""}")
             null
         }
     }
@@ -1707,6 +1799,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             updateChecking = false
+            AppLog.i(if (res == null) "Controllo aggiornamenti non riuscito" else "Ultima versione su GitHub: ${res.version}")
             if (res == null) {
                 updateUpToDate = false
                 return@launch
@@ -1825,6 +1918,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             addDataScheme("package")
         }
         ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        loadFromCache()
         refresh(null)
     }
 }

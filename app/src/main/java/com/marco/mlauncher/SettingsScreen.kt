@@ -41,6 +41,10 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -68,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -107,7 +112,33 @@ private fun pageTitle(key: String?) = when (key) {
     "look" -> "Aspetto"
     "backup" -> "Backup e manutenzione"
     "info" -> "Informazioni"
+    "log" -> "Registro log"
     else -> "Impostazioni"
+}
+
+/** Voce delle impostazioni da evidenziare (arrivando dalla ricerca). */
+private val LocalSettingsHighlight = androidx.compose.runtime.compositionLocalOf<String?> { null }
+
+/** Lampeggia e porta in vista la voce cercata. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.hl(title: String): Modifier {
+    if (LocalSettingsHighlight.current != title) return this
+    val req = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val a = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(380)
+        try { req.bringIntoView() } catch (e: Exception) { }
+        repeat(2) {
+            a.animateTo(1f, androidx.compose.animation.core.tween(260))
+            a.animateTo(0.25f, androidx.compose.animation.core.tween(380))
+        }
+        a.animateTo(0f, androidx.compose.animation.core.tween(700))
+    }
+    val c = MaterialTheme.colorScheme.primary
+    return this
+        .bringIntoViewRequester(req)
+        .drawBehind { drawRect(c.copy(alpha = 0.28f * a.value)) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,7 +146,14 @@ private fun pageTitle(key: String?) = when (key) {
 fun SettingsScreen(vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
     val page = vm.settingsPage
+    androidx.compose.runtime.LaunchedEffect(vm.settingsHighlight) {
+        if (vm.settingsHighlight != null) {
+            kotlinx.coroutines.delay(3500)
+            vm.settingsHighlight = null
+        }
+    }
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    androidx.compose.runtime.CompositionLocalProvider(LocalSettingsHighlight provides vm.settingsHighlight) {
     Scaffold(
         containerColor = cs.surface,
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
@@ -173,11 +211,13 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "effects" -> PageEffects(vm)
                     "look" -> PageLook(vm)
                     "backup" -> PageBackup(vm, host)
+                    "log" -> PageLog(vm)
                     else -> PageInfo(vm, host)
                 }
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
     }
 }
 
@@ -185,6 +225,32 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
 private fun Dashboard(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
+    // ricerca tra tutte le voci delle impostazioni
+    androidx.compose.material3.TextField(
+        value = vm.settingsQuery,
+        onValueChange = { vm.settingsQuery = it },
+        singleLine = true,
+        placeholder = { Text("Cerca nelle impostazioni") },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = {
+            if (vm.settingsQuery.isNotEmpty()) IconButton(onClick = { vm.settingsQuery = "" }) {
+                Icon(Icons.Default.Close, contentDescription = "Cancella")
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+        colors = androidx.compose.material3.TextFieldDefaults.colors(
+            focusedContainerColor = cs.surfaceContainerHigh,
+            unfocusedContainerColor = cs.surfaceContainerHigh,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent
+        ),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+    )
+    val q = vm.settingsQuery.trim()
+    if (q.isNotEmpty()) {
+        SettingsSearchResults(vm, q)
+        return
+    }
     if (!vm.isDefaultHome) {
         Surface(
             shape = RoundedCornerShape(28.dp),
@@ -230,6 +296,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         Cat("effects", "Effetti e animazioni", "Cambio pagina: ${effectNames[s.pageEffect] ?: ""}", Icons.Default.Favorite),
         Cat("look", "Aspetto", "Tema ${(themeNames[s.theme] ?: "").lowercase()}", Icons.Default.Create),
         Cat("backup", "Backup e manutenzione", "Esporta, ripristina, riordina", Icons.Default.Build),
+        Cat("log", "Registro log", if (vm.lastCrash != null) "C'è un errore registrato" else "Eventi ed errori del Launcher", Icons.Default.Warning),
         Cat("info", "Informazioni", vm.updateInfo?.let { "Aggiornamento ${it.version} disponibile" } ?: "MLauncher ${vm.currentVersionName}", Icons.Default.Info)
     )
     Group(null) {
@@ -247,6 +314,118 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
                 modifier = Modifier.clickable { vm.settingsPage = c.key }
             )
         }
+    }
+}
+
+@Composable
+private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
+    val cs = MaterialTheme.colorScheme
+    val words = q.lowercase().split(' ').filter { it.isNotBlank() }
+    val drawerOn = vm.settings.homeMode == "drawer"
+    val pages = listOf("home", "dock", "icons", "folders", "drawer", "widgets", "gestures", "effects", "look", "backup", "log", "info")
+    val results = remember(q, drawerOn) {
+        val pageHits = pages.filter { p -> words.all { pageTitle(p).lowercase().contains(it) } }
+            .map { SettingEntry(pageTitle(it), it, "", "Apri la sezione") }
+        val hits = SETTINGS_INDEX.filter { e ->
+            val hay = (e.title + " " + e.group + " " + e.hint + " " + pageTitle(e.page)).lowercase()
+            words.all { hay.contains(it) }
+        }.sortedBy { if (it.title.lowercase().startsWith(words.first())) 0 else 1 }
+        (pageHits + hits).filter { drawerOn || it.page != "drawer" }
+    }
+    if (results.isEmpty()) {
+        Text(
+            "Nessuna impostazione trovata",
+            color = cs.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
+        )
+        return
+    }
+    Group("${results.size} risultati") {
+        results.take(40).forEach { e ->
+            ListItem(
+                headlineContent = { Text(e.title) },
+                supportingContent = {
+                    Text(
+                        pageTitle(e.page) + (if (e.group.isNotEmpty()) " \u203a " + e.group else "") +
+                            (if (e.hint.isNotEmpty() && e.hint != "Apri la sezione") "\n" + e.hint else "")
+                    )
+                },
+                colors = prefColors(),
+                modifier = Modifier.clickable {
+                    vm.settingsHighlight = if (e.hint == "Apri la sezione") null else e.title
+                    vm.settingsPage = e.page
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PageLog(vm: LauncherViewModel) {
+    val cs = MaterialTheme.colorScheme
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+    var log by remember { mutableStateOf(AppLog.read()) }
+    val crash = vm.lastCrash
+    val all = (if (crash != null) "=== ULTIMO ERRORE ===\n$crash\n\n" else "") + "=== REGISTRO ===\n$log"
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        androidx.compose.material3.FilledTonalButton(onClick = { log = AppLog.read(); vm.loadCrash() }) { Text("Aggiorna") }
+        androidx.compose.material3.FilledTonalButton(onClick = {
+            clip.setText(androidx.compose.ui.text.AnnotatedString(all))
+            android.widget.Toast.makeText(ctx, "Copiato", android.widget.Toast.LENGTH_SHORT).show()
+        }) { Text("Copia") }
+        androidx.compose.material3.FilledTonalButton(onClick = {
+            val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(android.content.Intent.EXTRA_TEXT, all)
+            try { ctx.startActivity(android.content.Intent.createChooser(i, "Condividi registro")) } catch (e: Exception) { }
+        }) { Text("Invia") }
+    }
+    if (crash != null) Group("Ultimo errore") {
+        Text(
+            crash.take(6000),
+            fontSize = 11.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            color = cs.onErrorContainer,
+            modifier = Modifier.fillMaxWidth().background(cs.errorContainer).padding(14.dp)
+        )
+    }
+    val entries = remember(log) {
+        log.split(Regex("\n(?=\\d\\d/\\d\\d \\d\\d:)")).filter { it.isNotBlank() }.reversed().take(400)
+    }
+    Group(if (entries.isEmpty()) "Registro vuoto" else "Eventi, dal più recente") {
+        Column(Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(12.dp)) {
+            if (entries.isEmpty()) Text("Ancora nessun evento registrato.", color = cs.onSurfaceVariant)
+            entries.forEach { line ->
+                val lvl = line.drop(16).take(3).trim()
+                Text(
+                    line.trimEnd(),
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = when (lvl) {
+                        "E" -> cs.error
+                        "W" -> cs.tertiary
+                        else -> cs.onSurface
+                    },
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
+            }
+        }
+    }
+    Group(null) {
+        ListItem(
+            headlineContent = { Text("Cancella il registro", color = cs.error) },
+            supportingContent = { Text("Svuota gli eventi e l'ultimo errore") },
+            colors = prefColors(),
+            modifier = Modifier.clickable {
+                AppLog.clear()
+                vm.clearCrash()
+                log = ""
+            }
+        )
     }
 }
 
@@ -1192,7 +1371,7 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
         supportingContent = if (subtitle != null) ({ Text(subtitle) }) else null,
         trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
         colors = prefColors(),
-        modifier = Modifier.clickable { onChange(!checked) }
+        modifier = Modifier.hl(title).clickable { onChange(!checked) }
     )
 }
 
@@ -1210,6 +1389,7 @@ private fun SliderRow(
         Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceContainer)
+            .hl(title)
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1238,7 +1418,7 @@ private fun ChoiceRow(
         supportingContent = { Text(options.firstOrNull { it.first == current }?.second ?: "") },
         trailingContent = if (preview != null) ({ preview(current) }) else null,
         colors = prefColors(),
-        modifier = Modifier.clickable { open = true }
+        modifier = Modifier.hl(title).clickable { open = true }
     )
     if (open) {
         AlertDialog(

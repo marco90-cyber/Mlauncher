@@ -27,6 +27,8 @@ fun Root(vm: LauncherViewModel, host: Host) {
     androidx.compose.runtime.LaunchedEffect(vm.overlay) {
         if (vm.overlay != Overlay.SETTINGS) {
             vm.settingsPage = null
+            vm.settingsQuery = ""
+            vm.settingsHighlight = null
             vm.settings.previewLand = null
         }
     }

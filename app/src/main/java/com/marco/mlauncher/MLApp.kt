@@ -12,6 +12,8 @@ import java.util.Locale
 class MLApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        AppLog.init(this)
+        AppLog.i("Avvio del processo")
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {
@@ -28,6 +30,7 @@ class MLApp : Application() {
                 // tengo solo l'ultimo errore (più eventuali ripetizioni ravvicinate)
                 val old = if (f.exists() && System.currentTimeMillis() - f.lastModified() < 60_000) f.readText().take(20_000) + "\n\n----\n\n" else ""
                 f.writeText(old + head + sw.toString().take(30_000))
+                AppLog.writeNow("E", "CHIUSURA PER ERRORE (thread ${t.name})\n" + sw.toString().take(8000))
             } catch (x: Throwable) {
                 // niente
             }

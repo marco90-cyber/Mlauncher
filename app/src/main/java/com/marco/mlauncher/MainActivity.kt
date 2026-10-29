@@ -106,6 +106,7 @@ class MainActivity : ComponentActivity(), Host {
         syncOrientation(resources.configuration)
         vm.checkUpdate(auto = true)
         vm.loadCrash()
+        AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
         setContent {
             MLauncherTheme(vm.settings.theme) {
                 Root(vm, this@MainActivity)
@@ -115,11 +116,13 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun onStart() {
         super.onStart()
-        try { vm.widgetHost.startListening() } catch (e: Exception) { }
+        try { vm.widgetHost.startListening() } catch (e: Exception) { AppLog.e("Widget host non avviato", e) }
+        AppLog.i("Home in primo piano")
     }
 
     override fun onStop() {
         try { vm.widgetHost.stopListening() } catch (e: Exception) { }
+        AppLog.i("Home in background")
         super.onStop()
     }
 
@@ -192,6 +195,7 @@ class MainActivity : ComponentActivity(), Host {
             return
         }
         vm.recordLaunch(app.id)
+        AppLog.i("Apro ${app.label} (${app.pkg})")
         val i = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(ComponentName(app.pkg, app.cls))
@@ -206,6 +210,7 @@ class MainActivity : ComponentActivity(), Host {
             } else null
             startActivity(i, opts)
         } catch (e: Exception) {
+            AppLog.e("Impossibile aprire ${app.pkg}", e)
             Toast.makeText(this, "Impossibile aprire ${app.label}", Toast.LENGTH_SHORT).show()
         }
     }
