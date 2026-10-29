@@ -90,6 +90,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var settingsPage by mutableStateOf<String?>(null)
     var editMode by mutableStateOf(false)
     var openFolderId by mutableStateOf<String?>(null)
+    /** posizione della cartella toccata: la cartella aperta nasce da lì */
+    var folderAnchor by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
     var homeSignal by mutableIntStateOf(0)
         private set
     var currentPage by mutableIntStateOf(0)

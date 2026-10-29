@@ -884,7 +884,7 @@ private fun GridItem(
                 .itemGestures(item, vm, holder, cb, onMenu) {
                     when (val cur = curItem) {
                         is AppItem -> vm.apps[cur.appId]?.let { a -> host.launch(a, holder.window) }
-                        is FolderItem -> vm.openFolderId = cur.folderId
+                        is FolderItem -> { vm.folderAnchor = holder.window; vm.openFolderId = cur.folderId }
                         else -> {}
                     }
                 },
@@ -984,7 +984,7 @@ private fun BigFolderCell(
                     val col = ((pos.x / holder.w) * 3f).toInt().coerceIn(0, 2)
                     val row = ((pos.y / holder.h) * 3f).toInt().coerceIn(0, 2)
                     val app = f.appIds.getOrNull(row * 3 + col)?.let { vm.apps[it] }
-                    if (app != null) host.launch(app, holder.window) else vm.openFolderId = f.folderId
+                    if (app != null) host.launch(app, holder.window) else { vm.folderAnchor = holder.window; vm.openFolderId = f.folderId }
                 }
         ) {
             Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.SpaceEvenly) {
@@ -1246,6 +1246,7 @@ internal fun QuickMenu(
                 } else if (item is FolderItem) {
                     MenuRow("Rinomina") {
                         onDismiss()
+                        vm.folderAnchor = rect
                         vm.openFolderId = item.folderId
                     }
                     MenuRow("Ordina A-Z") {

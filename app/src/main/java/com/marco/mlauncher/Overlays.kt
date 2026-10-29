@@ -25,10 +25,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.draw.alpha
 import kotlin.math.roundToInt
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -142,23 +145,56 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
+                    .background(Color.Black.copy(alpha = 0.3f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { vm.openFolderId = null },
-                contentAlignment = Alignment.Center
+                    ) { vm.openFolderId = null }
             ) {
+                val dens = LocalDensity.current
+                val conf = LocalConfiguration.current
+                val anchor = vm.folderAnchor
+                val cols = s.folderCols
+                val cardW = minOf((cols * 76 + 32).dp, (conf.screenWidthDp - 32).dp)
+                val cardWpx = with(dens) { cardW.toPx() }
+                val sw = with(dens) { conf.screenWidthDp.dp.toPx() }
+                val sh = with(dens) { conf.screenHeightDp.dp.toPx() }
+                val m = with(dens) { 16.dp.toPx() }
+                val hasAnchor = anchor != Rect.Zero
+                val cx = if (hasAnchor) anchor.center.x else sw / 2f
+                val cardX = (cx - cardWpx / 2f).coerceIn(m, maxOf(m, sw - cardWpx - m))
+                val below = hasAnchor && anchor.bottom < sh * 0.5f
                 Surface(
-                    shape = RoundedCornerShape(32.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
+                    shadowElevation = 12.dp,
                     modifier = Modifier
                         .animateEnterExit(
-                            enter = scaleIn(tween(dur), initialScale = 0.7f) + fadeIn(tween(dur)),
-                            exit = scaleOut(tween(dur), targetScale = 0.7f) + fadeOut(tween(dur))
+                            enter = scaleIn(
+                                tween(dur),
+                                initialScale = 0.4f,
+                                transformOrigin = TransformOrigin(
+                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), if (below) 0f else 1f
+                                )
+                            ) + fadeIn(tween(dur)),
+                            exit = scaleOut(
+                                tween(dur),
+                                targetScale = 0.4f,
+                                transformOrigin = TransformOrigin(
+                                    ((cx - cardX) / cardWpx).coerceIn(0f, 1f), if (below) 0f else 1f
+                                )
+                            ) + fadeOut(tween(dur))
                         )
-                        .padding(24.dp)
-                        .fillMaxWidth()
+                        .width(cardW)
+                        .layout { measurable, c ->
+                            val pl = measurable.measure(c)
+                            val y = when {
+                                !hasAnchor -> (sh - pl.height) / 2f
+                                below -> anchor.bottom + m / 2f
+                                else -> anchor.top - pl.height - m / 2f
+                            }.coerceIn(m, maxOf(m, sh - pl.height - m))
+                            layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
+                        }
                         .onGloballyPositioned { cardRect = it.boundsInRoot() }
                         .pointerInput(Unit) { detectTapGestures { } }
                 ) {
