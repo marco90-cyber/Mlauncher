@@ -68,6 +68,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("A ogni pagina", "gestures", "Quando vibrare", "Un tocco leggero quando cambi pagina nella Home"),
     SettingEntry("Scorrimento e selezione", "gestures", "Quando vibrare", "Ridimensionamento, lista del cassetto, gesti su e giù"),
     SettingEntry("Tema", "look", "Tema", ""),
+    SettingEntry("Colori", "look", "Tema", ""),
     SettingEntry("Velocità animazioni", "look", "Animazioni", ""),
     SettingEntry("Animazione di disinstallazione", "look", "Animazioni", ""),
     SettingEntry("Esporta layout e impostazioni", "backup", "Backup", ""),

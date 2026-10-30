@@ -101,6 +101,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun finishWelcome() {
         showWelcome = false
+        settings.previewLand = null
         sp.edit().putBoolean("welcomeDone", true).apply()
         AppLog.i("Benvenuto completato")
     }

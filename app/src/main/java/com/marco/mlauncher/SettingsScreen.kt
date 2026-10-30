@@ -1005,6 +1005,12 @@ private fun PageLook(vm: LauncherViewModel) {
             s.theme,
             preview = { ThemePreview(it) }
         ) { vm.setSetting("theme", it) }
+        ChoiceRow(
+            "Colori",
+            ACCENTS,
+            s.accent,
+            preview = { AccentPreview(it) }
+        ) { vm.setSetting("accent", it) }
     }
     Group("Animazioni") {
         ChoiceRow(
@@ -1318,6 +1324,18 @@ private fun EffectPreview(key: String) {
 }
 
 @Composable
+internal fun AccentPreview(key: String) {
+    val c = accentSwatch(key)
+    Box(
+        Modifier.size(30.dp).clip(CircleShape).background(
+            if (c != null) Brush.linearGradient(listOf(c, c)) else Brush.sweepGradient(
+                listOf(Color(0xFFEA4335), Color(0xFFFBBC05), Color(0xFF34A853), Color(0xFF4285F4), Color(0xFFEA4335))
+            )
+        )
+    )
+}
+
+@Composable
 internal fun ThemePreview(key: String) {
     val shape = CircleShape
     Row(Modifier.size(34.dp).clip(shape)) {
@@ -1329,7 +1347,7 @@ internal fun ThemePreview(key: String) {
 }
 
 @Composable
-private fun IndicatorPreview(key: String) {
+internal fun IndicatorPreview(key: String) {
     val cs = MaterialTheme.colorScheme
     val on = cs.primary
     val off = cs.onSurfaceVariant.copy(alpha = 0.4f)

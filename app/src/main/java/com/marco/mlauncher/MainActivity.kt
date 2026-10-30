@@ -108,7 +108,7 @@ class MainActivity : ComponentActivity(), Host {
         vm.loadCrash()
         AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
         setContent {
-            MLauncherTheme(vm.settings.theme) {
+            MLauncherTheme(vm.settings.theme, vm.settings.accent) {
                 Root(vm, this@MainActivity)
                 AppUpdateHost()
             }

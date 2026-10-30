@@ -187,6 +187,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
+    var accent by mutableStateOf(sp.getString("accent", "auto") ?: "auto")
     var homeOpensDrawer by mutableStateOf(sp.getBoolean("homeOpensDrawer", true))
     var newAppDot by mutableStateOf(sp.getBoolean("newAppDot", true))
     var autoUpdateCheck by mutableStateOf(sp.getBoolean("autoUpdateCheck", true))
@@ -311,6 +312,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapTick" -> hapTick = value as Boolean
             "hapPage" -> hapPage = value as Boolean
             "shakeTidy" -> shakeTidy = value as Boolean
+            "accent" -> accent = value as String
             "homeOpensDrawer" -> homeOpensDrawer = value as Boolean
             "newAppDot" -> newAppDot = value as Boolean
             "autoUpdateCheck" -> autoUpdateCheck = value as Boolean
