@@ -111,10 +111,9 @@ private fun pageTitle(key: String?) = when (key) {
     "icons" -> "Icone e notifiche"
     "folders" -> "Cartelle"
     "drawer" -> "Cassetto app"
-    "widgets" -> "Widget e ricerca"
-    "gestures" -> "Gesti e feedback"
-    "effects" -> "Effetti e animazioni"
-    "look" -> "Aspetto"
+    "widgets" -> "Widget e meteo"
+    "gestures" -> "Gesti e vibrazione"
+    "look" -> "Tema e animazioni"
     "backup" -> "Backup e manutenzione"
     "info" -> "Informazioni"
     "log" -> "Registro log"
@@ -151,6 +150,8 @@ private fun Modifier.hl(title: String): Modifier {
 fun SettingsScreen(vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
     val page = vm.settingsPage
+    // ogni pagina riparte dall'orientamento reale del telefono
+    androidx.compose.runtime.LaunchedEffect(page) { vm.settings.previewLand = null }
     androidx.compose.runtime.LaunchedEffect(vm.settingsHighlight) {
         if (vm.settingsHighlight != null) {
             kotlinx.coroutines.delay(3500)
@@ -213,7 +214,6 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "drawer" -> PageDrawer(vm)
                     "widgets" -> PageWidgets(vm, host)
                     "gestures" -> PageGestures(vm, host)
-                    "effects" -> PageEffects(vm)
                     "look" -> PageLook(vm)
                     "backup" -> PageBackup(vm, host)
                     "log" -> PageLog(vm)
@@ -288,36 +288,43 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.clickable { host.requestHomeRole() }
         )
     }
-    val cats = listOf(
-        Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home"), Icons.Default.Home),
-        Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 ${DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""}", Icons.Default.Menu),
-        Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""}", Icons.Default.Star),
-        Cat("folders", "Cartelle", "Anteprima: ${folderNames[s.folderPreview] ?: ""}", Icons.Default.List),
-        *(if (s.homeMode == "drawer") arrayOf(
-            Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
-        ) else emptyArray()),
-        Cat("widgets", "Widget e ricerca", "Orologio, meteo, batteria, ricerca", Icons.Default.Search),
-        Cat("gestures", "Gesti e feedback", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
-        Cat("effects", "Effetti e animazioni", "Cambio pagina: ${effectNames[s.pageEffect] ?: ""}", Icons.Default.Favorite),
-        Cat("look", "Aspetto", "Tema ${(themeNames[s.theme] ?: "").lowercase()}", Icons.Default.Create),
-        Cat("backup", "Backup e manutenzione", "Esporta, ripristina, riordina", Icons.Default.Build),
-        Cat("log", "Registro log", if (vm.lastCrash != null) "C'è un errore registrato" else "Eventi ed errori del Launcher", Icons.Default.Warning),
-        Cat("info", "Informazioni", vm.updateInfo?.let { "Aggiornamento ${it.version} disponibile" } ?: "MLauncher ${vm.currentVersionName}", Icons.Default.Info)
+    val sections = listOf(
+        "Personalizza" to listOf(
+            Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home") + " \u00b7 indicatore di pagina", Icons.Default.Home),
+            Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 ${DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""}", Icons.Default.Menu),
+            Cat("folders", "Cartelle", "Forma, anteprima, sfocatura", Icons.Default.List),
+            *(if (s.homeMode == "drawer") arrayOf(
+                Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
+            ) else emptyArray()),
+            Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 badge \u00b7 app nascoste", Icons.Default.Star),
+            Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Search)
+        ),
+        "Comportamento" to listOf(
+            Cat("gestures", "Gesti e vibrazione", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
+            Cat("look", "Tema e animazioni", "Tema ${(themeNames[s.theme] ?: "").lowercase()}", Icons.Default.Create)
+        ),
+        "Sistema" to listOf(
+            Cat("backup", "Backup e manutenzione", "Esporta, ripristina, riavvia", Icons.Default.Build),
+            Cat("log", "Registro log", if (vm.lastCrash != null) "C'è un errore registrato" else "Eventi ed errori del Launcher", Icons.Default.Warning),
+            Cat("info", "Informazioni", vm.updateInfo?.let { "Aggiornamento ${it.version} disponibile" } ?: "MLauncher ${vm.currentVersionName} \u00b7 aggiornamenti", Icons.Default.Info)
+        )
     )
-    Group(null) {
-        cats.forEach { c ->
-            ListItem(
-                headlineContent = { Text(c.title) },
-                supportingContent = { Text(c.summary) },
-                leadingContent = {
-                    Box(
-                        Modifier.size(44.dp).clip(CircleShape).background(cs.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) { Icon(c.icon, contentDescription = null, tint = cs.onPrimaryContainer) }
-                },
-                colors = prefColors(),
-                modifier = Modifier.clickable { vm.settingsPage = c.key }
-            )
+    sections.forEach { (title, cats) ->
+        Group(title) {
+            cats.forEach { c ->
+                ListItem(
+                    headlineContent = { Text(c.title) },
+                    supportingContent = { Text(c.summary) },
+                    leadingContent = {
+                        Box(
+                            Modifier.size(44.dp).clip(CircleShape).background(cs.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) { Icon(c.icon, contentDescription = null, tint = cs.onPrimaryContainer) }
+                    },
+                    colors = prefColors(),
+                    modifier = Modifier.clickable { vm.settingsPage = c.key }
+                )
+            }
         }
     }
 }
@@ -333,7 +340,7 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
     val cs = MaterialTheme.colorScheme
     val words = q.lowercase().split(' ').filter { it.isNotBlank() }
     val drawerOn = vm.settings.homeMode == "drawer"
-    val pages = listOf("home", "dock", "icons", "folders", "drawer", "widgets", "gestures", "effects", "look", "backup", "log", "info")
+    val pages = listOf("home", "dock", "icons", "folders", "drawer", "widgets", "gestures", "look", "backup", "log", "info")
     val results = remember(q, drawerOn) {
         val pageHits = pages.filter { p -> words.all { pageTitle(p).lowercase().contains(it) } }
             .map { SettingEntry(pageTitle(it), it, "", "Apri la sezione") }
@@ -440,6 +447,25 @@ private fun PageLog(vm: LauncherViewModel) {
     }
 }
 
+/** Gruppo di voci che hanno un valore per il verticale e uno per l'orizzontale. */
+@Composable
+private fun OrientedGroup(title: String, s: LauncherSettings, content: @Composable () -> Unit) {
+    Group(title) {
+        Column(
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(top = 12.dp, bottom = 6.dp)
+        ) {
+            Text(
+                "Queste voci hanno valori separati per il telefono in verticale e in orizzontale",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp)
+            )
+            OrientationTabs(s)
+        }
+        content()
+    }
+}
+
 /** Scelta dell'orientazione di cui si stanno modificando i valori. */
 @Composable
 private fun OrientationTabs(s: LauncherSettings) {
@@ -465,8 +491,7 @@ private fun OrientationTabs(s: LauncherSettings) {
 @Composable
 private fun PageHome(vm: LauncherViewModel) {
     val s = vm.settings
-    OrientationTabs(s)
-    Group("Griglia") {
+    Group("Disposizione delle app") {
         var askOrder by remember { mutableStateOf(false) }
         ChoiceRow(
             "Modalità Home",
@@ -484,6 +509,12 @@ private fun PageHome(vm: LauncherViewModel) {
             ) { vm.setSetting("autoFolders", it) }
             if (s.autoFolders) ChoiceRow("Raggruppa per", smartModes, s.smartMode) { vm.setSetting("smartMode", it) }
             ChoiceRow(if (s.autoFolders) "Come disporre le app sciolte" else "Come disporre le app", orderOptions, s.homeOrder) { vm.setSetting("homeOrder", it) }
+        } else {
+            SwitchRow(
+                "Aggiungi le nuove app in Home",
+                "Altrimenti restano solo nel cassetto",
+                s.autoAddNew
+            ) { vm.setSetting("autoAddNew", it) }
         }
         if (askOrder) {
             AlertDialog(
@@ -510,6 +541,8 @@ private fun PageHome(vm: LauncherViewModel) {
                 dismissButton = { TextButton(onClick = { askOrder = false }) { Text("Chiudi") } }
             )
         }
+    }
+    OrientedGroup("Griglia e icone", s) {
         SliderRow("Colonne", "${s.cols}", s.cols.toFloat(), if (s.landscape) 5f..10f else 4f..6f, if (s.landscape) 4 else 1, preview = { GridPreview(s.cols, s.rows) }) {
             val v = it.roundToInt()
             if (v != s.cols) vm.setSetting("cols", v)
@@ -518,31 +551,63 @@ private fun PageHome(vm: LauncherViewModel) {
             val v = it.roundToInt()
             if (v != s.rows) vm.setSetting("rows", v)
         }
-    }
-    Group("Icone in Home") {
         SliderRow("Dimensione icone", "${(s.iconScale * 100).roundToInt()}%", s.iconScale, 0.8f..1.2f, 0, preview = { ShapePreview(s.iconShape, 30.dp * s.iconScale) }) {
             vm.setSetting("iconScale", (it * 20).roundToInt() / 20f)
         }
+    }
+    Group("Aspetto") {
+        SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
         SwitchRow(
             "Rotazione della Home",
             "In orizzontale la dock passa a lato. Spento: la Home resta in verticale",
             s.allowRotation
         ) { vm.setSetting("allowRotation", it) }
-        SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
-        if (s.homeMode == "drawer") {
-            SwitchRow(
-                "Aggiungi le nuove app in Home",
-                "Altrimenti restano solo nel cassetto",
-                s.autoAddNew
-            ) { vm.setSetting("autoAddNew", it) }
-        }
+    }
+    Group("Pagine") {
+        ChoiceRow(
+            "Indicatore di pagina",
+            listOf(
+                "ios" to "iOS 27 (diventa \"Cerca\")",
+                "pill" to "Puntini (attivo allungato)",
+                "dots" to "Puntini semplici",
+                "lines" to "Linee",
+                "worm" to "Puntini con ovale scorrevole",
+                "progress" to "Barra di avanzamento",
+                "number" to "Numero (2 / 5)",
+                "none" to "Nessuno"
+            ),
+            s.pageIndicator,
+            preview = { IndicatorPreview(it) }
+        ) { vm.setSetting("pageIndicator", it) }
+        SwitchRow(
+            "Indicatore come la dock",
+            "Prende stile, trasparenza ed effetto vetro della dock",
+            s.indFollowDock
+        ) { vm.setSetting("indFollowDock", it) }
+        ChoiceRow(
+            "Effetto cambio pagina",
+            listOf(
+                "slide" to "Scorrimento",
+                "fade" to "Dissolvenza",
+                "cube" to "Cubo",
+                "rotate" to "Rotazione",
+                "cascade" to "Cascata"
+            ),
+            s.pageEffect,
+            preview = { EffectPreview(it) }
+        ) { vm.setSetting("pageEffect", it) }
+        Text(
+            "Con qualsiasi indicatore: tieni premuto sopra e scorri per cambiare pagina al volo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
     }
 }
 
 @Composable
 private fun PageDock(vm: LauncherViewModel) {
     val s = vm.settings
-    OrientationTabs(s)
     DockLivePreview(s)
     Group("Stile") {
         ChoiceRow(
@@ -556,18 +621,18 @@ private fun PageDock(vm: LauncherViewModel) {
             "Riflesso e bordo luminoso come il vetro",
             s.dockGlass
         ) { vm.setSetting("dockGlass", it) }
-    }
-    Group("Personalizza") {
         SliderRow("Trasparenza", "${100 - s.dockOpacity}%", s.dockOpacity.toFloat(), 0f..100f, 19) {
             val v = (it / 5f).roundToInt() * 5
             if (v != s.dockOpacity) vm.setSetting("dockOpacity", v)
         }
-        SliderRow("Grandezza", "${(s.dockSize * 100).roundToInt()}%", s.dockSize, 0.8f..1.2f, 7) {
-            vm.setSetting("dockSize", (it * 20).roundToInt() / 20f)
-        }
         SliderRow("Arrotondamento", "${s.dockCorner} dp", s.dockCorner.toFloat(), 0f..40f, 0) {
             val v = it.roundToInt()
             if (v != s.dockCorner) vm.setSetting("dockCorner", v)
+        }
+    }
+    OrientedGroup("Dimensioni", s) {
+        SliderRow("Grandezza", "${(s.dockSize * 100).roundToInt()}%", s.dockSize, 0.8f..1.2f, 7) {
+            vm.setSetting("dockSize", (it * 20).roundToInt() / 20f)
         }
         SliderRow("Icone nella dock", "${s.dockSlots}", s.dockSlots.toFloat(), 4f..6f, 1) {
             val v = it.roundToInt()
@@ -653,15 +718,7 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
 @Composable
 private fun PageDrawer(vm: LauncherViewModel) {
     val s = vm.settings
-    OrientationTabs(s)
-    Group("Nuove app") {
-        SwitchRow(
-            "Puntino sulle app nuove",
-            "Segna le app appena installate finché non le apri",
-            s.newAppDot
-        ) { vm.setSetting("newAppDot", it) }
-    }
-    Group("Layout") {
+    Group("Disposizione") {
         ChoiceRow(
             "Disposizione",
             listOf("grid" to "Griglia", "list" to "Elenco"),
@@ -672,15 +729,30 @@ private fun PageDrawer(vm: LauncherViewModel) {
             listOf("name" to "Per nome (A-Z)", "name_desc" to "Per nome (Z-A)", "usage" to "Più usate", "recent" to "Installate di recente"),
             s.drSort
         ) { vm.setSetting("drSort", it) }
-    }
-    Group("Generale") {
-        SwitchRow("Barra di ricerca", "In cima al cassetto", s.drSearchBar) { vm.setSetting("drSearchBar", it) }
-        SwitchRow("Sfondo della barra di ricerca", null, s.drSearchBg) { vm.setSetting("drSearchBg", it) }
         SwitchRow("App suggerite", "Le 4 più usate in cima", s.drSuggest) { vm.setSetting("drSuggest", it) }
-        SwitchRow("Barra laterale A-Z", "Scorri veloce tra le lettere", s.drScrollbar) { vm.setSetting("drScrollbar", it) }
         SwitchRow("Ricorda la posizione", "Riapre il cassetto dove l'avevi lasciato", s.drRemember) { vm.setSetting("drRemember", it) }
     }
-    Group("Stile") {
+    Group("Ricerca e scorrimento") {
+        SwitchRow("Barra di ricerca", "In cima al cassetto", s.drSearchBar) { vm.setSetting("drSearchBar", it) }
+        if (s.drSearchBar) SwitchRow("Sfondo della barra di ricerca", null, s.drSearchBg) { vm.setSetting("drSearchBg", it) }
+        SwitchRow("Barra laterale A-Z", "Scorri veloce tra le lettere", s.drScrollbar) { vm.setSetting("drScrollbar", it) }
+    }
+    Group("Nomi delle app") {
+        SwitchRow("Mostra i nomi", null, s.drLabels) { vm.setSetting("drLabels", it) }
+        if (s.drLabels) {
+            SliderRow("Dimensione del testo", "${s.drLabelSize} sp", s.drLabelSize.toFloat(), 9f..16f, 6) {
+                val v = it.roundToInt()
+                if (v != s.drLabelSize) vm.setSetting("drLabelSize", v)
+            }
+            SwitchRow("Nome su due righe", null, s.drTwoLine) { vm.setSetting("drTwoLine", it) }
+        }
+        SwitchRow(
+            "Puntino sulle app nuove",
+            "Segna le app appena installate finché non le apri",
+            s.newAppDot
+        ) { vm.setSetting("newAppDot", it) }
+    }
+    Group("Sfondo") {
         ChoiceRow(
             "Colore di sfondo",
             listOf("surface" to "Superficie", "tonal" to "Tonale (colore principale)", "neutral" to "Neutro", "dark" to "Nero"),
@@ -691,13 +763,14 @@ private fun PageDrawer(vm: LauncherViewModel) {
             if (v != s.drOpacity) vm.setSetting("drOpacity", v)
         }
     }
-    if (s.drLayout == "grid") Group("Griglia") {
-        SliderRow("Colonne", "${s.drCols}", s.drCols.toFloat(), 3f..6f, 2) {
+    OrientedGroup("Griglia e spaziatura", s) {
+        if (s.drLayout == "grid") SliderRow("Colonne", "${s.drCols}", s.drCols.toFloat(), 3f..6f, 2) {
             val v = it.roundToInt()
             if (v != s.drCols) vm.setSetting("drCols", v)
         }
-    }
-    Group("Spaziatura") {
+        SliderRow("Dimensione icone", "${(s.drIcon * 100).roundToInt()}%", s.drIcon, 0.7f..1.4f, 13) {
+            vm.setSetting("drIcon", (it * 20).roundToInt() / 20f)
+        }
         SliderRow("Altezza delle righe", "${(s.drRowH * 100).roundToInt()}%", s.drRowH, 0.6f..1.6f, 9) {
             vm.setSetting("drRowH", (it * 20).roundToInt() / 20f)
         }
@@ -708,19 +781,6 @@ private fun PageDrawer(vm: LauncherViewModel) {
         SliderRow("Margine superiore", "${s.drTop} dp", s.drTop.toFloat(), 0f..48f, 0) {
             val v = it.roundToInt()
             if (v != s.drTop) vm.setSetting("drTop", v)
-        }
-    }
-    Group("Icone") {
-        SliderRow("Dimensione icone", "${(s.drIcon * 100).roundToInt()}%", s.drIcon, 0.7f..1.4f, 13) {
-            vm.setSetting("drIcon", (it * 20).roundToInt() / 20f)
-        }
-        SwitchRow("Mostra i nomi", null, s.drLabels) { vm.setSetting("drLabels", it) }
-        if (s.drLabels) {
-            SliderRow("Dimensione del testo", "${s.drLabelSize} sp", s.drLabelSize.toFloat(), 9f..16f, 6) {
-                val v = it.roundToInt()
-                if (v != s.drLabelSize) vm.setSetting("drLabelSize", v)
-            }
-            SwitchRow("Nome su due righe", null, s.drTwoLine) { vm.setSetting("drTwoLine", it) }
         }
     }
 }
@@ -832,7 +892,6 @@ private fun FolderPreview(style: String, bgKey: String, shapeKey: String = "squi
 @Composable
 private fun PageWidgets(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
-    OrientationTabs(s)
     var cityDlg by remember { mutableStateOf(false) }
     if (cityDlg) CityPickerDialog(vm, host) { cityDlg = false }
     Group("Meteo") {
@@ -905,14 +964,14 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
             )
         }
     }
-    Group("Feedback") {
+    Group("Vibrazione") {
         SwitchRow(
             "Feedback tattile",
             "Interruttore generale",
             s.haptics
         ) { vm.setSetting("haptics", it) }
     }
-    if (s.haptics) Group("Dove vuoi il feedback") {
+    if (s.haptics) Group("Quando vibrare") {
         SwitchRow(
             "Pressione lunga e trascinamento",
             "Menu rapidi, inizio spostamento di icone e widget",
@@ -937,22 +996,17 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
 }
 
 @Composable
-private fun PageEffects(vm: LauncherViewModel) {
+private fun PageLook(vm: LauncherViewModel) {
     val s = vm.settings
-    OrientationTabs(s)
-    Group(null) {
+    Group("Tema") {
         ChoiceRow(
-            "Effetto cambio pagina",
-            listOf(
-                "slide" to "Scorrimento",
-                "fade" to "Dissolvenza",
-                "cube" to "Cubo",
-                "rotate" to "Rotazione",
-                "cascade" to "Cascata"
-            ),
-            s.pageEffect,
-            preview = { EffectPreview(it) }
-        ) { vm.setSetting("pageEffect", it) }
+            "Tema",
+            listOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro"),
+            s.theme,
+            preview = { ThemePreview(it) }
+        ) { vm.setSetting("theme", it) }
+    }
+    Group("Animazioni") {
         ChoiceRow(
             "Velocità animazioni",
             listOf("0" to "Rilassata", "1" to "Bilanciata", "2" to "Veloce"),
@@ -963,45 +1017,6 @@ private fun PageEffects(vm: LauncherViewModel) {
             listOf("boom" to "Esplosione", "fade" to "Dissolvenza", "none" to "Nessuna"),
             s.uninstallAnim
         ) { vm.setSetting("uninstallAnim", it) }
-    }
-}
-
-@Composable
-private fun PageLook(vm: LauncherViewModel) {
-    val s = vm.settings
-    Group(null) {
-        ChoiceRow(
-            "Tema",
-            listOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro"),
-            s.theme,
-            preview = { ThemePreview(it) }
-        ) { vm.setSetting("theme", it) }
-        ChoiceRow(
-            "Indicatore di pagina",
-            listOf(
-                "ios" to "iOS 27 (diventa \"Cerca\")",
-                "pill" to "Puntini (attivo allungato)",
-                "dots" to "Puntini semplici",
-                "lines" to "Linee",
-                "worm" to "Puntini con ovale scorrevole",
-                "progress" to "Barra di avanzamento",
-                "number" to "Numero (2 / 5)",
-                "none" to "Nessuno"
-            ),
-            s.pageIndicator,
-            preview = { IndicatorPreview(it) }
-        ) { vm.setSetting("pageIndicator", it) }
-        SwitchRow(
-            "Indicatore come la dock",
-            "Prende stile, trasparenza ed effetto vetro della dock",
-            s.indFollowDock
-        ) { vm.setSetting("indFollowDock", it) }
-        Text(
-            "Con qualsiasi stile: tieni premuto sull'indicatore e scorri per cambiare pagina al volo.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
     }
 }
 
