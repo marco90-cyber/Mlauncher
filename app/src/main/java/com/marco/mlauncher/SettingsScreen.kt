@@ -322,6 +322,12 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     }
 }
 
+/** Voci che il generatore dell'indice non riesce a leggere (titolo calcolato). */
+private val EXTRA_INDEX = listOf(
+    SettingEntry("Cerca aggiornamenti", "info", "Aggiornamenti", "Scarica e installa la nuova versione"),
+    SettingEntry("Versione installata", "info", "Aggiornamenti", "")
+)
+
 @Composable
 private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
     val cs = MaterialTheme.colorScheme
@@ -331,7 +337,7 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
     val results = remember(q, drawerOn) {
         val pageHits = pages.filter { p -> words.all { pageTitle(p).lowercase().contains(it) } }
             .map { SettingEntry(pageTitle(it), it, "", "Apri la sezione") }
-        val hits = SETTINGS_INDEX.filter { e ->
+        val hits = (SETTINGS_INDEX + EXTRA_INDEX).filter { e ->
             val hay = (e.title + " " + e.group + " " + e.hint + " " + pageTitle(e.page)).lowercase()
             words.all { hay.contains(it) }
         }.sortedBy { if (it.title.lowercase().startsWith(words.first())) 0 else 1 }
@@ -1077,39 +1083,22 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
             colors = prefColors()
         )
     }
+    var updDlg by remember { mutableStateOf(false) }
+    if (updDlg) UpdateDialog { updDlg = false }
     Group("Aggiornamenti") {
         val up = vm.updateInfo
         ListItem(
             headlineContent = {
-                Text(
-                    when {
-                        vm.updateChecking -> "Controllo in corso\u2026"
-                        up != null -> "Nuova versione ${up.version} disponibile"
-                        vm.updateUpToDate == true -> "Hai l'ultima versione"
-                        vm.updateUpToDate == false -> "Impossibile controllare (sei online?)"
-                        else -> "Controlla aggiornamenti"
-                    }
-                )
+                Text(if (up != null) "Nuova versione ${up.version} disponibile" else "Cerca aggiornamenti")
             },
             supportingContent = {
-                Text(if (up != null) "Tocca per scaricare l'APK e installarlo sopra quello attuale" else "Cerca una nuova versione su GitHub")
+                Text(
+                    if (up != null) "Tocca per scaricarla e installarla sopra quella attuale"
+                    else "Versione installata ${vm.currentVersionName}"
+                )
             },
             colors = prefColors(),
-            modifier = Modifier.clickable {
-                if (up != null) {
-                    val link = up.url.ifEmpty { up.page }
-                    try {
-                        ctx.startActivity(
-                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))
-                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    } catch (e: Exception) {
-                        // nessun browser
-                    }
-                } else {
-                    vm.checkUpdate()
-                }
-            }
+            modifier = Modifier.hl("Cerca aggiornamenti").clickable { updDlg = true }
         )
         SwitchRow(
             "Controlla all'avvio",
