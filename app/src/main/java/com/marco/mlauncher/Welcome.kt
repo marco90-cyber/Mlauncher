@@ -1,15 +1,24 @@
 package com.marco.mlauncher
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,8 +27,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,14 +39,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,281 +55,310 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
-private const val PAGES = 6
+/*
+ * Benvenuto in stile Nova Launcher: un saluto, il backup, poi domande "scegline uno" con due
+ * grandi anteprime affiancate (si tocca quella che piace e si passa alla domanda dopo),
+ * infine "Tutto pronto" con Home predefinita e permessi facoltativi.
+ */
 
-/** Benvenuto al primo avvio: Home predefinita, modalità, aspetto, permessi, backup. */
+private enum class Step { HELLO, BACKUP, THEME, MODE, FOLDERS, DOCK, DONE }
+
 @Composable
 fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
-    val pager = rememberPagerState { PAGES }
-    val scope = rememberCoroutineScope()
-    fun go(p: Int) = scope.launch { pager.animateScrollToPage(p.coerceIn(0, PAGES - 1)) }
-    BackHandler {
-        if (pager.currentPage > 0) go(pager.currentPage - 1) else vm.finishWelcome()
+    var step by remember { mutableStateOf(Step.HELLO) }
+    var forward by remember { mutableStateOf(true) }
+    // la domanda sulle cartelle ha senso solo con "tutte le app in Home"
+    val steps = Step.entries.filter { it != Step.FOLDERS || vm.settings.homeMode == "all" }
+    fun go(to: Step) {
+        forward = to.ordinal > step.ordinal
+        step = to
     }
+    fun next() = steps.getOrNull(steps.indexOf(step) + 1)?.let { go(it) } ?: vm.finishWelcome()
+    fun back() = steps.getOrNull(steps.indexOf(step) - 1)?.let { go(it) }
+    BackHandler { if (step == Step.HELLO) vm.finishWelcome() else back() }
+
     Surface(color = cs.surface, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "${pager.currentPage + 1} di $PAGES",
-                    color = cs.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(start = 12.dp).weight(1f)
-                )
-                if (pager.currentPage < PAGES - 1) TextButton(onClick = { vm.finishWelcome() }) { Text("Salta") }
+            // barra in alto: indietro e salta
+            Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (step != Step.HELLO) TextButton(onClick = { back() }) { Text("Indietro") }
+                Spacer(Modifier.weight(1f))
+                if (step != Step.DONE) TextButton(onClick = { vm.finishWelcome() }) { Text("Salta") }
             }
-            HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { p ->
+            AnimatedContent(
+                targetState = step,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                transitionSpec = {
+                    val d = if (forward) 1 else -1
+                    (slideInHorizontally(tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate)) { d * it / 3 } + fadeIn(tween(Motion.SHEET))) togetherWith
+                        (slideOutHorizontally(tween(Motion.FADE, easing = Motion.EmphasizedAccelerate)) { -d * it / 3 } + fadeOut(tween(Motion.FADE)))
+                },
+                label = "welcome"
+            ) { st ->
                 Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 12.dp),
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    when (p) {
-                        0 -> PageHello(vm, host)
-                        1 -> PageMode(vm)
-                        2 -> PageLookW(vm)
-                        3 -> PagePerms(vm, host)
-                        4 -> PageRestore(host) { go(5) }
-                        else -> PageDone()
+                    when (st) {
+                        Step.HELLO -> Hello(onStart = { next() }, onBackup = { go(Step.BACKUP) })
+                        Step.BACKUP -> Backup(host, onFresh = { next() })
+                        Step.THEME -> PickTheme(vm) { next() }
+                        Step.MODE -> PickMode(vm) { next() }
+                        Step.FOLDERS -> PickFolders(vm) { next() }
+                        Step.DOCK -> PickDock(vm) { next() }
+                        Step.DONE -> Done(vm, host)
                     }
                 }
             }
-            // puntini e pulsanti
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.width(96.dp)) {
-                    if (pager.currentPage > 0) TextButton(onClick = { go(pager.currentPage - 1) }) { Text("Indietro") }
-                }
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center) {
-                    repeat(PAGES) { i ->
-                        val w by animateDpAsState(if (i == pager.currentPage) 18.dp else 7.dp, label = "dot")
+            // avanzamento e pulsante principale
+            Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f)) {
+                    steps.forEach { s ->
+                        val on = s == step
+                        val w by animateDpAsState(if (on) 20.dp else 7.dp, label = "dot")
                         Box(
-                            Modifier.padding(horizontal = 3.dp).size(w, 7.dp).clip(CircleShape)
-                                .background(if (i == pager.currentPage) cs.primary else cs.outlineVariant)
+                            Modifier.padding(end = 6.dp).size(w, 7.dp).clip(CircleShape)
+                                .background(if (on) cs.primary else cs.outlineVariant)
                         )
                     }
                 }
-                Box(Modifier.width(96.dp), contentAlignment = Alignment.CenterEnd) {
-                    if (pager.currentPage < PAGES - 1) Button(onClick = { go(pager.currentPage + 1) }) { Text("Avanti") }
-                    else Button(onClick = { vm.finishWelcome() }) { Text("Inizia") }
+                when (step) {
+                    Step.HELLO -> {}
+                    Step.DONE -> Button(onClick = { vm.finishWelcome() }) { Text("Vai alla Home") }
+                    else -> Button(onClick = { next() }) { Text("Avanti") }
                 }
             }
         }
     }
 }
 
+// ---------------------------------------------------------------------
+//  Pagine
+// ---------------------------------------------------------------------
+
 @Composable
-private fun Title(t: String, sub: String) {
-    Text(t, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-    Spacer(Modifier.height(8.dp))
-    Text(sub, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
-    Spacer(Modifier.height(24.dp))
+private fun Headline(big: String, small: String) {
+    Spacer(Modifier.height(12.dp))
+    Text(big, fontSize = 34.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 40.sp)
+    Spacer(Modifier.height(10.dp))
+    Text(small, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+    Spacer(Modifier.height(28.dp))
 }
 
 @Composable
-private fun Logo() {
+private fun Logo(size: Dp = 120.dp) {
     val cs = MaterialTheme.colorScheme
     Box(
-        Modifier.size(112.dp).clip(RoundedCornerShape(34.dp))
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f))
             .background(Brush.linearGradient(listOf(cs.primary, cs.tertiary))),
         contentAlignment = Alignment.Center
     ) {
-        Text("M", color = cs.onPrimary, fontSize = 62.sp, fontWeight = FontWeight.Bold)
+        Text("M", color = cs.onPrimary, fontSize = (size.value * 0.55f).sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-private fun PageHello(vm: LauncherViewModel, host: Host) {
-    Spacer(Modifier.height(32.dp))
+private fun Hello(onStart: () -> Unit, onBackup: () -> Unit) {
+    Spacer(Modifier.height(48.dp))
     Logo()
-    Spacer(Modifier.height(28.dp))
-    Title("Benvenuto in MLauncher", "Una Home in stile HyperOS con i colori Material You. Bastano pochi passaggi per farla tua.")
-    if (vm.isDefaultHome) {
-        DoneRow("MLauncher è la tua Home predefinita")
-    } else {
-        Button(onClick = { host.requestHomeRole() }, modifier = Modifier.fillMaxWidth()) { Text("Imposta come Home predefinita") }
+    Spacer(Modifier.height(36.dp))
+    Headline("Ciao!", "Benvenuto in MLauncher. Rispondi a qualche domanda e la Home sarà subito come piace a te.")
+    Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Iniziamo", fontSize = 16.sp) }
+    Spacer(Modifier.height(10.dp))
+    TextButton(onClick = onBackup) { Text("Ho già un backup di MLauncher") }
+}
+
+@Composable
+private fun Backup(host: Host, onFresh: () -> Unit) {
+    Spacer(Modifier.height(24.dp))
+    Headline("Scegli un backup", "Riprendi Home, cartelle e impostazioni da un file salvato con MLauncher, oppure parti da zero.")
+    BigOption("Ripristina da file", "Scegli il file .json salvato da Impostazioni → Backup") { host.importBackup() }
+    Spacer(Modifier.height(12.dp))
+    BigOption("Inizia da zero", "Continua con le domande sulla Home") { onFresh() }
+}
+
+@Composable
+private fun BigOption(title: String, text: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(cs.surfaceContainerHigh)
+            .clickable(onClick = onClick).padding(20.dp)
+    ) {
+        Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
+        Text(text, color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/**
+ * Due anteprime affiancate: si tocca quella preferita, la scelta si applica subito
+ * e dopo un attimo si passa alla domanda successiva.
+ */
+@Composable
+private fun AB(
+    leftSelected: Boolean,
+    rightSelected: Boolean,
+    leftLabel: String,
+    rightLabel: String,
+    onLeft: () -> Unit,
+    onRight: () -> Unit,
+    onPicked: () -> Unit,
+    left: @Composable BoxScope.() -> Unit,
+    right: @Composable BoxScope.() -> Unit
+) {
+    var picked by remember { mutableIntStateOf(0) }
+    LaunchedEffect(picked) {
+        if (picked > 0) {
+            delay(420)
+            onPicked()
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        PickCard(leftSelected, leftLabel, Modifier.weight(1f), { onLeft(); picked++ }, left)
+        PickCard(rightSelected, rightLabel, Modifier.weight(1f), { onRight(); picked++ }, right)
+    }
+}
+
+@Composable
+private fun PickCard(selected: Boolean, label: String, modifier: Modifier, onClick: () -> Unit, content: @Composable BoxScope.() -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val bw by animateDpAsState(if (selected) 3.dp else 1.dp, label = "bw")
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.52f)
+                .clip(RoundedCornerShape(26.dp))
+                .border(bw, if (selected) cs.primary else cs.outlineVariant, RoundedCornerShape(26.dp))
+                .clickable(onClick = onClick)
+                .padding(6.dp)
+        ) {
+            content()
+            if (selected) Box(
+                Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).clip(CircleShape).background(cs.primary),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Default.Check, contentDescription = null, tint = cs.onPrimary, modifier = Modifier.size(18.dp)) }
+        }
         Text(
-            "Serve per usare il tasto Home e i gesti con MLauncher. Puoi farlo anche dopo.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp)
+            label,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) cs.primary else cs.onSurface,
+            modifier = Modifier.padding(top = 10.dp),
+            textAlign = TextAlign.Center
         )
     }
 }
 
 @Composable
-private fun DoneRow(t: String) {
-    val cs = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cs.secondaryContainer).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Default.Check, contentDescription = null, tint = cs.onSecondaryContainer)
-        Spacer(Modifier.width(12.dp))
-        Text(t, color = cs.onSecondaryContainer)
-    }
-}
-
-/** Scheda grande selezionabile con un piccolo disegno. */
-@Composable
-private fun ChoiceCard(selected: Boolean, title: String, text: String, onClick: () -> Unit, art: @Composable () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (selected) cs.primaryContainer else cs.surfaceContainerHigh)
-            .border(2.dp, if (selected) cs.primary else Color.Transparent, RoundedCornerShape(24.dp))
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        art()
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold, color = if (selected) cs.onPrimaryContainer else cs.onSurface)
-            Text(text, style = MaterialTheme.typography.bodySmall, color = if (selected) cs.onPrimaryContainer else cs.onSurfaceVariant)
-        }
-    }
-}
-
-/** Disegnino di un telefono: [dots] icone in Home, [drawer] = linguetta del cassetto. */
-@Composable
-private fun PhoneArt(dots: Int, drawer: Boolean) {
-    val cs = MaterialTheme.colorScheme
-    Column(
-        Modifier.size(52.dp, 84.dp).clip(RoundedCornerShape(10.dp)).background(cs.surface).border(2.dp, cs.outline, RoundedCornerShape(10.dp)).padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp)
-    ) {
-        repeat((dots + 3) / 4) { r ->
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                repeat(minOf(4, dots - r * 4)) { Box(Modifier.size(7.dp).clip(RoundedCornerShape(2.dp)).background(cs.primary)) }
-            }
-        }
-        Spacer(Modifier.weight(1f))
-        if (drawer) Box(Modifier.align(Alignment.CenterHorizontally).size(16.dp, 3.dp).clip(CircleShape).background(cs.outline))
-    }
-}
-
-@Composable
-private fun PageMode(vm: LauncherViewModel) {
+private fun PickTheme(vm: LauncherViewModel, onPicked: () -> Unit) {
     val s = vm.settings
+    Headline("Scegline uno", "Chiaro o scuro?")
+    AB(
+        s.theme == "light", s.theme == "dark", "Chiaro", "Scuro",
+        { vm.setSetting("theme", "light") }, { vm.setSetting("theme", "dark") }, onPicked,
+        { MiniPhone(dark = false, allApps = s.homeMode == "all", dock = s.dockStyle, folders = false) },
+        { MiniPhone(dark = true, allApps = s.homeMode == "all", dock = s.dockStyle, folders = false) }
+    )
     Spacer(Modifier.height(16.dp))
-    Title("Come vuoi le tue app?", "Puoi cambiarlo quando vuoi da Impostazioni → Schermata Home.")
-    ChoiceCard(
-        s.homeMode == "drawer", "Home e cassetto app",
-        "In Home solo le app che scegli, tutte le altre nel cassetto (scorri in su).",
-        { if (s.homeMode != "drawer") vm.setSetting("homeMode", "drawer") }
-    ) { PhoneArt(6, true) }
-    ChoiceCard(
-        s.homeMode == "all", "Tutte le app in Home",
-        "Come su iPhone e HyperOS: ogni app installata ha la sua icona nelle pagine della Home.",
-        { if (s.homeMode != "all") vm.setSetting("homeMode", "all") }
-    ) { PhoneArt(16, false) }
-    if (s.homeMode == "all") {
-        Spacer(Modifier.height(12.dp))
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable { vm.setSetting("autoFolders", !s.autoFolders) }.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Cartelle intelligenti", fontWeight = FontWeight.SemiBold)
-                Text("Raggruppa da sole le app in cartelle", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Switch(checked = s.autoFolders, onCheckedChange = { vm.setSetting("autoFolders", it) })
-        }
-        if (s.autoFolders) {
-            Spacer(Modifier.height(8.dp))
-            ChipRow(
-                listOf("genre_plus" to "Genere", "color" to "Colore", "letter" to "Lettera"),
-                if (s.smartMode == "genre") "genre_plus" else s.smartMode
-            ) { vm.setSetting("smartMode", it) }
-        }
-    }
-}
-
-@Composable
-private fun ChipRow(options: List<Pair<String, String>>, current: String, onPick: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { (k, l) ->
-            FilterChip(selected = k == current, onClick = { onPick(k) }, label = { Text(l) }, modifier = Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun Section(t: String) {
-    Text(
-        t,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp)
+    FilterChip(
+        selected = s.theme == "auto",
+        onClick = { vm.setSetting("theme", "auto") },
+        label = { Text("Segui il telefono (automatico)") }
     )
 }
 
 @Composable
-private fun PageLookW(vm: LauncherViewModel) {
+private fun PickMode(vm: LauncherViewModel, onPicked: () -> Unit) {
     val s = vm.settings
-    val cs = MaterialTheme.colorScheme
-    Spacer(Modifier.height(16.dp))
-    Title("Il tuo stile", "Le anteprime si aggiornano subito. Tutto il resto lo trovi nelle impostazioni.")
-    Section("Tema")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        listOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro").forEach { (k, l) ->
-            Column(
-                Modifier.clip(RoundedCornerShape(16.dp)).clickable { vm.setSetting("theme", k) }
-                    .background(if (s.theme == k) cs.primaryContainer else Color.Transparent).padding(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                ThemePreview(k)
-                Text(l, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
-            }
-        }
-    }
-    Section("Forma delle icone")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        listOf("original" to "Originale", "ios" to "iOS", "circle" to "Cerchio", "square" to "Quadrato").forEach { (k, l) ->
-            Column(
-                Modifier.clip(RoundedCornerShape(16.dp)).clickable { vm.setSetting("iconShape", k) }
-                    .background(if (s.iconShape == k) cs.primaryContainer else Color.Transparent).padding(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                ShapePreview(k, 36.dp)
-                Text(l, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
-            }
-        }
-    }
-    Section("Stile della dock")
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DOCK_STYLES.chunked(3).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { (k, l) ->
-                    Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { vm.setSetting("dockStyle", k) }
-                            .background(if (s.dockStyle == k) cs.primaryContainer else cs.surfaceContainerHigh).padding(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        DockPreview(k, s.dockSlots, s.dockOpacity, s.dockGlass, s.dockCorner)
-                        Text(l, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
-                    }
-                }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+    val dark = isDarkPreview(s.theme)
+    Headline("Scegline un altro", "Dove vuoi le tue app?")
+    AB(
+        s.homeMode == "drawer", s.homeMode == "all", "Home e cassetto\n(scorri in su)", "Tutte le app\nin Home",
+        { if (s.homeMode != "drawer") vm.setSetting("homeMode", "drawer") },
+        { if (s.homeMode != "all") vm.setSetting("homeMode", "all") },
+        onPicked,
+        { MiniPhone(dark, allApps = false, dock = s.dockStyle, folders = false) },
+        { MiniPhone(dark, allApps = true, dock = s.dockStyle, folders = false) }
+    )
+}
+
+@Composable
+private fun PickFolders(vm: LauncherViewModel, onPicked: () -> Unit) {
+    val s = vm.settings
+    val dark = isDarkPreview(s.theme)
+    Headline("Ancora uno", "Vuoi che le app si raggruppino da sole in cartelle?")
+    AB(
+        !s.autoFolders, s.autoFolders, "Icone sciolte", "Cartelle\nintelligenti",
+        { vm.setSetting("autoFolders", false) }, { vm.setSetting("autoFolders", true) }, onPicked,
+        { MiniPhone(dark, allApps = true, dock = s.dockStyle, folders = false) },
+        { MiniPhone(dark, allApps = true, dock = s.dockStyle, folders = true) }
+    )
+    if (s.autoFolders) {
+        Spacer(Modifier.height(16.dp))
+        Text("Raggruppa per", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("genre_plus" to "Genere", "color" to "Colore", "letter" to "Lettera").forEach { (k, l) ->
+                FilterChip(selected = s.smartMode == k, onClick = { vm.setSetting("smartMode", k) }, label = { Text(l) })
             }
         }
     }
 }
 
 @Composable
-private fun PermRow(title: String, why: String, done: Boolean, action: String, onClick: () -> Unit) {
+private fun PickDock(vm: LauncherViewModel, onPicked: () -> Unit) {
+    val s = vm.settings
+    val dark = isDarkPreview(s.theme)
+    Headline("Ultimo!", "Che dock preferisci?")
+    AB(
+        s.dockStyle == "glass", s.dockStyle == "pill", "Vetro", "Pillola piena",
+        { vm.setSetting("dockStyle", "glass"); vm.setSetting("dockGlass", true) },
+        { vm.setSetting("dockStyle", "pill") },
+        onPicked,
+        { MiniPhone(dark, allApps = s.homeMode == "all", dock = "glass", folders = s.autoFolders && s.homeMode == "all") },
+        { MiniPhone(dark, allApps = s.homeMode == "all", dock = "pill", folders = s.autoFolders && s.homeMode == "all") }
+    )
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "Altri stili (scuro, colorato, barra, tessere…) in Impostazioni → Dock",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+        textAlign = TextAlign.Center
+    )
+}
+
+@Composable
+private fun Done(vm: LauncherViewModel, host: Host) {
+    var city by remember { mutableStateOf(false) }
+    if (city) CityPickerDialog(vm, host) { city = false }
+    Spacer(Modifier.height(24.dp))
+    Logo(88.dp)
+    Spacer(Modifier.height(20.dp))
+    Headline("Tutto pronto!", "Ultimi ritocchi, tutti facoltativi. Li trovi anche nelle impostazioni.")
+    SetupRow(
+        "Home predefinita", "Usa MLauncher con il tasto Home e i gesti",
+        vm.isDefaultHome, "Imposta"
+    ) { host.requestHomeRole() }
+    SetupRow(
+        "Meteo", "Posizione approssimativa o una città a scelta",
+        vm.weatherReady, "Scegli"
+    ) { city = true }
+    SetupRow(
+        "Puntini delle notifiche", "Quante notifiche ha ogni app, sulla sua icona",
+        vm.listenerEnabled, "Attiva"
+    ) { host.openListenerSettings() }
+}
+
+@Composable
+private fun SetupRow(title: String, why: String, done: Boolean, action: String, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh).padding(16.dp),
+        Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
@@ -330,67 +366,110 @@ private fun PermRow(title: String, why: String, done: Boolean, action: String, o
             Text(why, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
         Spacer(Modifier.width(12.dp))
-        if (done) Icon(Icons.Default.Check, contentDescription = "Attivo", tint = cs.primary)
+        if (done) Icon(Icons.Default.Check, contentDescription = "Fatto", tint = cs.primary)
         else OutlinedButton(onClick = onClick) { Text(action) }
     }
 }
 
 @Composable
-private fun PagePerms(vm: LauncherViewModel, host: Host) {
-    var city by remember { mutableStateOf(false) }
-    if (city) CityPickerDialog(vm, host) { city = false }
-    Spacer(Modifier.height(16.dp))
-    Title("Permessi facoltativi", "Nessuno è obbligatorio: senza, la funzione relativa resta spenta. Puoi attivarli anche dopo.")
-    PermRow(
-        "Meteo", "Posizione approssimativa per il widget meteo, oppure scegli tu una città",
-        vm.weatherReady, "Attiva"
-    ) { city = true }
-    PermRow(
-        "Puntini delle notifiche", "Mostra sulle icone quante notifiche ha ogni app",
-        vm.listenerEnabled, "Attiva"
-    ) { host.openListenerSettings() }
-    PermRow(
-        "Doppio tocco per bloccare", "Servizio di accessibilità: serve solo a spegnere lo schermo con un doppio tocco",
-        vm.accessibilityEnabled, "Attiva"
+private fun isDarkPreview(theme: String): Boolean = when (theme) {
+    "dark" -> true
+    "light" -> false
+    else -> androidx.compose.foundation.isSystemInDarkTheme()
+}
+
+// ---------------------------------------------------------------------
+//  Telefono in miniatura per le anteprime
+// ---------------------------------------------------------------------
+
+private val iconColors = listOf(
+    Color(0xFFEA4335), Color(0xFF34A853), Color(0xFF4285F4), Color(0xFFFBBC05),
+    Color(0xFF9C27B0), Color(0xFF00ACC1), Color(0xFFFF7043), Color(0xFF5C6BC0),
+    Color(0xFF26A69A), Color(0xFFEC407A), Color(0xFF8D6E63), Color(0xFF7CB342)
+)
+
+@Composable
+private fun BoxScope.MiniPhone(dark: Boolean, allApps: Boolean, dock: String, folders: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    val wall = if (dark) Brush.verticalGradient(listOf(Color(0xFF0E1A2B), Color(0xFF1B2F4A), Color(0xFF0A1220)))
+    else Brush.verticalGradient(listOf(Color(0xFFDDE8F7), Color(0xFFB9D0EE), Color(0xFFE9EEF6)))
+    val widgetBg = if (dark) Color(0xFF2A3346) else Color(0xFFF7F9FD)
+    val widgetFg = if (dark) Color.White else Color(0xFF1B1F27)
+    Column(
+        Modifier.matchParentSize().clip(RoundedCornerShape(20.dp)).background(wall).padding(8.dp)
     ) {
-        vm.setSetting("doubleTapLock", true)
-        host.openAccessibilitySettings()
+        // barra di stato
+        Row(Modifier.fillMaxWidth()) {
+            Text("10:08", fontSize = 7.sp, color = widgetFg.copy(alpha = 0.8f))
+        }
+        Spacer(Modifier.height(6.dp))
+        // ricerca e widget
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(widgetBg.copy(alpha = 0.85f)))
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(
+                Modifier.weight(1f).height(30.dp).clip(RoundedCornerShape(8.dp)).background(cs.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) { Text("10:08", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = cs.onPrimaryContainer) }
+            Box(Modifier.weight(1f).height(30.dp).clip(RoundedCornerShape(8.dp)).background(widgetBg)) {
+                Box(Modifier.align(Alignment.Center).size(12.dp).clip(CircleShape).background(Color(0xFFFFC107)))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        // icone
+        val rows = if (allApps) 4 else 1
+        if (!allApps) Spacer(Modifier.weight(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            repeat(rows) { r ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    repeat(4) { c ->
+                        val i = r * 4 + c
+                        if (folders && (i == 0 || i == 5 || i == 10)) MiniFolder(widgetBg, i)
+                        else Box(Modifier.size(13.dp).clip(RoundedCornerShape(4.dp)).background(iconColors[i % iconColors.size]))
+                    }
+                }
+            }
+        }
+        if (allApps) Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(6.dp))
+        // linguetta del cassetto (solo con il cassetto)
+        if (!allApps) {
+            Box(Modifier.align(Alignment.CenterHorizontally).size(16.dp, 3.dp).clip(CircleShape).background(widgetFg.copy(alpha = 0.6f)))
+            Spacer(Modifier.height(5.dp))
+        } else {
+            Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                repeat(3) { Box(Modifier.size(if (it == 0) 8.dp else 3.dp, 3.dp).clip(CircleShape).background(widgetFg.copy(alpha = if (it == 0) 0.9f else 0.4f))) }
+            }
+            Spacer(Modifier.height(5.dp))
+        }
+        // dock
+        val dockMod = when (dock) {
+            "pill" -> Modifier.clip(RoundedCornerShape(12.dp)).background(if (dark) Color(0xFF2B3140) else Color(0xFFF3F5F9))
+            "dark" -> Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.4f))
+            "tinted" -> Modifier.clip(RoundedCornerShape(12.dp)).background(cs.primaryContainer.copy(alpha = 0.6f))
+            "none", "tiles" -> Modifier
+            else -> Modifier.clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.28f))
+                .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+        }
+        Row(
+            Modifier.fillMaxWidth().then(dockMod).padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            repeat(4) { Box(Modifier.size(13.dp).clip(CircleShape).background(iconColors[(it * 3 + 1) % iconColors.size])) }
+        }
     }
 }
 
 @Composable
-private fun PageRestore(host: Host, onSkip: () -> Unit) {
-    Spacer(Modifier.height(16.dp))
-    Title("Hai già un backup?", "Se hai usato MLauncher su questo o su un altro telefono puoi riprendere Home, cartelle e impostazioni.")
-    Button(onClick = { host.importBackup() }, modifier = Modifier.fillMaxWidth()) { Text("Ripristina da file") }
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) { Text("Inizia da zero") }
-}
-
-@Composable
-private fun PageDone() {
-    Spacer(Modifier.height(32.dp))
-    Logo()
-    Spacer(Modifier.height(28.dp))
-    Title("Tutto pronto!", "Qualche gesto per iniziare:")
-    listOf(
-        "Scorri in su" to "apri il cassetto o la ricerca",
-        "Tieni premuta un'icona" to "menu rapido e scorciatoie",
-        "Trascina un'icona su un'altra" to "crei una cartella",
-        "Tieni premuto uno spazio vuoto" to "sfondo, widget e modifica Home",
-        "Impostazioni Home" to "trovi tutto, anche con la ricerca"
-    ).forEach { (a, b) ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.padding(top = 7.dp).size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-            Spacer(Modifier.width(12.dp))
-            Text(
-                androidx.compose.ui.text.buildAnnotatedString {
-                    pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.SemiBold))
-                    append(a)
-                    pop()
-                    append(": $b")
-                }
-            )
+private fun MiniFolder(bg: Color, seed: Int) {
+    Column(
+        Modifier.size(13.dp).clip(RoundedCornerShape(4.dp)).background(bg.copy(alpha = 0.7f)).padding(2.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        repeat(2) { r ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                repeat(2) { c -> Box(Modifier.size(3.5.dp).clip(CircleShape).background(iconColors[(seed + r * 2 + c) % iconColors.size])) }
+            }
         }
     }
 }

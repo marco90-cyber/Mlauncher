@@ -1079,6 +1079,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             saveLayout()
             if (settings.actualLand) swapTo(true)
             refresh(null)
+            if (showWelcome) finishWelcome()
             true
         } catch (e: Exception) {
             false
