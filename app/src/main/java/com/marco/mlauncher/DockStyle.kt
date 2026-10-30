@@ -95,9 +95,9 @@ val FOLDER_SHAPES = listOf(
 fun folderShapeOf(key: String): Shape = when (key) {
     "circle" -> androidx.compose.foundation.shape.CircleShape
     "rounded" -> RoundedCornerShape(20)
-    "square" -> RoundedCornerShape(8)
-    "teardrop" -> RoundedCornerShape(topStartPercent = 50, topEndPercent = 50, bottomEndPercent = 12, bottomStartPercent = 50)
-    "leaf" -> RoundedCornerShape(topStartPercent = 50, topEndPercent = 12, bottomEndPercent = 50, bottomStartPercent = 12)
+    "square" -> RoundedCornerShape(4)
+    "teardrop" -> RoundedCornerShape(topStartPercent = 50, topEndPercent = 50, bottomEndPercent = 6, bottomStartPercent = 50)
+    "leaf" -> RoundedCornerShape(topStartPercent = 50, topEndPercent = 6, bottomEndPercent = 50, bottomStartPercent = 6)
     else -> RoundedCornerShape(32)
 }
 

@@ -732,7 +732,7 @@ private fun PageFolders(vm: LauncherViewModel) {
             "Forma della cartella",
             FOLDER_SHAPES,
             s.folderShape,
-            preview = { FolderPreview(s.folderPreview, s.folderBg, it) }
+            preview = { FolderShapePreview(it) }
         ) { vm.setSetting("folderShape", it) }
         ChoiceRow(
             "Anteprima della cartella",
@@ -764,6 +764,29 @@ private fun PageFolders(vm: LauncherViewModel) {
     }
 }
 
+/** Anteprima della sola forma: grande, piena e bordata, così le forme si distinguono a colpo d'occhio. */
+@Composable
+private fun FolderShapePreview(shapeKey: String) {
+    val cs = MaterialTheme.colorScheme
+    val shape = folderShapeOf(shapeKey)
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(shape)
+            .background(cs.primary)
+            .border(2.dp, cs.primary, shape),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            repeat(2) {
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    repeat(2) { Box(Modifier.size(7.dp).clip(RoundedCornerShape(2.dp)).background(cs.onPrimary.copy(alpha = 0.9f))) }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun FolderPreview(style: String, bgKey: String, shapeKey: String = "squircle") {
     val cs = MaterialTheme.colorScheme
@@ -771,9 +794,10 @@ private fun FolderPreview(style: String, bgKey: String, shapeKey: String = "squi
         "primary" -> cs.primaryContainer
         "dark" -> Color.Black.copy(alpha = 0.45f)
         "glass" -> Color.White.copy(alpha = 0.5f)
-        else -> cs.surfaceContainerHighest
+        else -> cs.secondaryContainer
     }
-    Box(Modifier.size(34.dp).clip(folderShapeOf(shapeKey)).background(bg).padding((34 * folderShapeInset(shapeKey)).dp)) {
+    val shp = folderShapeOf(shapeKey)
+    Box(Modifier.size(34.dp).clip(shp).background(bg).border(1.dp, cs.primary.copy(alpha = 0.45f), shp).padding((34 * folderShapeInset(shapeKey)).dp)) {
         when (style) {
             "grid2" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
                 repeat(2) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
