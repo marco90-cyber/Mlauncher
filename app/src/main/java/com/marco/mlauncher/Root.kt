@@ -24,7 +24,10 @@ import androidx.core.view.WindowCompat
 fun Root(vm: LauncherViewModel, host: Host) {
     val view = LocalView.current
     val lightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
     androidx.compose.runtime.LaunchedEffect(vm.overlay) {
+        // chiudendo un pannello nessun campo di testo deve restare collegato alla tastiera
+        if (vm.overlay == Overlay.NONE) focus.clearFocus(force = true)
         if (vm.overlay != Overlay.SETTINGS) {
             vm.settingsPage = null
             vm.settingsQuery = ""

@@ -444,7 +444,7 @@ fun AppsOverlay(vm: LauncherViewModel, host: Host) {
             label = "drawerDrag"
         )
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = a }) {
-            DrawerContent(vm, host, query) { query = it }
+            DrawerContent(vm, host, query, active = visible) { query = it }
         }
     }
 }
@@ -529,7 +529,7 @@ private fun letterOf(label: String): Char {
 }
 
 @Composable
-private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQuery: (String) -> Unit) {
+private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, active: Boolean = true, onQuery: (String) -> Unit) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val focus = remember { FocusRequester() }
@@ -578,7 +578,23 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, onQu
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                 .imePadding()
         ) {
-            if (s.drSearchBar || searchOnly) TextField(
+            // Mentre il cassetto si chiude (es. app appena aperta) il campo di testo viene tolto subito:
+            // un campo ancora collegato alla tastiera durante l'animazione di uscita fa crashare Compose
+            // (NullPointerException in LegacyCursorAnchorInfoController).
+            if ((s.drSearchBar || searchOnly) && !active) Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .heightIn(min = 58.dp)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(if (s.drSearchBg) cs.surfaceContainerHigh else Color.Transparent)
+            ) {
+                Row(Modifier.align(Alignment.CenterStart).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = cs.onSurfaceVariant)
+                    Spacer(Modifier.width(14.dp))
+                    Text(query.ifEmpty { "Cerca app e altro" }, fontSize = 17.sp, color = cs.onSurfaceVariant, maxLines = 1)
+                }
+            } else if (s.drSearchBar || searchOnly) TextField(
                 value = query,
                 onValueChange = onQuery,
                 singleLine = true,
