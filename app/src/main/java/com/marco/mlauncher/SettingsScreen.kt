@@ -1098,8 +1098,6 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
             colors = prefColors()
         )
     }
-    var updDlg by remember { mutableStateOf(false) }
-    if (updDlg) UpdateDialog { updDlg = false }
     Group("Aggiornamenti") {
         val up = vm.updateInfo
         ListItem(
@@ -1113,7 +1111,7 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
                 )
             },
             colors = prefColors(),
-            modifier = Modifier.hl("Cerca aggiornamenti").clickable { updDlg = true }
+            modifier = Modifier.hl("Cerca aggiornamenti").clickable { AppUpdate.open(ctx) }
         )
         SwitchRow(
             "Controlla all'avvio",

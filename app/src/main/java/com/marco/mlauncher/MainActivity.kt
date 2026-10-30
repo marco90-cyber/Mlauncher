@@ -110,6 +110,7 @@ class MainActivity : ComponentActivity(), Host {
         setContent {
             MLauncherTheme(vm.settings.theme) {
                 Root(vm, this@MainActivity)
+                AppUpdateHost()
             }
         }
     }
