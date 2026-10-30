@@ -76,5 +76,6 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Ripristina Launcher", "backup", "Manutenzione", ""),
     SettingEntry("Riavvia Launcher", "backup", "Manutenzione", ""),
     SettingEntry("MLauncher", "info", "", ""),
+    SettingEntry("Rivedi il benvenuto", "info", "Guida", ""),
     SettingEntry("Controlla all'avvio", "info", "Aggiornamenti", "Al massimo una volta ogni 6 ore")
 )

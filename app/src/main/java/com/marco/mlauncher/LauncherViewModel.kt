@@ -96,6 +96,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var searchFocus by mutableStateOf(false)
     /** pagina aperta nelle impostazioni (null = elenco delle categorie) */
     var settingsPage by mutableStateOf<String?>(null)
+    /** schermate di benvenuto visibili */
+    var showWelcome by mutableStateOf(false)
+
+    fun finishWelcome() {
+        showWelcome = false
+        sp.edit().putBoolean("welcomeDone", true).apply()
+        AppLog.i("Benvenuto completato")
+    }
     /** testo cercato nelle impostazioni e voce da evidenziare dopo averla aperta */
     var settingsQuery by mutableStateOf("")
     var settingsHighlight by mutableStateOf<String?>(null)
@@ -2009,6 +2017,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
         }
         hasLayout = loadLayout()
+        // benvenuto solo alla prima installazione: chi ha già una Home non lo vede
+        if (!sp.getBoolean("welcomeDone", false)) {
+            if (hasLayout) sp.edit().putBoolean("welcomeDone", true).apply() else showWelcome = true
+        }
         loadWeatherCache()
         checkLocationPermission()
         val filter = IntentFilter().apply {

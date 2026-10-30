@@ -1098,6 +1098,17 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
             colors = prefColors()
         )
     }
+    Group("Guida") {
+        ListItem(
+            headlineContent = { Text("Rivedi il benvenuto") },
+            supportingContent = { Text("Le schermate della prima installazione: modalità, stile, permessi, backup") },
+            colors = prefColors(),
+            modifier = Modifier.hl("Rivedi il benvenuto").clickable {
+                vm.overlay = Overlay.NONE
+                vm.showWelcome = true
+            }
+        )
+    }
     Group("Aggiornamenti") {
         val up = vm.updateInfo
         ListItem(
@@ -1157,7 +1168,7 @@ private fun Credit(title: String, text: String) {
 // ---------------------------------------------------------------------
 
 @Composable
-private fun ShapePreview(key: String, size: Dp) {
+internal fun ShapePreview(key: String, size: Dp) {
     val cs = MaterialTheme.colorScheme
     val shape = when (key) {
         "circle" -> CircleShape
@@ -1193,7 +1204,7 @@ private val previewWallpaper = Brush.linearGradient(
 )
 
 @Composable
-private fun DockPreview(style: String, slots: Int, opacity: Int, glass: Boolean, corner: Int) {
+internal fun DockPreview(style: String, slots: Int, opacity: Int, glass: Boolean, corner: Int) {
     val cs = MaterialTheme.colorScheme
     Box(
         Modifier.size(width = 64.dp, height = 40.dp).clip(RoundedCornerShape(8.dp)).background(previewWallpaper),
@@ -1307,7 +1318,7 @@ private fun EffectPreview(key: String) {
 }
 
 @Composable
-private fun ThemePreview(key: String) {
+internal fun ThemePreview(key: String) {
     val shape = CircleShape
     Row(Modifier.size(34.dp).clip(shape)) {
         val light = Color(0xFFF5F5F5)

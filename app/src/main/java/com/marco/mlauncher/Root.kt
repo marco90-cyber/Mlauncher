@@ -85,6 +85,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     }
 
     vm.lastCrash?.let { CrashDialog(it, vm) }
+    if (vm.showWelcome) WelcomeScreen(vm, host)
 
     // l'ordine conta: l'ultimo registrato ha la precedenza
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }
