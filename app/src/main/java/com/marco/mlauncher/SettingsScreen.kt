@@ -94,8 +94,13 @@ private val orderOptions = listOf(
     "name_desc" to "Per nome (Z-A)",
     "usage" to "Più usate per prime",
     "recent" to "Installate di recente",
-    "color" to "Per colore dell'icona",
-    "letter_folders" to "Cartelle per lettera"
+    "color" to "Per colore dell'icona"
+)
+private val smartModes = listOf(
+    "genre_plus" to "Genere preciso (consigliato)",
+    "genre" to "Genere",
+    "color" to "Colore dell'icona",
+    "letter" to "Lettera iniziale"
 )
 private val themeNames = mapOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro")
 private val dockNames = mapOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno")
@@ -467,11 +472,12 @@ private fun PageHome(vm: LauncherViewModel) {
         }
         if (s.homeMode == "all") {
             SwitchRow(
-                "Cartelle automatiche",
-                "Raggruppa le app per categoria. Quelle senza categoria restano in Home",
+                "Cartelle intelligenti",
+                "Raggruppa le app in cartelle. Le app che non rientrano in nessun gruppo restano in Home, senza cartelle generiche",
                 s.autoFolders
             ) { vm.setSetting("autoFolders", it) }
-            ChoiceRow("Come disporre le app", orderOptions, s.homeOrder) { vm.setSetting("homeOrder", it) }
+            if (s.autoFolders) ChoiceRow("Raggruppa per", smartModes, s.smartMode) { vm.setSetting("smartMode", it) }
+            ChoiceRow(if (s.autoFolders) "Come disporre le app sciolte" else "Come disporre le app", orderOptions, s.homeOrder) { vm.setSetting("homeOrder", it) }
         }
         if (askOrder) {
             AlertDialog(
@@ -1090,7 +1096,7 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
         Credit("Xiaomi HyperOS", "Aspetto di Home, dock, widget ed effetto di disinstallazione")
         Credit("Samsung One UI", "Widget impilati con rotazione, dock, gesti")
         Credit("Apple iOS", "Modalità modifica con icone che tremolano, forma delle icone, dock")
-        Credit("Lawnchair", "Stile delle impostazioni e menu della Home. Licenza Apache 2.0, github.com/lawnchairlauncher/lawnchair")
+        Credit("Lawnchair", "Stile delle impostazioni e menu della Home, elenchi di app per categoria (Flowerpot) usati dalle cartelle intelligenti. Licenza Apache 2.0, github.com/lawnchairlauncher/lawnchair")
         Credit("Google Material Design 3", "Linguaggio grafico e colori dinamici (Material You)")
     }
     Group("Librerie e servizi") {

@@ -228,6 +228,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var folderFollowDock by mutableStateOf(sp.getBoolean("folderFollowDock", true))
     var allowRotation by mutableStateOf(sp.getBoolean("allowRotation", true))
     var autoFolders by mutableStateOf(sp.getBoolean("autoFolders", false))
+    /** come raggruppano le cartelle intelligenti: genre_plus, genre, color, letter */
+    var smartMode by mutableStateOf(sp.getString("smartMode", "genre_plus") ?: "genre_plus")
     var homeOrder by mutableStateOf(sp.getString("homeOrder", "name") ?: "name")
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
     var folderPreview by mutableStateOf(sp.getString("folderPreview", "grid") ?: "grid")
@@ -332,6 +334,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "folderFollowDock" -> folderFollowDock = value as Boolean
             "allowRotation" -> allowRotation = value as Boolean
             "autoFolders" -> autoFolders = value as Boolean
+            "smartMode" -> smartMode = value as String
             "homeOrder" -> homeOrder = value as String
             "iconShape" -> iconShape = value as String
             "folderPreview" -> folderPreview = value as String

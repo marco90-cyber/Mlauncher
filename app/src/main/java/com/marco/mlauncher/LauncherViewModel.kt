@@ -394,6 +394,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val packName = settings.iconPack
             val fresh = withContext(Dispatchers.Default) {
+                // ruoli delle app (browser, galleria…) possono cambiare con installazioni e rimozioni
+                try { smart.prepare(); smartReady = true } catch (e: Exception) { AppLog.e("Categorie non pronte", e) }
                 val pack = loadIconPack(packName)
                 if (pkg == null) iconPacks = findIconPacks()
                 queryApps(pkg, pack)
@@ -652,7 +654,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun categoryName(a: AppEntry): String? {
         val info = try { pm.getApplicationInfo(a.pkg, 0) } catch (e: Exception) { return null }
         if (a.pkg.startsWith("com.google.")) return "Google"
-        if (info.flags and ApplicationInfo.FLAG_SYSTEM != 0) return "Sistema"
+        // niente cartella generica "Sistema": le app di sistema senza genere restano sciolte
+        if (info.flags and ApplicationInfo.FLAG_SYSTEM != 0 && info.category == ApplicationInfo.CATEGORY_UNDEFINED) return null
         return when (info.category) {
             ApplicationInfo.CATEGORY_GAME -> "Giochi"
             ApplicationInfo.CATEGORY_AUDIO -> "Musica"
@@ -667,35 +670,61 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Dispone le app non ancora in Home dalla seconda pagina in poi, secondo "homeOrder". */
+    private val smart = SmartFolders(ctx)
+    @Volatile private var smartReady = false
+
+    private fun ensureSmart() {
+        if (!smartReady) {
+            smart.prepare()
+            smartReady = true
+        }
+    }
+
+    /** Cartella intelligente di un'app secondo la modalità scelta (null = resta sciolta). */
+    private fun smartGroupOf(a: AppEntry): String? = when (settings.smartMode) {
+        "genre" -> categoryName(a)
+        "color" -> try {
+            colorFolderOf(a.icon.asAndroidBitmap().copy(Bitmap.Config.ARGB_8888, false))
+        } catch (e: Exception) {
+            null
+        }
+        "letter" -> {
+            val c = a.label.trim().firstOrNull()?.uppercaseChar() ?: '#'
+            if (c.isLetter()) c.toString() else if (c.isDigit()) "0-9" else null
+        }
+        else -> {
+            ensureSmart()
+            smart.folderOf(a)
+        }
+    }
+
+    /** Dispone le app non ancora in Home dalla seconda pagina in poi: cartelle intelligenti e poi le app sciolte. */
     fun arrangeHomeApps() {
         items.removeAll { it.page >= 1 && (it is AppItem || it is FolderItem) }
         val placed = placedAppIds()
         var list = apps.values.filter { it.id !in placed && it.id !in hidden }
         val byName = compareBy<AppEntry> { it.label.lowercase() }
-        fun folders(groups: Map<String, List<AppEntry>>) {
-            val loose = ArrayList<AppEntry>()
-            for ((name, g) in groups.toSortedMap(compareBy { it.lowercase() })) {
-                if (g.size < 2) { loose.addAll(g); continue }
-                val (p, x, y) = findFree(1)
-                items.add(FolderItem(UUID.randomUUID().toString(), name, g.sortedWith(byName).map { it.id }, p, x, y))
-                ensurePages(p)
-            }
-            loose.sortedWith(byName).forEach { addApp(it.id, 1) }
-        }
-        // cartelle automatiche per categoria: le app senza categoria restano in Home
-        if (settings.autoFolders || settings.homeOrder == "cat_folders") {
+        // cartelle intelligenti: niente cartelle generiche, chi non rientra (o resterebbe da solo) va sciolto
+        if (settings.autoFolders) {
+            val t0 = System.currentTimeMillis()
             val groups = HashMap<String, MutableList<AppEntry>>()
-            for (a in list) categoryName(a)?.let { groups.getOrPut(it) { ArrayList() }.add(a) }
+            for (a in list) smartGroupOf(a)?.let { groups.getOrPut(it) { ArrayList() }.add(a) }
             val inFolder = HashSet<String>()
-            for ((name, g) in groups.toSortedMap(compareBy { it.lowercase() })) {
+            val order: Comparator<String> = if (settings.smartMode == "color") {
+                val rank = listOf("Rosso", "Arancione", "Giallo", "Verde", "Azzurro", "Blu", "Viola", "Rosa", "Bianco e nero")
+                compareBy { rank.indexOf(it) }
+            } else compareBy { it.lowercase() }
+            var nFolders = 0
+            for ((name, g) in groups.toSortedMap(order)) {
                 if (g.size < 2) continue
                 val (p, x, y) = findFree(1)
                 items.add(FolderItem(UUID.randomUUID().toString(), name, g.sortedWith(byName).map { it.id }, p, x, y))
                 ensurePages(p)
                 g.forEach { inFolder.add(it.id) }
+                nFolders++
             }
             list = list.filter { it.id !in inFolder }
+            AppLog.i("Cartelle intelligenti (${settings.smartMode}): $nFolders cartelle, ${list.size} app sciolte, ${System.currentTimeMillis() - t0} ms")
         }
         when (settings.homeOrder) {
             "name_desc" -> list.sortedWith(byName.reversed()).forEach { addApp(it.id, 1) }
@@ -706,15 +735,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 try { pm.getPackageInfo(it.pkg, 0).firstInstallTime } catch (e: Exception) { 0L }
             }.forEach { addApp(it.id, 1) }
             "color" -> list.sortedBy { hueKey(it) }.forEach { addApp(it.id, 1) }
-            "letter_folders" -> folders(
-                list.groupBy {
-                    val c = it.label.trim().firstOrNull()?.uppercaseChar() ?: '#'
-                    if (c.isLetter()) c.toString() else "#"
-                }
-            )
             else -> list.sortedWith(byName).forEach { addApp(it.id, 1) }
         }
         saveLayout()
+    }
+
+    /** App appena installata con "tutte le app in Home": entra nella sua cartella intelligente, se esiste. */
+    private fun placeNewApp(a: AppEntry) {
+        if (settings.autoFolders) {
+            val g = smartGroupOf(a)
+            val f = if (g == null) null else items.firstOrNull { it is FolderItem && it.page >= 1 && it.name == g } as? FolderItem
+            if (f != null) {
+                replace(f, f.copy(appIds = f.appIds + a.id))
+                AppLog.i("${a.label} aggiunta alla cartella $g")
+                return
+            }
+        }
+        addApp(a.id, 1)
     }
 
     /** Cancella layout, impostazioni, app nascoste: tutto come al primo avvio. */
@@ -901,7 +938,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         val placed = placedAppIds()
         if (settings.homeMode == "all") {
-            sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { addApp(it.id, 1) }
+            sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { placeNewApp(it) }
         } else if (settings.autoAddNew && knownIds.isNotEmpty()) {
             ids.filter { it !in knownIds && it !in placed && it !in hidden }.forEach { addApp(it) }
         }
@@ -1336,7 +1373,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     dropOtherLayout()
                 }
             }
-            "homeOrder", "autoFolders" -> if (settings.homeMode == "all") {
+            "homeOrder", "autoFolders", "smartMode" -> if (settings.homeMode == "all") {
                 arrangeHomeApps()
                 dropOtherLayout()
             }
@@ -1907,6 +1944,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     init {
         sp.getStringSet("known", null)?.let { knownIds.addAll(it) }
         sp.getStringSet("newApps", null)?.let { newApps.addAll(it) }
+        // le vecchie voci "cartelle per lettera/categoria" ora sono modalità delle cartelle intelligenti
+        when (settings.homeOrder) {
+            "letter_folders", "cat_folders" -> {
+                settings.set("smartMode", if (settings.homeOrder == "letter_folders") "letter" else "genre")
+                settings.set("autoFolders", true)
+                settings.set("homeOrder", "name")
+            }
+        }
         hasLayout = loadLayout()
         loadWeatherCache()
         checkLocationPermission()

@@ -6,8 +6,8 @@ class SettingEntry(val title: String, val page: String, val group: String, val h
 
 val SETTINGS_INDEX = listOf(
     SettingEntry("Modalità Home", "home", "Griglia", ""),
-    SettingEntry("Cartelle automatiche", "home", "Griglia", "Raggruppa le app per categoria. Quelle senza categoria restano in Home"),
-    SettingEntry("Come disporre le app", "home", "Griglia", ""),
+    SettingEntry("Cartelle intelligenti", "home", "Griglia", "Raggruppa le app in cartelle. Le app che non rientrano in nessun gruppo restano in Home, senza cartelle generiche"),
+    SettingEntry("Raggruppa per", "home", "Griglia", ""),
     SettingEntry("Colonne", "home", "Griglia", ""),
     SettingEntry("Righe", "home", "Griglia", ""),
     SettingEntry("Dimensione icone", "home", "Icone in Home", ""),
