@@ -53,6 +53,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Ordina A-Z", "folders", "Cartella aperta", ""),
     SettingEntry("Città del meteo", "widgets", "Meteo", ""),
     SettingEntry("Rotazione automatica degli stack", "widgets", "Widget", "I widget impilati scorrono da soli"),
+    SettingEntry("Scuoti per riordinare", "gestures", "Gesti", "In modifica Home, scuoti il telefono per compattare la pagina dall'alto in basso"),
     SettingEntry("Tasto Home apre il cassetto", "gestures", "Gesti", "Se sei già sulla prima pagina della Home"),
     SettingEntry("Scorri giù nella Home", "gestures", "Gesti", ""),
     SettingEntry("Scorri su nella Home", "gestures", "Gesti", ""),

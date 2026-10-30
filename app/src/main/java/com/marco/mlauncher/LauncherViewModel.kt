@@ -1221,6 +1221,62 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
+    /**
+     * Rilascio di più app raccolte insieme: sopra una cartella entrano tutte, sopra un'app
+     * nasce una cartella con tutte. Restituisce false se il punto non è una cartella/app.
+     */
+    fun dropGroup(main: AppItem, extra: List<String>, page: Int, x: Int, y: Int): Boolean {
+        if (page < 0) return false
+        val ids = (listOf(main.appId) + extra).distinct().filter { it in apps }
+        val target = items.firstOrNull { it.id != main.id && it.page == page && overlaps(it, page, x, y, 1, 1) } ?: return false
+        when (target) {
+            is FolderItem -> {
+                val add = ids.filter { it !in target.appIds }
+                items.removeAll { it is AppItem && it.appId in ids }
+                replace(target, target.copy(appIds = target.appIds + add))
+                AppLog.i("${add.size} app aggiunte alla cartella ${target.name}")
+            }
+            is AppItem -> {
+                if (target.appId in ids) return false
+                val all = listOf(target.appId) + ids
+                items.removeAll { it is AppItem && (it.appId in ids || it.id == target.id) }
+                items.add(FolderItem(UUID.randomUUID().toString(), "Cartella", all, page, target.x, target.y))
+            }
+            else -> return false
+        }
+        saveLayout()
+        return true
+    }
+
+    /**
+     * "Scuoti per riordinare": compatta la pagina dall'alto in basso, da sinistra a destra,
+     * mantenendo l'ordine di lettura degli elementi.
+     */
+    fun tidyPage(page: Int) {
+        if (page < 0) return
+        val onPage = items.filter { it.page == page }.sortedWith(compareBy<HomeItem> { it.y }.thenBy { it.x })
+        if (onPage.isEmpty()) return
+        items.removeAll(onPage.toSet())
+        val overflow = ArrayList<HomeItem>()
+        for (it in onPage) {
+            var spot: Pair<Int, Int>? = null
+            loop@ for (yy in 0..(curRows - it.spanY)) for (xx in 0..(curCols - it.spanX)) {
+                if (areaFree(page, xx, yy, it.spanX, it.spanY)) {
+                    spot = xx to yy
+                    break@loop
+                }
+            }
+            if (spot != null) items.add(it.at(page, spot.first, spot.second)) else overflow.add(it)
+        }
+        for (o in overflow) {
+            val (p, x, y) = findFree(page, o.spanX, o.spanY)
+            items.add(o.at(p, x, y))
+            ensurePages(p)
+        }
+        saveLayout()
+        AppLog.i("Pagina ${page + 1} riordinata scuotendo il telefono")
+    }
+
     /** Sposta le app raccolte nei primi posti liberi della pagina indicata. */
     fun gatherApps(appIds: List<String>, page: Int) {
         for (id in appIds) {

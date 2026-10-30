@@ -837,6 +837,11 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     Group("Gesti") {
         SwitchRow(
+            "Scuoti per riordinare",
+            "In modifica Home, scuoti il telefono per compattare la pagina dall'alto in basso",
+            s.shakeTidy
+        ) { vm.setSetting("shakeTidy", it) }
+        SwitchRow(
             "Tasto Home apre il cassetto",
             "Se sei già sulla prima pagina della Home",
             s.homeOpensDrawer

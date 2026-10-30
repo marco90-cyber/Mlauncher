@@ -252,6 +252,11 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     if (extra.isNotEmpty() && zone && main is AppItem) {
                         vm.createFolderFrom(main, extra)
                         Haptics.confirm(view)
+                    } else if (extra.isNotEmpty() && main is AppItem &&
+                        targetOf(d.pos, main)?.let { t -> vm.dropGroup(main, extra, t.first, t.second, t.third) } == true
+                    ) {
+                        // tutte le app raccolte sono entrate nella cartella (o ne hanno creata una)
+                        Haptics.confirm(view)
                     } else {
                         val t = targetOf(d.pos, main)
                         if (t != null) {
@@ -287,6 +292,40 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     val onMenu: (HomeItem, Rect) -> Unit = { item, rect ->
         menuItem = item
         menuRect = rect
+    }
+
+    // in modifica: scuoti il telefono per compattare la pagina dall'alto in basso
+    val ctxS = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.DisposableEffect(edit, s.shakeTidy) {
+        val sm = ctxS.getSystemService(android.hardware.SensorManager::class.java)
+        val acc = sm?.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
+        if (!edit || !s.shakeTidy || sm == null || acc == null) return@DisposableEffect onDispose { }
+        var last = 0L
+        var hits = 0
+        var firstHit = 0L
+        val l = object : android.hardware.SensorEventListener {
+            override fun onSensorChanged(e: android.hardware.SensorEvent) {
+                val g = kotlin.math.sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]) /
+                    android.hardware.SensorManager.GRAVITY_EARTH
+                val now = System.currentTimeMillis()
+                if (g < 2.3f) return
+                // servono 3 scossoni in meno di un secondo, e almeno 1,5 s tra due riordini
+                if (now - firstHit > 1000) {
+                    firstHit = now
+                    hits = 0
+                }
+                hits++
+                if (hits >= 3 && now - last > 1500 && drag == null) {
+                    last = now
+                    hits = 0
+                    vm.tidyPage(pagerState.currentPage)
+                    Haptics.confirm(view)
+                }
+            }
+            override fun onAccuracyChanged(s: android.hardware.Sensor?, a: Int) {}
+        }
+        sm.registerListener(l, acc, android.hardware.SensorManager.SENSOR_DELAY_UI)
+        onDispose { sm.unregisterListener(l) }
     }
 
     // trascinamento iniziato nel cassetto: l'icona continua a seguire il dito sulla Home
