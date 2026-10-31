@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.text.font.FontWeight
@@ -68,7 +69,7 @@ import kotlinx.coroutines.delay
  * infine "Tutto pronto" con Home predefinita e permessi facoltativi.
  */
 
-private enum class Step { HELLO, WALLPAPER, THEME, COLORS, MODE, FOLDERS, ICONS, DOCK, DONE }
+private enum class Step { HELLO, WALLPAPER, THEME, COLORS, MODE, FOLDERS, ICONS, DOCK, ANIM, DONE }
 
 @Composable
 fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
@@ -118,6 +119,7 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
                         Step.FOLDERS -> PickFolders(vm)
                         Step.ICONS -> PickIcons(vm)
                         Step.DOCK -> PickDock(vm)
+                        Step.ANIM -> PickAnim(vm)
                         Step.DONE -> Done(vm, host)
                     }
                 }
@@ -160,8 +162,24 @@ private fun Headline(big: String, small: String) {
 @Composable
 private fun Logo(size: Dp = 120.dp) {
     val cs = MaterialTheme.colorScheme
+    val enter = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        enter.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 260f))
+    }
+    val breath by androidx.compose.animation.core.rememberInfiniteTransition(label = "logo").animateFloat(
+        0f, 1f,
+        androidx.compose.animation.core.infiniteRepeatable(tween(2600, easing = Motion.Standard), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "breath"
+    )
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f))
+        Modifier
+            .graphicsLayer {
+                val sc = enter.value * (1f + 0.035f * breath)
+                scaleX = sc; scaleY = sc
+                rotationZ = (1f - enter.value) * -12f
+                alpha = enter.value.coerceIn(0f, 1f)
+            }
+            .size(size).clip(RoundedCornerShape(size * 0.3f))
             .background(Brush.linearGradient(listOf(cs.primary, cs.tertiary))),
         contentAlignment = Alignment.Center
     ) {
@@ -461,7 +479,9 @@ private fun Done(vm: LauncherViewModel, host: Host) {
     Spacer(Modifier.height(24.dp))
     Logo(88.dp)
     Spacer(Modifier.height(20.dp))
-    Headline("Tutto pronto!", "Ultimi ritocchi, tutti facoltativi. Li trovi anche nelle impostazioni.")
+    Headline("Tutto pronto!", "Ecco il tuo MLauncher. Gli ultimi ritocchi qui sotto sono facoltativi.")
+    Summary(vm)
+    Spacer(Modifier.height(12.dp))
     SetupRow(
         "Home predefinita", "Usa MLauncher con il tasto Home e i gesti",
         vm.isDefaultHome, "Imposta"
@@ -706,6 +726,92 @@ private fun MiniFolder(bg: Color, seed: Int, size: Dp) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 repeat(2) { c -> Box(Modifier.size(size * 0.27f).clip(CircleShape).background(iconColors[(seed + r * 2 + c) % iconColors.size])) }
             }
+        }
+    }
+}
+
+/** Riepilogo delle scelte fatte nel benvenuto. */
+@Composable
+private fun Summary(vm: LauncherViewModel) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    val rows = listOf(
+        "Tema" to when (s.theme) { "light" -> "Chiaro"; "dark" -> "Scuro"; else -> "Automatico" },
+        "Colori" to (ACCENTS.firstOrNull { it.first == s.accent }?.second ?: ""),
+        "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
+        "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
+        "Dock" to (DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""),
+        "Ritorno alla Home" to (RETURN_ANIMS.firstOrNull { it.first == s.returnAnim }?.second?.substringBefore(" (") ?: "")
+    )
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh).padding(16.dp)) {
+        rows.forEach { (k, v) ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Text(k, color = cs.onSurfaceVariant, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Text(v, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+/** Animazioni: ritorno alla Home (con anteprima che si ripete) ed effetto di cambio pagina. */
+@Composable
+private fun PickAnim(vm: LauncherViewModel) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    val dark = isDarkPreview(s.theme)
+    Headline("Animazioni", "Come riappare la Home quando chiudi un'app o sblocchi il telefono.")
+    // anteprima: ripete l'animazione scelta
+    val loop by androidx.compose.animation.core.rememberInfiniteTransition(label = "ret").animateFloat(
+        0f, 1.6f,
+        androidx.compose.animation.core.infiniteRepeatable(tween(1800, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "p"
+    )
+    Box(
+        Modifier.fillMaxWidth(0.5f).aspectRatio(0.52f).clip(RoundedCornerShape(26.dp))
+            .border(1.dp, cs.outlineVariant, RoundedCornerShape(26.dp)).padding(6.dp)
+    ) {
+        Box(Modifier.matchParentSize().graphicsLayer {
+            val p = loop.coerceIn(0f, 1f)
+            val e = Motion.EmphasizedDecelerate.transform(p)
+            when (s.returnAnim) {
+                "settle" -> { val sc = 1.07f - 0.07f * e; scaleX = sc; scaleY = sc; alpha = 0.35f + 0.65f * e }
+                "approach" -> { val sc = 0.86f + 0.14f * e; scaleX = sc; scaleY = sc; alpha = e }
+                "fade" -> alpha = p
+                "cascade_down" -> { translationY = (1f - e) * -40f; alpha = e }
+                "cascade_up" -> { translationY = (1f - e) * 40f; alpha = e }
+                "wave" -> { val sc = 0.8f + 0.2f * e; scaleX = sc; scaleY = sc; alpha = e }
+            }
+        }) { MiniPhone(mini(vm, dark)) }
+    }
+    Spacer(Modifier.height(16.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RETURN_ANIMS.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (k, l) ->
+                    FilterChip(
+                        selected = s.returnAnim == k,
+                        onClick = { vm.setSetting("returnAnim", k) },
+                        label = { Text(l.substringBefore(" ("), maxLines = 1) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    listOf(
+        Triple("Quando torni da un'app", s.returnOnApp, "returnOnApp"),
+        Triple("Quando sblocchi il telefono", s.returnOnUnlock, "returnOnUnlock"),
+        Triple("Rimbalzo dell'icona dell'app chiusa", s.returnBounce, "returnBounce")
+    ).forEach { (l, v, k) ->
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainerHigh)
+                .clickable { vm.setSetting(k, !v) }.padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(l, Modifier.weight(1f))
+            androidx.compose.material3.Switch(checked = v, onCheckedChange = { vm.setSetting(k, it) })
         }
     }
 }

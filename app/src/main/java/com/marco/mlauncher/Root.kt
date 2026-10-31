@@ -104,6 +104,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
     vm.wallEditSrc?.let { WallpaperEditor(vm, it) }
 
     // l'ordine conta: l'ultimo registrato ha la precedenza
+    // gesto indietro sulla Home senza nulla di aperto: come Launcher3 non chiude il Launcher
+    // (prima l'attività si chiudeva e si ricaricava); riporta alla prima pagina
+    BackHandler(enabled = !vm.showWelcome && vm.wallEditSrc == null) { vm.backOnHome() }
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }
     BackHandler(enabled = vm.openFolderId != null) { vm.openFolderId = null }
     BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }

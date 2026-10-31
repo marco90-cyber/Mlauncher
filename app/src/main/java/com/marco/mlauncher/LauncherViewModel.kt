@@ -1787,6 +1787,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** [alreadyHome]: il tasto Home è stato premuto mentre la Home era già in primo piano. */
+    /** Indietro sulla Home: torna alla prima pagina (e chiude menu aperti), senza chiudere il Launcher. */
+    fun backOnHome() {
+        if (currentPage != 0) homeSignal += 1
+    }
+
     fun onHomePressed(alreadyHome: Boolean = false) {
         // già sulla prima pagina, senza nulla di aperto: il tasto Home apre il cassetto
         if (alreadyHome && settings.homeOpensDrawer && overlay == Overlay.NONE && openFolderId == null &&
