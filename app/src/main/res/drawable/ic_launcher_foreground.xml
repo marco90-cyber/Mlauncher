@@ -1,10 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MLapps icon - generated -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF" android:pathData="M39,34h10a5,5 0 0 1 5,5v10a5,5 0 0 1 -5,5h-10a5,5 0 0 1 -5,-5v-10a5,5 0 0 1 5,-5z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M63,34h10a5,5 0 0 1 5,5v10a5,5 0 0 1 -5,5h-10a5,5 0 0 1 -5,-5v-10a5,5 0 0 1 5,-5z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M39,58h10a5,5 0 0 1 5,5v10a5,5 0 0 1 -5,5h-10a5,5 0 0 1 -5,-5v-10a5,5 0 0 1 5,-5z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M63,58h10a5,5 0 0 1 5,5v10a5,5 0 0 1 -5,5h-10a5,5 0 0 1 -5,-5v-10a5,5 0 0 1 5,-5z" />
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M43.5,39.5h5a4,4 0 0 1 4,4v5a4,4 0 0 1 -4,4h-5a4,4 0 0 1 -4,-4v-5a4,4 0 0 1 4,-4z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M55.5,46a6.5,6.5 0 1 0 13,0a6.5,6.5 0 1 0 -13,0z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M39.5,62a6.5,6.5 0 1 0 13,0a6.5,6.5 0 1 0 -13,0z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M59.5,55.5h5a4,4 0 0 1 4,4v5a4,4 0 0 1 -4,4h-5a4,4 0 0 1 -4,-4v-5a4,4 0 0 1 4,-4z" android:fillColor="#BFFFFFFF"/>
 </vector>
