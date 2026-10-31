@@ -85,7 +85,7 @@ private fun accentScheme(base: ColorScheme, h: Float, s: Float, dark: Boolean): 
 }
 
 @Composable
-fun MLauncherTheme(mode: String, accent: String = "auto", content: @Composable () -> Unit) {
+fun MLauncherTheme(mode: String, accent: String = "auto", seed: Int? = null, content: @Composable () -> Unit) {
     val dark = when (mode) {
         "light" -> false
         "dark" -> true
@@ -93,6 +93,12 @@ fun MLauncherTheme(mode: String, accent: String = "auto", content: @Composable (
     }
     val ctx = LocalContext.current
     val dyn = if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-    val scheme = accentHue(accent)?.let { (h, s) -> accentScheme(dyn, h, s, dark) } ?: dyn
+    // "Dallo sfondo" con uno sfondo di MLauncher: i colori vengono dalla sua immagine
+    val fromSeed = if (accent == "auto" && seed != null) {
+        val hsl = FloatArray(3)
+        ColorUtils.colorToHSL(seed, hsl)
+        hsl[0] to hsl[1].coerceIn(0.08f, 0.85f)
+    } else null
+    val scheme = (accentHue(accent) ?: fromSeed)?.let { (h, s) -> accentScheme(dyn, h, s, dark) } ?: dyn
     MaterialTheme(colorScheme = scheme, typography = Typography(), content = content)
 }

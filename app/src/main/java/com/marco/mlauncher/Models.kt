@@ -168,7 +168,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var dockSlotsL by mutableIntStateOf(sp.getInt("dockSlots_l", sp.getInt("dockSlots", 4)))
     val dockSlots: Int get() = if (landscape) dockSlotsL else dockSlotsP
     fun dockSlotsOf(l: Boolean) = if (l) dockSlotsL else dockSlotsP
-    private fun dockStyleOk(it: String) = if (it in listOf("glass", "tinted", "dark", "pill", "bar", "tiles", "none")) it else "glass"
+    private fun dockStyleOk(it: String) = if (it in listOf("liquid", "glass", "tinted", "dark", "pill", "bar", "tiles", "none")) it else "glass"
     private var dockStyleP by mutableStateOf(dockStyleOk(sp.getString("dockStyle", "glass") ?: "glass"))
     private var dockStyleL by mutableStateOf(dockStyleOk(sp.getString("dockStyle_l", sp.getString("dockStyle", "glass")) ?: "glass"))
     val dockStyle: String get() = dockStyleP
@@ -192,6 +192,13 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "auto") ?: "auto")
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
+    /** sfondo: "system" (quello di Android) o "custom" (scelto e disegnato da MLauncher) */
+    var wallMode by mutableStateOf(sp.getString("wallMode", "system") ?: "system")
+    var wallDim by mutableIntStateOf(sp.getInt("wallDim", 0))
+    var wallBlur by mutableIntStateOf(sp.getInt("wallBlur", 0))
+    var wallParallax by mutableStateOf(sp.getBoolean("wallParallax", true))
+    /** tema Liquid Glass: dock, cartelle, indicatore e widget in vetro liquido */
+    var liquid by mutableStateOf(sp.getBoolean("liquid", false))
     var autoBackup by mutableStateOf(sp.getBoolean("autoBackup", false))
     /** ogni quanti giorni */
     var backupEvery by mutableIntStateOf(sp.getInt("backupEvery", 7))
@@ -326,6 +333,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
             "lockHome" -> lockHome = value as Boolean
+            "wallMode" -> wallMode = value as String
+            "wallDim" -> wallDim = value as Int
+            "wallBlur" -> wallBlur = value as Int
+            "wallParallax" -> wallParallax = value as Boolean
+            "liquid" -> liquid = value as Boolean
             "autoBackup" -> autoBackup = value as Boolean
             "backupEvery" -> backupEvery = value as Int
             "backupKeep" -> backupKeep = value as Int

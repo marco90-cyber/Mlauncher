@@ -44,6 +44,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import androidx.compose.runtime.mutableFloatStateOf
+import android.graphics.BitmapFactory
+import kotlin.math.max
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
@@ -125,6 +128,113 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** lo sfondo è chiaro: Android consiglia testo scuro sopra */
     var wallDarkText by mutableStateOf(false)
+
+    // ---------- sfondo gestito da MLauncher ----------
+
+    /** immagine dello sfondo di MLauncher (null = si usa quello di Android) */
+    var wallBitmap by mutableStateOf<ImageBitmap?>(null)
+        private set
+    /** colore principale dello sfondo di MLauncher, per i colori "Dallo sfondo" */
+    var wallSeed by mutableStateOf<Int?>(null)
+        private set
+    private var customDarkText = false
+    /** posizione delle pagine (0 = prima, 1 = ultima) per la parallasse */
+    var homeScroll by mutableFloatStateOf(0f)
+    var wallBusy by mutableStateOf(false)
+        private set
+    val customWallActive: Boolean get() = settings.wallMode == "custom" && wallBitmap != null
+
+    private fun maxWallSide(): Int {
+        val m = ctx.resources.displayMetrics
+        return (max(m.widthPixels, m.heightPixels) * 1.35f).toInt().coerceIn(1280, 3200)
+    }
+
+    /** Carica lo sfondo salvato e ne ricava colore principale e testo chiaro/scuro. */
+    fun loadWallpaper() {
+        val f = wallFile(ctx)
+        if (!f.exists()) {
+            wallBitmap = null
+            wallSeed = null
+            return
+        }
+        viewModelScope.launch {
+            val bm = withContext(Dispatchers.IO) { try { BitmapFactory.decodeFile(f.path) } catch (e: Throwable) { null } }
+            if (bm == null) return@launch
+            val colors = withContext(Dispatchers.Default) {
+                try { android.app.WallpaperColors.fromBitmap(bm) } catch (e: Throwable) { null }
+            }
+            wallSeed = colors?.primaryColor?.toArgb()
+            customDarkText = colors != null && (colors.colorHints and android.app.WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+            wallBitmap = bm.asImageBitmap()
+            refreshDarkText()
+        }
+    }
+
+    /** Salva come sfondo di MLauncher un'immagine scelta (galleria, sfondo di Android o incluso). */
+    fun setWallpaperFrom(load: () -> Bitmap?) {
+        if (wallBusy) return
+        wallBusy = true
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val bm = load() ?: return@withContext false
+                    java.io.FileOutputStream(wallFile(ctx)).use { bm.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+                    true
+                } catch (e: Throwable) {
+                    AppLog.e("Sfondo non salvato", e)
+                    false
+                }
+            }
+            wallBusy = false
+            if (ok) {
+                settings.set("wallMode", "custom")
+                loadWallpaper()
+                AppLog.i("Nuovo sfondo di MLauncher")
+            } else {
+                wallError += 1
+            }
+        }
+    }
+    var wallError by mutableIntStateOf(0)
+        private set
+
+    fun pickedWallpaper(uri: Uri) = setWallpaperFrom {
+        decodeScaled({ ctx.contentResolver.openInputStream(uri) }, maxWallSide())
+    }
+
+    fun builtinWallpaper(key: String) = setWallpaperFrom {
+        val m = ctx.resources.displayMetrics
+        builtinWall(key, (m.widthPixels * 1.3f).toInt(), m.heightPixels)
+    }
+
+    /** Prova a copiare lo sfondo di Android (non sempre il sistema lo permette). */
+    fun importSystemWallpaper() = setWallpaperFrom {
+        val d = try {
+            android.app.WallpaperManager.getInstance(ctx).drawable
+        } catch (e: Throwable) {
+            null
+        } ?: return@setWallpaperFrom null
+        drawableToBitmap(d, 0).let { bm ->
+            val big = max(bm.width, bm.height)
+            val ms = maxWallSide()
+            if (big <= ms) bm else Bitmap.createScaledBitmap(bm, bm.width * ms / big, bm.height * ms / big, true)
+        }
+    }
+
+    /** Mette l'immagine attuale anche sulla schermata di blocco di Android. */
+    fun wallpaperToLockScreen(): Boolean = try {
+        val f = wallFile(ctx)
+        val bm = BitmapFactory.decodeFile(f.path)
+        android.app.WallpaperManager.getInstance(ctx).setBitmap(bm, null, true, android.app.WallpaperManager.FLAG_LOCK)
+        true
+    } catch (e: Throwable) {
+        AppLog.e("Sfondo della schermata di blocco non impostato", e)
+        false
+    }
+
+    private fun refreshDarkText() {
+        if (customWallActive) wallDarkText = customDarkText else readSystemHint()
+    }
     val labelDark: Boolean
         get() = when (settings.labelColor) {
             "dark" -> true
@@ -133,6 +243,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
 
     fun readWallpaperHint() {
+        if (customWallActive) {
+            wallDarkText = customDarkText
+            return
+        }
+        readSystemHint()
+    }
+
+    private fun readSystemHint() {
         try {
             val c = android.app.WallpaperManager.getInstance(ctx).getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)
             wallDarkText = c != null && (c.colorHints and android.app.WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
@@ -2155,6 +2273,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         sp.getStringSet("known", null)?.let { knownIds.addAll(it) }
         sp.getStringSet("newApps", null)?.let { newApps.addAll(it) }
         loadNotes()
+        loadWallpaper()
         // le vecchie voci "cartelle per lettera/categoria" ora sono modalità delle cartelle intelligenti
         when (settings.homeOrder) {
             "letter_folders", "cat_folders" -> {

@@ -207,7 +207,8 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         "pill" -> csF.surfaceContainer
                         else -> Color.White
                     }
-                    folderTextColor(st, dockSpec.opacity, base, csF.surfaceContainerHigh, csF.onSurface)
+                    if (st == "liquid") (if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White)
+                    else folderTextColor(st, dockSpec.opacity, base, csF.surfaceContainerHigh, csF.onSurface)
                 } else csF.onSurface
                 Surface(
                     shape = RoundedCornerShape(28.dp),
@@ -220,7 +221,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 // base opaca sotto il vetro: la cartella resta leggibile anche con la dock molto trasparente
                                 Modifier
                                     .clip(RoundedCornerShape(28.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (dockSpec.style == "liquid") 0f else 0.72f))
                                     .dockLook(
                                         if (dockSpec.style == "bar") "pill" else dockSpec.style,
                                         maxOf(dockSpec.opacity, 40), dockSpec.glass, 28.dp

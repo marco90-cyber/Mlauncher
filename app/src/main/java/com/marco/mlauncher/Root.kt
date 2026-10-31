@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -65,7 +66,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
         LocalFolderDock provides (
             if (vm.settings.folderFollowDock) with(vm.settings) { DockLookSpec(dockStyle, dockOpacity, dockGlass, dockCorner) }
             else null
-        )
+        ),
+        LocalGlassDarkText provides vm.labelDark,
+        LocalLiquid provides vm.settings.liquid
     ) {
         // la Home dietro la cartella aperta si sfoca (vetro smerigliato)
         val blurRadius by androidx.compose.animation.core.animateDpAsState(
@@ -73,11 +76,20 @@ fun Root(vm: LauncherViewModel, host: Host) {
             androidx.compose.animation.core.tween(Motion.FOLDER, easing = Motion.Standard),
             label = "folderBlur"
         )
-        Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize().blur(blurRadius)) {
-                if (vm.loaded) HomeScreen(vm, host)
+        var rootSize by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+        val wb = vm.wallBitmap
+        val wall = if (vm.customWallActive && wb != null && rootSize.width > 0) androidx.compose.runtime.remember(wb, rootSize, vm.settings.wallParallax) {
+            WallRender(wb, rootSize.width.toFloat(), rootSize.height.toFloat(), vm.settings.wallParallax) { vm.homeScroll }
+        } else null
+        Box(Modifier.fillMaxSize().onSizeChanged { rootSize = it }) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
+                Box(Modifier.fillMaxSize().blur(blurRadius)) {
+                    // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
+                    if (wall != null) WallpaperLayer(wall, vm.settings.wallDim / 100f, vm.settings.wallBlur.dp)
+                    if (vm.loaded) HomeScreen(vm, host)
+                }
+                FolderOverlay(vm, host)
             }
-            FolderOverlay(vm, host)
             AppsOverlay(vm, host)
             WidgetPicker(vm, host)
             SettingsOverlay(vm, host)

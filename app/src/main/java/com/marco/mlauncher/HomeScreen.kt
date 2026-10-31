@@ -132,6 +132,7 @@ interface Host {
     fun exportBackup()
     fun importBackup()
     fun pickBackupFolder()
+    fun pickWallpaperImage()
     fun openListenerSettings()
     fun openAccessibilitySettings()
     fun lockScreen(): Boolean
@@ -366,6 +367,13 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         vm.drawerDrag = null
     }
 
+    // posizione delle pagine per la parallasse dello sfondo
+    LaunchedEffect(Unit) {
+        snapshotFlow { pagerState.currentPage + pagerState.currentPageOffsetFraction }.collect {
+            vm.homeScroll = if (vm.pageCount > 1) it / (vm.pageCount - 1) else 0.5f
+        }
+    }
+
     LaunchedEffect(Unit) {
         var first = true
         snapshotFlow { pagerState.currentPage }.collect {
@@ -538,7 +546,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                BarButton("Sfondo") { host.pickWallpaper() }
+                BarButton("Sfondo") { vm.overlay = Overlay.SETTINGS; vm.settingsPage = "wallpaper" }
                 BarButton("Widget") { vm.overlay = Overlay.WIDGETS }
                 BarButton("+ Pagina") {
                     vm.addPage()
@@ -1313,7 +1321,7 @@ private fun WidgetCell(
     ) {
         Box(Modifier.fillMaxSize()) {
             when (item) {
-                is WidgetItem -> WidgetContent(item.ref, vm, host, enterEdit, Modifier.fillMaxSize())
+                is WidgetItem -> GlassWidgetFrame(item.ref.kind) { WidgetContent(item.ref, vm, host, enterEdit, Modifier.fillMaxSize()) }
                 is StackItem -> StackContent(item, vm, host, enterEdit, Modifier.fillMaxSize())
                 else -> {}
             }
@@ -1563,7 +1571,7 @@ private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: (
             modifier = Modifier.width(menuW)
         ) {
             Column(Modifier.padding(vertical = 8.dp)) {
-                HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); host.pickWallpaper() }
+                HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); vm.overlay = Overlay.SETTINGS; vm.settingsPage = "wallpaper" }
                 HomeMenuRow(Icons.Default.Add, "Widget") { onDismiss(); if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
                 HomeMenuRow(Icons.Default.Edit, "Modifica Home") { onDismiss(); vm.editMode = true }
                 HomeMenuRow(Icons.Default.Lock, if (vm.settings.lockHome) "Sblocca la Home" else "Blocca la Home") {

@@ -5,6 +5,12 @@ package com.marco.mlauncher
 class SettingEntry(val title: String, val page: String, val group: String, val hint: String)
 
 val SETTINGS_INDEX = listOf(
+    SettingEntry("Sfondo della Home", "wallpaper", "Quale sfondo", ""),
+    SettingEntry("Importa lo sfondo di Android", "wallpaper", "Scegli l'immagine", ""),
+    SettingEntry("Scurisci", "wallpaper", "Effetti", ""),
+    SettingEntry("Sfoca", "wallpaper", "Effetti", ""),
+    SettingEntry("Parallasse", "wallpaper", "Effetti", "Lo sfondo scorre piano quando cambi pagina"),
+    SettingEntry("Usa anche sulla schermata di blocco", "wallpaper", "Schermata di blocco", ""),
     SettingEntry("Blocca la Home", "home", "Disposizione delle app", "Icone, cartelle e widget non si possono spostare né togliere. Si sblocca anche dal menu della Home"),
     SettingEntry("Modalità Home", "home", "Disposizione delle app", ""),
     SettingEntry("Cartelle intelligenti", "home", "Disposizione delle app", "Raggruppa le app in cartelle. Le app che non rientrano in nessun gruppo restano in Home, senza cartelle generiche"),
@@ -69,6 +75,8 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Rilascio e conferme", "gestures", "Quando vibrare", "Icona posata, cartella creata, widget aggiunto, azione non possibile"),
     SettingEntry("A ogni pagina", "gestures", "Quando vibrare", "Un tocco leggero quando cambi pagina nella Home"),
     SettingEntry("Scorrimento e selezione", "gestures", "Quando vibrare", "Ridimensionamento, lista del cassetto, gesti su e giù"),
+    SettingEntry("Tema Liquid Glass", "look", "Liquid Glass", "Dock, cartelle, indicatore e widget in vetro liquido che piega e sfoca lo sfondo"),
+    SettingEntry("Scegli uno sfondo di MLauncher", "look", "Liquid Glass", ""),
     SettingEntry("Tema", "look", "Tema", ""),
     SettingEntry("Colori", "look", "Tema", ""),
     SettingEntry("Velocità animazioni", "look", "Animazioni", ""),

@@ -157,7 +157,10 @@ fun SearchWidget(vm: LauncherViewModel, onLongPress: () -> Unit, modifier: Modif
                 .fillMaxWidth()
                 .height(h)
                 .clip(CircleShape)
-                .background(cs.surfaceContainerHigh.copy(alpha = 0.9f))
+                .then(
+                    if (LocalLiquid.current && !sample) Modifier.liquidGlass(50.dp, CircleShape)
+                    else Modifier.background(cs.surfaceContainerHigh.copy(alpha = 0.9f))
+                )
                 .combinedClickable(
                     onClick = {
                         if (!sample) {

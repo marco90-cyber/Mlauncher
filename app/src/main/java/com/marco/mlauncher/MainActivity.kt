@@ -100,6 +100,11 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    /** Foto per lo sfondo di MLauncher (selettore di Android, senza permessi). */
+    private val wallLauncher = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri -> if (uri != null) vm.pickedWallpaper(uri) }
+
     private var pendingWidgetId = -1
     private var pendingInfo: AppWidgetProviderInfo? = null
 
@@ -127,7 +132,7 @@ class MainActivity : ComponentActivity(), Host {
         vm.loadCrash()
         AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
         setContent {
-            MLauncherTheme(vm.settings.theme, vm.settings.accent) {
+            MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null) {
                 Root(vm, this@MainActivity)
                 AppUpdateHost()
             }
@@ -316,6 +321,14 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun exportBackup() {
         exportLauncher.launch("mlauncher-backup.json")
+    }
+
+    override fun pickWallpaperImage() {
+        try {
+            wallLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Nessuna galleria disponibile", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun pickBackupFolder() {

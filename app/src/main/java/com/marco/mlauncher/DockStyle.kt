@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 val DOCK_STYLES = listOf(
+    "liquid" to "Liquid Glass",
     "glass" to "Vetro",
     "tinted" to "Vetro colorato",
     "dark" to "Vetro scuro",
@@ -30,6 +31,7 @@ fun dockShape(style: String, corner: Dp): Shape =
 @Composable
 fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, shapeOverride: Shape? = null): Modifier {
     if (style == "none" || style == "tiles") return this
+    if (style == "liquid") return this.liquidGlass(corner, shapeOverride ?: RoundedCornerShape(corner), opacity = opacity / 100f)
     val cs = MaterialTheme.colorScheme
     val (base, a) = when (style) {
         "tinted" -> cs.primary to 0.50f // segue il colore scelto (o quello dello sfondo)
@@ -65,6 +67,7 @@ fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, s
 fun dockContentColor(style: String, opacity: Int): Color {
     val cs = MaterialTheme.colorScheme
     if (style == "none") return Color.White
+    if (style == "liquid") return if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White
     val (base, a0) = when (style) {
         "tinted" -> cs.primary to 0.50f
         "dark" -> Color.Black to 0.38f

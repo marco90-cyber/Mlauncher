@@ -72,6 +72,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -115,6 +117,7 @@ private fun pageTitle(key: String?) = when (key) {
     "gestures" -> "Gesti e vibrazione"
     "look" -> "Tema e animazioni"
     "backup" -> "Backup e manutenzione"
+    "wallpaper" -> "Sfondo"
     "info" -> "Informazioni"
     "log" -> "Registro log"
     else -> "Impostazioni"
@@ -214,7 +217,8 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "drawer" -> PageDrawer(vm)
                     "widgets" -> PageWidgets(vm, host)
                     "gestures" -> PageGestures(vm, host)
-                    "look" -> PageLook(vm)
+                    "look" -> PageLook(vm, host)
+                    "wallpaper" -> PageWallpaper(vm, host)
                     "backup" -> PageBackup(vm, host)
                     "log" -> PageLog(vm)
                     else -> PageInfo(vm, host)
@@ -290,6 +294,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     }
     val sections = listOf(
         "Personalizza" to listOf(
+            Cat("wallpaper", "Sfondo", if (vm.customWallActive) "Sfondo di MLauncher" + (if (s.liquid) " \u00b7 Liquid Glass" else "") else "Sfondo di Android", Icons.Default.Create),
             Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home") + " \u00b7 indicatore di pagina", Icons.Default.Home),
             Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 ${DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""}", Icons.Default.Menu),
             Cat("folders", "Cartelle", "Forma, anteprima, sfocatura", Icons.Default.List),
@@ -340,7 +345,7 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
     val cs = MaterialTheme.colorScheme
     val words = q.lowercase().split(' ').filter { it.isNotBlank() }
     val drawerOn = vm.settings.homeMode == "drawer"
-    val pages = listOf("home", "dock", "icons", "folders", "drawer", "widgets", "gestures", "look", "backup", "log", "info")
+    val pages = listOf("wallpaper", "home", "dock", "icons", "folders", "drawer", "widgets", "gestures", "look", "backup", "log", "info")
     val results = remember(q, drawerOn) {
         val pageHits = pages.filter { p -> words.all { pageTitle(p).lowercase().contains(it) } }
             .map { SettingEntry(pageTitle(it), it, "", "Apri la sezione") }
@@ -444,6 +449,101 @@ private fun PageLog(vm: LauncherViewModel) {
                 log = ""
             }
         )
+    }
+}
+
+@Composable
+private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(vm.wallError) {
+        if (vm.wallError > 0) android.widget.Toast.makeText(
+            ctx, "Immagine non disponibile. Android a volte non lascia leggere il suo sfondo: sceglilo dalla galleria", android.widget.Toast.LENGTH_LONG
+        ).show()
+    }
+    Group("Quale sfondo") {
+        ChoiceRow(
+            "Sfondo della Home",
+            listOf("system" to "Quello di Android", "custom" to "Scelto in MLauncher"),
+            s.wallMode
+        ) {
+            vm.setSetting("wallMode", it)
+            vm.readWallpaperHint()
+        }
+        Text(
+            "Con lo sfondo scelto in MLauncher hai il Liquid Glass completo, la parallasse e i colori presi dalla tua immagine. Gli sfondi animati funzionano solo con \"Quello di Android\".",
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+    if (s.wallMode == "custom") {
+        val bm = vm.wallBitmap
+        if (bm != null) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.Image(
+                bm, contentDescription = "Sfondo attuale",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(120.dp, 250.dp).clip(RoundedCornerShape(22.dp)).border(1.dp, cs.outlineVariant, RoundedCornerShape(22.dp))
+            )
+        }
+        Group("Scegli l'immagine") {
+            ListItem(
+                headlineContent = { Text(if (vm.wallBusy) "Preparo lo sfondo\u2026" else "Dalla galleria") },
+                supportingContent = { Text("Una tua foto o un'immagine qualsiasi") },
+                colors = prefColors(),
+                modifier = Modifier.clickable { host.pickWallpaperImage() }
+            )
+            ListItem(
+                headlineContent = { Text("Importa lo sfondo di Android") },
+                supportingContent = { Text("Copia quello che hai adesso, se il sistema lo permette") },
+                colors = prefColors(),
+                modifier = Modifier.clickable { vm.importSystemWallpaper() }
+            )
+            Column(Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(12.dp)) {
+                Text("Sfondi inclusi", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    BUILTIN_WALLS.forEach { (k, l) ->
+                        val thumb = remember(k) { builtinWall(k, 90, 180).asImageBitmap() }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { vm.builtinWallpaper(k) }) {
+                            androidx.compose.foundation.Image(
+                                thumb, contentDescription = l,
+                                modifier = Modifier.size(60.dp, 120.dp).clip(RoundedCornerShape(14.dp))
+                            )
+                            Text(l, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
+                }
+            }
+        }
+        if (bm != null) {
+            Group("Effetti") {
+                SliderRow("Scurisci", if (s.wallDim == 0) "No" else "${s.wallDim}%", s.wallDim.toFloat(), 0f..60f, 11) {
+                    val v = (it / 5f).roundToInt() * 5
+                    if (v != s.wallDim) vm.setSetting("wallDim", v)
+                }
+                SliderRow("Sfoca", if (s.wallBlur == 0) "No" else "${s.wallBlur} dp", s.wallBlur.toFloat(), 0f..24f, 11) {
+                    val v = (it / 2f).roundToInt() * 2
+                    if (v != s.wallBlur) vm.setSetting("wallBlur", v)
+                }
+                SwitchRow("Parallasse", "Lo sfondo scorre piano quando cambi pagina", s.wallParallax) { vm.setSetting("wallParallax", it) }
+            }
+            Group("Schermata di blocco") {
+                ListItem(
+                    headlineContent = { Text("Usa anche sulla schermata di blocco") },
+                    supportingContent = { Text("Imposta questa immagine come sfondo di blocco di Android. Per uno diverso, scegli lì un'altra immagine") },
+                    colors = prefColors(),
+                    modifier = Modifier.clickable {
+                        val ok = vm.wallpaperToLockScreen()
+                        android.widget.Toast.makeText(ctx, if (ok) "Sfondo di blocco impostato" else "Non riuscito", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -1006,8 +1106,30 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
 }
 
 @Composable
-private fun PageLook(vm: LauncherViewModel) {
+private fun PageLook(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
+    Group("Liquid Glass") {
+        SwitchRow(
+            "Tema Liquid Glass",
+            "Dock, cartelle, indicatore e widget in vetro liquido che piega e sfoca lo sfondo",
+            s.liquid
+        ) {
+            vm.setSetting("liquid", it)
+            if (it) {
+                vm.setSetting("dockStyle", "liquid")
+                vm.setSetting("folderFollowDock", true)
+                vm.setSetting("indFollowDock", true)
+            } else if (s.dockStyle == "liquid") {
+                vm.setSetting("dockStyle", "glass")
+            }
+        }
+        if (s.liquid && !vm.customWallActive) ListItem(
+            headlineContent = { Text("Scegli uno sfondo di MLauncher") },
+            supportingContent = { Text("Con lo sfondo di Android il vetro è imitato: per la lente e la sfocatura vere serve uno sfondo scelto in MLauncher") },
+            colors = prefColors(),
+            modifier = Modifier.clickable { vm.settingsPage = "wallpaper" }
+        )
+    }
     Group("Tema") {
         ChoiceRow(
             "Tema",
