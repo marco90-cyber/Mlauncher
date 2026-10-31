@@ -142,7 +142,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var homeScroll by mutableFloatStateOf(0f)
     var wallBusy by mutableStateOf(false)
         private set
-    val customWallActive: Boolean get() = settings.wallMode == "custom" && wallBitmap != null
+    /** lo sfondo è sempre quello di MLauncher: attivo appena l'immagine è caricata */
+    val customWallActive: Boolean get() = wallBitmap != null
+    /** misura reale della finestra (per ritagliare lo sfondo nella proporzione giusta) */
+    var screenPx by mutableStateOf(androidx.compose.ui.unit.IntSize.Zero)
+    /** immagine aperta nell'editor dello sfondo (null = editor chiuso) */
+    var wallEditSrc by mutableStateOf<Bitmap?>(null)
+        private set
 
     private fun maxWallSide(): Int {
         val m = ctx.resources.displayMetrics
@@ -155,6 +161,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (!f.exists()) {
             wallBitmap = null
             wallSeed = null
+            // primo avvio: provo a copiare lo sfondo di Android, altrimenti uno di quelli inclusi
+            setWallpaperFrom(keepSource = true) { systemWallpaperBitmap() ?: defaultBuiltin() }
             return
         }
         viewModelScope.launch {
@@ -171,7 +179,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Salva come sfondo di MLauncher un'immagine scelta (galleria, sfondo di Android o incluso). */
-    fun setWallpaperFrom(load: () -> Bitmap?) {
+    fun setWallpaperFrom(keepSource: Boolean = true, load: () -> Bitmap?) {
         if (wallBusy) return
         wallBusy = true
         viewModelScope.launch {
@@ -179,6 +187,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 try {
                     val bm = load() ?: return@withContext false
                     java.io.FileOutputStream(wallFile(ctx)).use { bm.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+                    // l'originale serve per poterlo ritagliare di nuovo
+                    if (keepSource) java.io.FileOutputStream(wallSrcFile(ctx)).use { bm.compress(Bitmap.CompressFormat.JPEG, 92, it) }
                     true
                 } catch (e: Throwable) {
                     AppLog.e("Sfondo non salvato", e)
@@ -198,26 +208,90 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var wallError by mutableIntStateOf(0)
         private set
 
-    fun pickedWallpaper(uri: Uri) = setWallpaperFrom {
-        decodeScaled({ ctx.contentResolver.openInputStream(uri) }, maxWallSide())
+    /** Foto scelta dalla galleria: si apre l'editor per ritagliarla e regolarla. */
+    fun pickedWallpaper(uri: Uri) = openWallEditor {
+        decodeScaled({ ctx.contentResolver.openInputStream(uri) }, 2600)
     }
 
+    private fun defaultBuiltin(): Bitmap {
+        val (w, h) = wallTarget()
+        return builtinWall("aurora", w, h)
+    }
+
+    /** Sfondo incluso: si applica subito (si può poi modificare). */
     fun builtinWallpaper(key: String) = setWallpaperFrom {
-        val m = ctx.resources.displayMetrics
-        builtinWall(key, (m.widthPixels * 1.3f).toInt(), m.heightPixels)
+        val (w, h) = wallTarget()
+        builtinWall(key, w, h)
     }
 
-    /** Prova a copiare lo sfondo di Android (non sempre il sistema lo permette). */
-    fun importSystemWallpaper() = setWallpaperFrom {
+    private fun systemWallpaperBitmap(): Bitmap? {
         val d = try {
             android.app.WallpaperManager.getInstance(ctx).drawable
         } catch (e: Throwable) {
             null
-        } ?: return@setWallpaperFrom null
-        drawableToBitmap(d, 0).let { bm ->
-            val big = max(bm.width, bm.height)
-            val ms = maxWallSide()
-            if (big <= ms) bm else Bitmap.createScaledBitmap(bm, bm.width * ms / big, bm.height * ms / big, true)
+        } ?: return null
+        return try {
+            drawableToBitmap(d, 0).let { bm ->
+                val big = max(bm.width, bm.height)
+                if (big <= 2600) bm else Bitmap.createScaledBitmap(bm, bm.width * 2600 / big, bm.height * 2600 / big, true)
+            }
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    /** Prova a copiare lo sfondo di Android (non sempre il sistema lo permette) e apre l'editor. */
+    fun importSystemWallpaper() = openWallEditor { systemWallpaperBitmap() }
+
+    /** Riapre l'editor sull'immagine originale dello sfondo attuale. */
+    fun editCurrentWallpaper() = openWallEditor {
+        val f = wallSrcFile(ctx).takeIf { it.exists() } ?: wallFile(ctx)
+        BitmapFactory.decodeFile(f.path)
+    }
+
+    private fun openWallEditor(load: () -> Bitmap?) {
+        if (wallBusy) return
+        wallBusy = true
+        viewModelScope.launch {
+            val bm = withContext(Dispatchers.IO) { try { load() } catch (e: Throwable) { null } }
+            wallBusy = false
+            if (bm == null) wallError += 1 else wallEditSrc = bm
+        }
+    }
+
+    fun closeWallEditor() {
+        wallEditSrc = null
+    }
+
+    /** Misura dello sfondo salvato: alto come lo schermo, largo abbastanza per la parallasse. */
+    fun wallTarget(): Pair<Int, Int> {
+        val sw = if (screenPx.width > 0) screenPx.width else ctx.resources.displayMetrics.widthPixels
+        val sh = if (screenPx.height > 0) screenPx.height else ctx.resources.displayMetrics.heightPixels
+        val sw2 = minOf(sw, sh) // lo sfondo si prepara per il verticale
+        val sh2 = max(sw, sh)
+        return (sw2 * WALL_WIDE).toInt() to sh2
+    }
+
+    /** Salva il risultato dell'editor: ritaglio [crop] (in pixel dell'immagine) e regolazioni colore [matrix]. */
+    fun applyWallEdit(src: Bitmap, crop: android.graphics.RectF, matrix: FloatArray?) {
+        wallEditSrc = null
+        setWallpaperFrom(keepSource = false) {
+            val (w, h) = wallTarget()
+            val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(out)
+            val p = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG)
+            if (matrix != null) p.colorFilter = android.graphics.ColorMatrixColorFilter(matrix)
+            c.drawBitmap(
+                src,
+                android.graphics.Rect(crop.left.toInt(), crop.top.toInt(), crop.right.toInt(), crop.bottom.toInt()),
+                android.graphics.Rect(0, 0, w, h),
+                p
+            )
+            // l'originale (già ruotato/specchiato nell'editor) resta per i prossimi ritagli
+            try {
+                java.io.FileOutputStream(wallSrcFile(ctx)).use { src.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+            } catch (e: Throwable) { }
+            out
         }
     }
 

@@ -82,7 +82,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
         val wall = if (vm.customWallActive && wb != null && rootSize.width > 0) androidx.compose.runtime.remember(wb, rootSize, vm.settings.wallParallax) {
             WallRender(wb, rootSize.width.toFloat(), rootSize.height.toFloat(), vm.settings.wallParallax) { vm.homeScroll }
         } else null
-        Box(Modifier.fillMaxSize().onSizeChanged { rootSize = it }) {
+        Box(Modifier.fillMaxSize().onSizeChanged { rootSize = it; vm.screenPx = it }) {
             androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
                 Box(Modifier.fillMaxSize().blur(blurRadius)) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
@@ -99,6 +99,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
 
     vm.lastCrash?.let { CrashDialog(it, vm) }
     if (vm.showWelcome) WelcomeScreen(vm, host)
+    vm.wallEditSrc?.let { WallpaperEditor(vm, it) }
 
     // l'ordine conta: l'ultimo registrato ha la precedenza
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }

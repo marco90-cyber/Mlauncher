@@ -407,8 +407,7 @@ private fun PickDock(vm: LauncherViewModel) {
         }
     }
     if (s.dockStyle == "liquid") Text(
-        if (vm.customWallActive) "Tema Liquid Glass: anche cartelle, indicatore e widget diventano di vetro liquido."
-        else "Tema Liquid Glass: per la lente e la sfocatura vere scegli uno sfondo di MLauncher (prima schermata).",
+        "Tema Liquid Glass: anche cartelle, indicatore e widget diventano di vetro liquido.",
         color = cs.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
         textAlign = TextAlign.Center,
@@ -489,22 +488,16 @@ private fun PickWallpaper(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val dark = isDarkPreview(s.theme)
-    Headline("Il tuo sfondo", "Quello di Android oppure uno scelto qui: con questo hai il Liquid Glass completo e i colori presi dall'immagine.")
-    AB(
-        s.wallMode == "system", s.wallMode == "custom", "Quello di\nAndroid", "Scelto in\nMLauncher",
-        { vm.setSetting("wallMode", "system"); vm.readWallpaperHint() },
-        {
-            vm.setSetting("wallMode", "custom")
-            if (vm.wallBitmap == null) vm.builtinWallpaper("aurora") else vm.readWallpaperHint()
-        },
-        { MiniPhone(mini(vm.settings, dark)) },
-        { MiniPhone(mini(vm.settings, dark).copy(wall = vm.wallBitmap)) }
-    )
-    if (s.wallMode == "custom") {
+    Headline("Il tuo sfondo", "Scegli una tua foto e ritagliala, oppure uno degli sfondi inclusi. I colori del Launcher si prendono dall'immagine.")
+    Box(Modifier.fillMaxWidth(0.5f).aspectRatio(0.52f).clip(RoundedCornerShape(26.dp)).border(1.dp, cs.outlineVariant, RoundedCornerShape(26.dp)).padding(6.dp)) {
+        MiniPhone(mini(vm, dark))
+    }
+    run {
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(onClick = { host.pickWallpaperImage() }, modifier = Modifier.weight(1f)) { Text("Dalla galleria") }
+            OutlinedButton(onClick = { host.pickWallpaperImage() }, modifier = Modifier.weight(1f)) { Text("Galleria") }
             OutlinedButton(onClick = { vm.importSystemWallpaper() }, modifier = Modifier.weight(1f)) { Text("Importa") }
+            OutlinedButton(onClick = { vm.editCurrentWallpaper() }, modifier = Modifier.weight(1f)) { Text("Modifica") }
         }
         Spacer(Modifier.height(12.dp))
         Row(
@@ -520,14 +513,6 @@ private fun PickWallpaper(vm: LauncherViewModel, host: Host) {
             }
         }
         if (vm.wallBusy) Text("Preparo lo sfondo…", color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-    } else {
-        Text(
-            "Va bene anche per gli sfondi animati. Puoi cambiare idea da Impostazioni → Sfondo.",
-            color = cs.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 14.dp)
-        )
     }
 }
 

@@ -60,7 +60,7 @@ class WallRender(
     val parallax: Boolean,
     private val scrollOf: () -> Float
 ) {
-    val scale = max(screenW * (if (parallax) 1.22f else 1f) / bmp.width, screenH / bmp.height)
+    val scale = max(screenW * (if (parallax) WALL_WIDE else 1f) / bmp.width, screenH / bmp.height)
     val dw = bmp.width * scale
     val dh = bmp.height * scale
     val offY = -(dh - screenH) / 2f
@@ -77,6 +77,12 @@ val LocalLiquid = staticCompositionLocalOf { false }
 val LocalGlassDarkText = staticCompositionLocalOf { false }
 
 fun wallFile(ctx: android.content.Context) = File(ctx.filesDir, "wallpaper.jpg")
+
+/** Immagine originale dello sfondo, per poterla ritagliare di nuovo. */
+fun wallSrcFile(ctx: android.content.Context) = File(ctx.filesDir, "wallpaper_src.jpg")
+
+/** Lo sfondo è più largo dello schermo per la parallasse. */
+const val WALL_WIDE = 1.22f
 
 /** Decodifica un'immagine ridimensionandola alla misura utile per lo schermo. */
 fun decodeScaled(open: () -> java.io.InputStream?, maxSide: Int): Bitmap? {

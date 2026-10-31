@@ -5,7 +5,7 @@ package com.marco.mlauncher
 class SettingEntry(val title: String, val page: String, val group: String, val hint: String)
 
 val SETTINGS_INDEX = listOf(
-    SettingEntry("Sfondo della Home", "wallpaper", "Quale sfondo", ""),
+    SettingEntry("Modifica lo sfondo attuale", "wallpaper", "Scegli l'immagine", ""),
     SettingEntry("Importa lo sfondo di Android", "wallpaper", "Scegli l'immagine", ""),
     SettingEntry("Scurisci", "wallpaper", "Effetti", ""),
     SettingEntry("Sfoca", "wallpaper", "Effetti", ""),
@@ -76,7 +76,6 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("A ogni pagina", "gestures", "Quando vibrare", "Un tocco leggero quando cambi pagina nella Home"),
     SettingEntry("Scorrimento e selezione", "gestures", "Quando vibrare", "Ridimensionamento, lista del cassetto, gesti su e giù"),
     SettingEntry("Tema Liquid Glass", "look", "Liquid Glass", "Dock, cartelle, indicatore e widget in vetro liquido che piega e sfoca lo sfondo"),
-    SettingEntry("Scegli uno sfondo di MLauncher", "look", "Liquid Glass", ""),
     SettingEntry("Tema", "look", "Tema", ""),
     SettingEntry("Colori", "look", "Tema", ""),
     SettingEntry("Velocità animazioni", "look", "Animazioni", ""),
