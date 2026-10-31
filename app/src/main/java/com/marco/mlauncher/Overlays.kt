@@ -203,7 +203,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val fgColor = if (followDock && dockSpec != null) {
                     val st = if (dockSpec.style == "bar") "pill" else dockSpec.style
                     val base = when (st) {
-                        "tinted" -> csF.primaryContainer
+                        "tinted" -> csF.primary
                         "pill" -> csF.surfaceContainer
                         else -> Color.White
                     }

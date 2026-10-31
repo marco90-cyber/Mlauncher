@@ -32,7 +32,7 @@ fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, s
     if (style == "none" || style == "tiles") return this
     val cs = MaterialTheme.colorScheme
     val (base, a) = when (style) {
-        "tinted" -> cs.primaryContainer to 0.55f
+        "tinted" -> cs.primary to 0.50f // segue il colore scelto (o quello dello sfondo)
         "dark" -> Color.Black to 0.38f
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
@@ -66,7 +66,7 @@ fun dockContentColor(style: String, opacity: Int): Color {
     val cs = MaterialTheme.colorScheme
     if (style == "none") return Color.White
     val (base, a0) = when (style) {
-        "tinted" -> cs.primaryContainer to 0.55f
+        "tinted" -> cs.primary to 0.50f
         "dark" -> Color.Black to 0.38f
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
@@ -145,7 +145,7 @@ fun folderTextColor(style: String, opacity: Int, base: Color, surface: Color, fa
     )
     val backdrop = Color(0xFF303030)
     val tint = when (style) {
-        "tinted" -> base to 0.55f
+        "tinted" -> base to 0.50f
         "dark" -> Color.Black to 0.38f
         "pill" -> base to 0.85f
         "bar" -> base to 0.70f
