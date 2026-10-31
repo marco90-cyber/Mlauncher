@@ -172,8 +172,9 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                 val ih = bmp.height * sc
                 // l'immagine deve sempre coprire la cornice
                 fun clampPan(p: Offset): Offset {
-                    val maxX = (iw - fw) / 2f
-                    val maxY = (ih - fh) / 2f
+                    // max(0) evita intervalli vuoti per gli arrotondamenti quando l'immagine combacia con la cornice
+                    val maxX = max(0f, (iw - fw) / 2f)
+                    val maxY = max(0f, (ih - fh) / 2f)
                     return Offset(p.x.coerceIn(-maxX, maxX), p.y.coerceIn(-maxY, maxY))
                 }
                 val clampNow = androidx.compose.runtime.rememberUpdatedState<(Offset) -> Offset> { o -> clampPan(o) }
