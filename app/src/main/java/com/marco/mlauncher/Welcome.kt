@@ -53,6 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -66,7 +68,7 @@ import kotlinx.coroutines.delay
  * infine "Tutto pronto" con Home predefinita e permessi facoltativi.
  */
 
-private enum class Step { HELLO, THEME, COLORS, MODE, FOLDERS, ICONS, DOCK, DONE }
+private enum class Step { HELLO, WALLPAPER, THEME, COLORS, MODE, FOLDERS, ICONS, DOCK, DONE }
 
 @Composable
 fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
@@ -109,6 +111,7 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
                 ) {
                     when (st) {
                         Step.HELLO -> Hello(onStart = { next() }, onBackup = { host.importBackup() })
+                        Step.WALLPAPER -> PickWallpaper(vm, host)
                         Step.THEME -> PickTheme(vm)
                         Step.COLORS -> PickColors(vm)
                         Step.MODE -> PickMode(vm)
@@ -244,8 +247,8 @@ private fun PickTheme(vm: LauncherViewModel) {
     AB(
         s.theme == "light", s.theme == "dark", "Chiaro", "Scuro",
         { vm.setSetting("theme", "light") }, { vm.setSetting("theme", "dark") },
-        { MiniPhone(mini(s, false)) },
-        { MiniPhone(mini(s, true)) }
+        { MiniPhone(mini(vm, false)) },
+        { MiniPhone(mini(vm, true)) }
     )
     Spacer(Modifier.height(16.dp))
     FilterChip(
@@ -261,7 +264,7 @@ private fun PickColors(vm: LauncherViewModel) {
     val cs = MaterialTheme.colorScheme
     Headline("I tuoi colori", "Dallo sfondo, come Material You, oppure un colore fisso.")
     Box(Modifier.fillMaxWidth(0.5f).aspectRatio(0.52f).clip(RoundedCornerShape(26.dp)).border(1.dp, cs.outlineVariant, RoundedCornerShape(26.dp)).padding(6.dp)) {
-        MiniPhone(mini(s, isDarkPreview(s.theme)))
+        MiniPhone(mini(vm, isDarkPreview(s.theme)))
     }
     Spacer(Modifier.height(20.dp))
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -296,8 +299,8 @@ private fun PickMode(vm: LauncherViewModel) {
         s.homeMode == "drawer", s.homeMode == "all", "Home e cassetto\n(scorri in su)", "Tutte le app\nin Home",
         { if (s.homeMode != "drawer") vm.setSetting("homeMode", "drawer") },
         { if (s.homeMode != "all") vm.setSetting("homeMode", "all") },
-        { MiniPhone(mini(s, dark).copy(allApps = false, folders = false)) },
-        { MiniPhone(mini(s, dark).copy(allApps = true, folders = false)) }
+        { MiniPhone(mini(vm, dark).copy(allApps = false, folders = false)) },
+        { MiniPhone(mini(vm, dark).copy(allApps = true, folders = false)) }
     )
 }
 
@@ -309,8 +312,8 @@ private fun PickFolders(vm: LauncherViewModel) {
     AB(
         !s.autoFolders, s.autoFolders, "Icone sciolte", "Cartelle\nintelligenti",
         { vm.setSetting("autoFolders", false) }, { vm.setSetting("autoFolders", true) },
-        { MiniPhone(mini(s, dark).copy(folders = false)) },
-        { MiniPhone(mini(s, dark).copy(folders = true)) }
+        { MiniPhone(mini(vm, dark).copy(folders = false)) },
+        { MiniPhone(mini(vm, dark).copy(folders = true)) }
     )
     if (s.autoFolders) {
         Spacer(Modifier.height(16.dp))
@@ -347,7 +350,7 @@ private fun PickIcons(vm: LauncherViewModel) {
             PickCard(s.cols == c && s.rows == r, l, Modifier.weight(1f), {
                 if (s.cols != c) vm.setSetting("cols", c)
                 if (s.rows != r) vm.setSetting("rows", r)
-            }) { MiniPhone(mini(s, dark).copy(cols = c, rows = r, allApps = true, folders = false)) }
+            }) { MiniPhone(mini(vm, dark).copy(cols = c, rows = r, allApps = true, folders = false)) }
         }
     }
     Label("Forma")
@@ -390,12 +393,26 @@ private fun PickDock(vm: LauncherViewModel) {
     val cs = MaterialTheme.colorScheme
     val dark = isDarkPreview(s.theme)
     Headline("Ultimo!", "La dock e l'indicatore delle pagine.")
-    AB(
-        s.dockStyle == "glass", s.dockStyle == "pill", "Trasparente", "Pillola piena",
-        { vm.setSetting("dockStyle", "glass") },
-        { vm.setSetting("dockStyle", "pill") },
-        { MiniPhone(mini(s, dark).copy(dock = "glass")) },
-        { MiniPhone(mini(s, dark).copy(dock = "pill")) }
+    fun pickDock(k: String) {
+        vm.setSetting("liquid", k == "liquid")
+        vm.setSetting("dockStyle", k)
+        if (k == "liquid") {
+            vm.setSetting("folderFollowDock", true)
+            vm.setSetting("indFollowDock", true)
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf("liquid" to "Liquid\nGlass", "glass" to "Trasparente", "pill" to "Pillola\npiena").forEach { (k, l) ->
+            PickCard(s.dockStyle == k, l, Modifier.weight(1f), { pickDock(k) }) { MiniPhone(mini(vm, dark).copy(dock = k)) }
+        }
+    }
+    if (s.dockStyle == "liquid") Text(
+        if (vm.customWallActive) "Tema Liquid Glass: anche cartelle, indicatore e widget diventano di vetro liquido."
+        else "Tema Liquid Glass: per la lente e la sfocatura vere scegli uno sfondo di MLauncher (prima schermata).",
+        color = cs.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 10.dp)
     )
     Row(
         Modifier.fillMaxWidth().padding(top = 16.dp).clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh)
@@ -458,6 +475,60 @@ private fun Done(vm: LauncherViewModel, host: Host) {
         "Puntini delle notifiche", "Quante notifiche ha ogni app, sulla sua icona",
         vm.listenerEnabled, "Attiva"
     ) { host.openListenerSettings() }
+    SetupRow(
+        "Backup automatico", "Ogni settimana in una cartella a scelta (cambi frequenza nelle impostazioni)",
+        vm.settings.autoBackup && vm.settings.backupDir.isNotEmpty(), "Attiva"
+    ) {
+        vm.setSetting("autoBackup", true)
+        host.pickBackupFolder()
+    }
+}
+
+@Composable
+private fun PickWallpaper(vm: LauncherViewModel, host: Host) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    val dark = isDarkPreview(s.theme)
+    Headline("Il tuo sfondo", "Quello di Android oppure uno scelto qui: con questo hai il Liquid Glass completo e i colori presi dall'immagine.")
+    AB(
+        s.wallMode == "system", s.wallMode == "custom", "Quello di\nAndroid", "Scelto in\nMLauncher",
+        { vm.setSetting("wallMode", "system"); vm.readWallpaperHint() },
+        {
+            vm.setSetting("wallMode", "custom")
+            if (vm.wallBitmap == null) vm.builtinWallpaper("aurora") else vm.readWallpaperHint()
+        },
+        { MiniPhone(mini(vm.settings, dark)) },
+        { MiniPhone(mini(vm.settings, dark).copy(wall = vm.wallBitmap)) }
+    )
+    if (s.wallMode == "custom") {
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(onClick = { host.pickWallpaperImage() }, modifier = Modifier.weight(1f)) { Text("Dalla galleria") }
+            OutlinedButton(onClick = { vm.importSystemWallpaper() }, modifier = Modifier.weight(1f)) { Text("Importa") }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            BUILTIN_WALLS.forEach { (k, l) ->
+                val thumb = remember(k) { builtinWall(k, 90, 180).asImageBitmap() }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { vm.builtinWallpaper(k) }) {
+                    androidx.compose.foundation.Image(thumb, contentDescription = l, modifier = Modifier.size(52.dp, 104.dp).clip(RoundedCornerShape(12.dp)))
+                    Text(l, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+        if (vm.wallBusy) Text("Preparo lo sfondo…", color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+    } else {
+        Text(
+            "Va bene anche per gli sfondi animati. Puoi cambiare idea da Impostazioni → Sfondo.",
+            color = cs.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 14.dp)
+        )
+    }
 }
 
 @Composable
@@ -506,7 +577,8 @@ private data class Mini(
     val shape: String,
     val scale: Float,
     val labels: Boolean,
-    val indicator: String
+    val indicator: String,
+    val wall: androidx.compose.ui.graphics.ImageBitmap? = null
 )
 
 /** Miniatura con le scelte fatte finora. */
@@ -524,6 +596,9 @@ private fun mini(s: LauncherSettings, dark: Boolean) = Mini(
     indicator = s.pageIndicator
 )
 
+/** Come [mini], con l'immagine dello sfondo di MLauncher se c'è. */
+private fun mini(vm: LauncherViewModel, dark: Boolean) = mini(vm.settings, dark).copy(wall = if (vm.customWallActive) vm.wallBitmap else null)
+
 @Composable
 private fun BoxScope.MiniPhone(m: Mini) {
     val cs = MaterialTheme.colorScheme
@@ -539,8 +614,13 @@ private fun BoxScope.MiniPhone(m: Mini) {
         "ios" -> RoundedCornerShape(iconSz * 0.28f)
         else -> RoundedCornerShape(iconSz * 0.32f)
     }
+    if (m.wall != null) androidx.compose.foundation.Image(
+        m.wall, contentDescription = null,
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        modifier = Modifier.matchParentSize().clip(RoundedCornerShape(20.dp))
+    )
     Column(
-        Modifier.matchParentSize().clip(RoundedCornerShape(20.dp)).background(wall).padding(8.dp)
+        Modifier.matchParentSize().clip(RoundedCornerShape(20.dp)).then(if (m.wall == null) Modifier.background(wall) else Modifier).padding(8.dp)
     ) {
         Text("10:08", fontSize = 7.sp, color = widgetFg.copy(alpha = 0.8f))
         Spacer(Modifier.height(5.dp))
@@ -588,9 +668,12 @@ private fun BoxScope.MiniPhone(m: Mini) {
             "dark" -> Modifier.clip(shape).background(Color.Black.copy(alpha = 0.4f))
             "tinted" -> Modifier.clip(shape).background(cs.primaryContainer.copy(alpha = 0.6f))
             "none", "tiles" -> Modifier
+            "liquid" -> Modifier.clip(shape).background(Color.White.copy(alpha = 0.14f))
+                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent, Color.White.copy(alpha = 0.15f))))
+                .border(1.5.dp, Brush.linearGradient(listOf(Color.White, Color.White.copy(alpha = 0.1f), Color.White.copy(alpha = 0.7f))), shape)
             else -> Modifier.clip(shape).background(Color.White.copy(alpha = 0.22f))
         }.let {
-            if (m.glass && m.dock != "none" && m.dock != "tiles")
+            if (m.glass && m.dock != "none" && m.dock != "tiles" && m.dock != "liquid")
                 it.background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)))
                     .border(1.dp, Color.White.copy(alpha = 0.75f), shape)
             else it
