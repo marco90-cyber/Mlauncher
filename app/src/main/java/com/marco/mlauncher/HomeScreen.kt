@@ -62,6 +62,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -240,7 +241,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         DragCallbacks(
             start = { item, pos ->
                 menuItem = null
-                drag = DragState(item, pos)
+                if (!vm.blockedByLock()) drag = DragState(item, pos)
             },
             move = { pos -> drag?.pos = pos },
             end = {
@@ -326,6 +327,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         }
         sm.registerListener(l, acc, android.hardware.SensorManager.SENSOR_DELAY_UI)
         onDispose { sm.unregisterListener(l) }
+    }
+
+    // Home bloccata: avviso quando si prova a cambiarla
+    val ctxL = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(vm.lockedSignal) {
+        if (vm.lockedSignal > 0) {
+            Haptics.reject(view)
+            android.widget.Toast.makeText(ctxL, "Home bloccata: sbloccala tenendo premuto uno spazio vuoto", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     // trascinamento iniziato nel cassetto: l'icona continua a seguire il dito sulla Home
@@ -481,7 +491,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
                     Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
-                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
+                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
                 }
                 if (!seascape) dockContent()
             }
@@ -494,7 +504,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         ) {
             Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
-            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
+            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
             Dock(
                 vm = vm,
                 host = host,
@@ -674,7 +684,7 @@ private fun BarButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PageDots(count: Int, state: PagerState, style: String, st: LauncherSettings, onSearch: () -> Unit) {
+private fun PageDots(count: Int, state: PagerState, style: String, st: LauncherSettings, darkText: Boolean = false, onSearch: () -> Unit) {
     val scope = rememberCoroutineScope()
     val view = androidx.compose.ui.platform.LocalView.current
     var scrubbing by remember { mutableStateOf(false) }
@@ -719,14 +729,14 @@ private fun PageDots(count: Int, state: PagerState, style: String, st: LauncherS
         // l'indicatore può prendere l'aspetto della dock (stile, trasparenza, vetro)
         val follow = st.indFollowDock && st.dockStyle != "none"
         val capsule = ios || scrubbing || follow
-        val fg = if (follow) dockContentColor(st.dockStyle, st.dockOpacity) else Color.White
+        val fg = if (follow) dockContentColor(st.dockStyle, st.dockOpacity) else if (darkText) Color(0xFF15171C) else Color.White
         val look = when {
             follow && st.dockStyle == "tiles" -> Modifier.dockTile(st.dockOpacity, st.dockGlass, 50.dp)
             follow -> Modifier.dockLook(if (st.dockStyle == "bar") "pill" else st.dockStyle, st.dockOpacity, st.dockGlass, 50.dp)
             else -> Modifier
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (capsule) 0.22f else 0f))
-                .border(1.dp, Color.White.copy(alpha = if (ios) 0.28f else 0f), CircleShape)
+                .background((if (darkText) Color.Black else Color.White).copy(alpha = if (capsule) (if (darkText) 0.10f else 0.22f) else 0f))
+                .border(1.dp, (if (darkText) Color.Black else Color.White).copy(alpha = if (ios) 0.22f else 0f), CircleShape)
         }
         Row(
             Modifier
@@ -1180,14 +1190,19 @@ private fun GridItem(
                     is FolderItem -> item.name
                     else -> ""
                 }
+                // nomi bianchi o scuri in base allo sfondo (o alla scelta nelle impostazioni)
+                val darkText = vm.labelDark
                 Text(
                     text = label,
-                    color = Color.White,
+                    color = if (darkText) Color(0xFF15171C) else Color.White,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
-                    style = TextStyle(shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), 4f)),
+                    style = TextStyle(
+                        shadow = if (darkText) Shadow(Color.White.copy(alpha = 0.55f), Offset(0f, 1f), 3f)
+                        else Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), 4f)
+                    ),
                     modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp)
                 )
             }
@@ -1395,6 +1410,7 @@ private fun StackManage(stack: StackItem, vm: LauncherViewModel, modifier: Modif
                                     "analog" -> "Orologio analogico"
                                     "battery" -> "Batteria"
                                     "search" -> "Ricerca"
+                                    "notes" -> "Nota"
                                     "weather" -> "Meteo"
                                     else -> vm.widgetMgr.getAppWidgetInfo(r.widgetId)
                                         ?.provider?.packageName ?: "Widget"
@@ -1547,8 +1563,12 @@ private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: (
         ) {
             Column(Modifier.padding(vertical = 8.dp)) {
                 HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); host.pickWallpaper() }
-                HomeMenuRow(Icons.Default.Add, "Widget") { onDismiss(); vm.overlay = Overlay.WIDGETS }
+                HomeMenuRow(Icons.Default.Add, "Widget") { onDismiss(); if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
                 HomeMenuRow(Icons.Default.Edit, "Modifica Home") { onDismiss(); vm.editMode = true }
+                HomeMenuRow(Icons.Default.Lock, if (vm.settings.lockHome) "Sblocca la Home" else "Blocca la Home") {
+                    onDismiss()
+                    vm.setSetting("lockHome", !vm.settings.lockHome)
+                }
                 HomeMenuRow(Icons.Default.Settings, "Impostazioni Home") { onDismiss(); vm.overlay = Overlay.SETTINGS }
             }
         }

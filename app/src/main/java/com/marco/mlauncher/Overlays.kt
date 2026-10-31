@@ -927,7 +927,9 @@ private fun AppMenu(app: AppEntry, expanded: Boolean, onDismiss: () -> Unit, vm:
             text = { Text("Aggiungi alla Home") },
             onClick = {
                 onDismiss()
-                if (vm.isOnHome(app.id)) {
+                if (vm.blockedByLock()) {
+                    // avviso già mostrato
+                } else if (vm.isOnHome(app.id)) {
                     Toast.makeText(ctx, "È già nella Home", Toast.LENGTH_SHORT).show()
                 } else {
                     vm.addToHome(app.id)

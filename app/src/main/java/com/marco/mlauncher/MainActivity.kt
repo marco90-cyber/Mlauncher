@@ -131,6 +131,7 @@ class MainActivity : ComponentActivity(), Host {
         super.onResume()
         updateDefault()
         vm.checkLocationPermission()
+        vm.readWallpaperHint()
         vm.refreshWeather()
         val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
         vm.listenerEnabled = enabled.contains(packageName)

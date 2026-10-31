@@ -492,6 +492,11 @@ private fun OrientationTabs(s: LauncherSettings) {
 private fun PageHome(vm: LauncherViewModel) {
     val s = vm.settings
     Group("Disposizione delle app") {
+        SwitchRow(
+            "Blocca la Home",
+            "Icone, cartelle e widget non si possono spostare né togliere. Si sblocca anche dal menu della Home",
+            s.lockHome
+        ) { vm.setSetting("lockHome", it) }
         var askOrder by remember { mutableStateOf(false) }
         ChoiceRow(
             "Modalità Home",
@@ -557,6 +562,11 @@ private fun PageHome(vm: LauncherViewModel) {
     }
     Group("Aspetto") {
         SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
+        if (s.showLabels) ChoiceRow(
+            "Colore dei nomi",
+            listOf("auto" to "Automatico (in base allo sfondo)", "white" to "Sempre bianchi", "dark" to "Sempre scuri"),
+            s.labelColor
+        ) { vm.setSetting("labelColor", it) }
         SwitchRow(
             "Rotazione della Home",
             "In orizzontale la dock passa a lato. Spento: la Home resta in verticale",

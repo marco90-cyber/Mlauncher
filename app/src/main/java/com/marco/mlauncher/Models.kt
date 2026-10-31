@@ -93,6 +93,9 @@ data class StackItem(
 
 class UpdateInfo(val version: String, val code: Int, val url: String, val page: String)
 
+/** Nota del widget "note veloci": testo, colore del foglio (chiave) e grandezza del testo (sp). */
+data class NoteData(val text: String = "", val color: String = "yellow", val size: Int = 15)
+
 class City(val name: String, val lat: Double, val lon: Double, val area: String = "")
 
 class WeatherHour(val label: String, val code: Int, val isDay: Boolean, val temp: Int, val pop: Int)
@@ -188,6 +191,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "auto") ?: "auto")
+    var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
+    /** colore dei nomi in Home: auto (dallo sfondo), white, dark */
+    var labelColor by mutableStateOf(sp.getString("labelColor", "auto") ?: "auto")
     var homeOpensDrawer by mutableStateOf(sp.getBoolean("homeOpensDrawer", true))
     var newAppDot by mutableStateOf(sp.getBoolean("newAppDot", true))
     var autoUpdateCheck by mutableStateOf(sp.getBoolean("autoUpdateCheck", true))
@@ -313,6 +319,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapPage" -> hapPage = value as Boolean
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
+            "lockHome" -> lockHome = value as Boolean
+            "labelColor" -> labelColor = value as String
             "homeOpensDrawer" -> homeOpensDrawer = value as Boolean
             "newAppDot" -> newAppDot = value as Boolean
             "autoUpdateCheck" -> autoUpdateCheck = value as Boolean

@@ -108,7 +108,45 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** testo cercato nelle impostazioni e voce da evidenziare dopo averla aperta */
     var settingsQuery by mutableStateOf("")
     var settingsHighlight by mutableStateOf<String?>(null)
-    var editMode by mutableStateOf(false)
+    private var editModeState by mutableStateOf(false)
+    /** modifica Home; con la Home bloccata non si entra (e si avvisa) */
+    var editMode: Boolean
+        get() = editModeState
+        set(v) {
+            if (v && settings.lockHome) {
+                lockedSignal += 1
+                return
+            }
+            editModeState = v
+        }
+    /** cresce ogni volta che si prova a cambiare la Home mentre è bloccata */
+    var lockedSignal by mutableIntStateOf(0)
+        private set
+
+    /** lo sfondo è chiaro: Android consiglia testo scuro sopra */
+    var wallDarkText by mutableStateOf(false)
+    val labelDark: Boolean
+        get() = when (settings.labelColor) {
+            "dark" -> true
+            "white" -> false
+            else -> wallDarkText
+        }
+
+    fun readWallpaperHint() {
+        try {
+            val c = android.app.WallpaperManager.getInstance(ctx).getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)
+            wallDarkText = c != null && (c.colorHints and android.app.WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+        } catch (e: Exception) {
+            // colori dello sfondo non disponibili
+        }
+    }
+
+    /** true se la Home è bloccata (e avvisa l'utente) */
+    fun blockedByLock(): Boolean {
+        if (!settings.lockHome) return false
+        lockedSignal += 1
+        return true
+    }
     var openFolderId by mutableStateOf<String?>(null)
     /** posizione della cartella toccata: la cartella aperta nasce da lì */
     var folderAnchor by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
@@ -496,8 +534,32 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val (p, x, y) = findFree(startPage, sx, sy)
         val w = minOf(sx, curCols)
         val h = minOf(sy, curRows)
-        items.add(WidgetItem(UUID.randomUUID().toString(), WidgetRef(kind), p, x, y, w, h))
+        items.add(WidgetItem(UUID.randomUUID().toString(), newRef(kind), p, x, y, w, h))
         ensurePages(p)
+    }
+
+    /** Riferimento per un nuovo widget interno: le note hanno un proprio id per il testo. */
+    private fun newRef(kind: String) = if (kind == "notes") WidgetRef("notes", -1, UUID.randomUUID().toString()) else WidgetRef(kind)
+
+    // ---------- note veloci ----------
+
+    /** testo, colore e grandezza di ogni nota (chiave = id della nota) */
+    val notes = mutableStateMapOf<String, NoteData>()
+
+    private fun loadNotes() {
+        for ((k, v) in sp.all) {
+            if (!k.startsWith("note_") || v !is String) continue
+            try {
+                val o = JSONObject(v)
+                notes[k.removePrefix("note_")] = NoteData(o.optString("t"), o.optString("c", "yellow"), o.optInt("s", 15))
+            } catch (e: Exception) { }
+        }
+    }
+
+    fun saveNote(id: String, n: NoteData) {
+        if (id.isEmpty()) return
+        notes[id] = n
+        sp.edit().putString("note_$id", JSONObject().put("t", n.text).put("c", n.color).put("s", n.size).toString()).apply()
     }
 
     /** Mette orologio e meteo in cima alla prima pagina, spostando le icone che occupano il posto. */
@@ -580,7 +642,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun addWidgetFromPicker(kind: String, sx: Int, sy: Int) {
         val t = stackTarget
-        if (t != null && addRefToStack(t, WidgetRef(kind))) return
+        if (t != null && addRefToStack(t, newRef(kind))) return
         addInternalWidget(kind, sx, sy, currentPage)
         overlay = Overlay.NONE
         saveLayout()
@@ -1055,6 +1117,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         o.put("pages", sp.getInt("pages", 1))
         sp.getString("layout_l", null)?.let { o.put("layout_l", JSONArray(it)); o.put("pages_l", sp.getInt("pages_l", 1)) }
         o.put("hidden", JSONArray(hidden.toList()))
+        o.put("notes", JSONObject().apply { notes.forEach { (k, n) -> put(k, JSONObject().put("t", n.text).put("c", n.color).put("s", n.size)) } })
         o.put("settings", settings.dump())
         return o.toString(2)
     }
@@ -1073,6 +1136,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 e.putString("layout_l", encodeItems(decodeItems(it, true)).toString()).putInt("pages_l", o.optInt("pages_l", 1))
             }
             e.apply()
+            o.optJSONObject("notes")?.let { no ->
+                for (k in no.keys()) no.optJSONObject(k)?.let { n ->
+                    saveNote(k, NoteData(n.optString("t"), n.optString("c", "yellow"), n.optInt("s", 15)))
+                }
+            }
             hidden.clear()
             val h = o.optJSONArray("hidden")
             if (h != null) for (i in 0 until h.length()) hidden.add(h.getString(i))
@@ -1321,6 +1389,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun startDrawerDrag(appId: String, pos: androidx.compose.ui.geometry.Offset) {
+        if (blockedByLock()) return
         openFolderId = null
         drawerDrag = DrawerDrag(appId, pos)
     }
@@ -2010,6 +2079,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     init {
         sp.getStringSet("known", null)?.let { knownIds.addAll(it) }
         sp.getStringSet("newApps", null)?.let { newApps.addAll(it) }
+        loadNotes()
         // le vecchie voci "cartelle per lettera/categoria" ora sono modalità delle cartelle intelligenti
         when (settings.homeOrder) {
             "letter_folders", "cat_folders" -> {
@@ -2034,6 +2104,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
         loadFromCache()
+        readWallpaperHint()
+        try {
+            android.app.WallpaperManager.getInstance(ctx).addOnColorsChangedListener(
+                { _, _ -> readWallpaperHint() }, android.os.Handler(android.os.Looper.getMainLooper())
+            )
+        } catch (e: Exception) { }
         refresh(null)
     }
 }

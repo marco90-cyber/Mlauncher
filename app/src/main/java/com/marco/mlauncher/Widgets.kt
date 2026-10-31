@@ -135,6 +135,7 @@ fun WidgetContent(
         "analog" -> AnalogClockWidget(host, onLongPress, modifier)
         "battery" -> BatteryWidget(host, onLongPress, modifier)
         "search" -> SearchWidget(vm, onLongPress, modifier, sample)
+        "notes" -> NotesWidget(ref, vm, onLongPress, modifier, sample)
         "weather" -> WeatherWidget(vm, host, onLongPress, modifier, sample)
         else -> ExtWidget(ref, vm, onLongPress, modifier)
     }
