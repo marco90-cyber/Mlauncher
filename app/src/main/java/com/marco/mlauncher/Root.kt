@@ -86,7 +86,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
             androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
                 Box(Modifier.fillMaxSize().blur(blurRadius)) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
-                    if (wall != null) WallpaperLayer(wall, vm.settings.wallDim / 100f, vm.settings.wallBlur.dp)
+                    if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm)) {
+                        WallpaperLayer(wall, vm.settings.wallDim / 100f, vm.settings.wallBlur.dp)
+                    }
                     if (vm.loaded) HomeScreen(vm, host)
                 }
                 FolderOverlay(vm, host)

@@ -420,9 +420,21 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         }
     }
 
+    // ritorno alla Home: anima l'avanzamento letto da icone, Home e sfondo
+    LaunchedEffect(vm.returnSignal) {
+        if (vm.returnSignal == 0) return@LaunchedEffect
+        val style = vm.settings.returnAnim
+        val dur = (returnDuration(if (style == "none") "settle" else style) * vm.settings.animFactor).toInt()
+        androidx.compose.animation.core.animate(0f, 1f, animationSpec = tween(dur, easing = androidx.compose.animation.core.LinearEasing)) { v, _ ->
+            vm.returnP = v
+        }
+        vm.returnP = 1f
+    }
+
     Box(
         Modifier
             .fillMaxSize()
+            .returnWhole(vm)
             .pointerInput(Unit) {
                 // mentre un'icona è tenuta premuta, un secondo dito che scorre cambia pagina
                 awaitPointerEventScope {
@@ -1138,7 +1150,7 @@ private fun GridItem(
     val app = (item as? AppItem)?.let { vm.apps[it.appId] }
     if (item is AppItem && app == null) return
 
-    Box(modifier.size(cellW, cellH)) {
+    Box(modifier.size(cellW, cellH).returnItem(vm, item)) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -1315,6 +1327,7 @@ private fun WidgetCell(
 
     Box(
         modifier
+            .returnItem(vm, item)
             .size(cellW * item.spanX, cellH * item.spanY)
             .padding(5.dp)
             .alpha(if (hidden) 0f else 1f)

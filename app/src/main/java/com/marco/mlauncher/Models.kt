@@ -192,6 +192,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "auto") ?: "auto")
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
+    var returnAnim by mutableStateOf(sp.getString("returnAnim", "settle") ?: "settle")
+    var returnOnApp by mutableStateOf(sp.getBoolean("returnOnApp", true))
+    var returnOnUnlock by mutableStateOf(sp.getBoolean("returnOnUnlock", true))
+    var returnBounce by mutableStateOf(sp.getBoolean("returnBounce", true))
+    var returnWallZoom by mutableStateOf(sp.getBoolean("returnWallZoom", true))
     /** sfondo: "system" (quello di Android) o "custom" (scelto e disegnato da MLauncher) */
     var wallMode by mutableStateOf(sp.getString("wallMode", "system") ?: "system")
     var wallDim by mutableIntStateOf(sp.getInt("wallDim", 0))
@@ -333,6 +338,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
             "lockHome" -> lockHome = value as Boolean
+            "returnAnim" -> returnAnim = value as String
+            "returnOnApp" -> returnOnApp = value as Boolean
+            "returnOnUnlock" -> returnOnUnlock = value as Boolean
+            "returnBounce" -> returnBounce = value as Boolean
+            "returnWallZoom" -> returnWallZoom = value as Boolean
             "wallMode" -> wallMode = value as String
             "wallDim" -> wallDim = value as Int
             "wallBlur" -> wallBlur = value as Int

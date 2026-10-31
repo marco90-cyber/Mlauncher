@@ -1128,6 +1128,22 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
             preview = { AccentPreview(it) }
         ) { vm.setSetting("accent", it) }
     }
+    Group("Ritorno alla Home") {
+        ChoiceRow("Animazione", RETURN_ANIMS, s.returnAnim) { vm.setSetting("returnAnim", it) }
+        SwitchRow("Quando torni da un'app", null, s.returnOnApp) { vm.setSetting("returnOnApp", it) }
+        SwitchRow("Quando sblocchi il telefono", null, s.returnOnUnlock) { vm.setSetting("returnOnUnlock", it) }
+        SwitchRow("Rimbalzo dell'icona", "L'icona dell'app appena chiusa fa un piccolo salto", s.returnBounce) { vm.setSetting("returnBounce", it) }
+        SwitchRow("Zoom dello sfondo", "Lo sfondo si allontana leggermente mentre le icone si assestano", s.returnWallZoom) { vm.setSetting("returnWallZoom", it) }
+        ListItem(
+            headlineContent = { Text("Prova l'animazione") },
+            supportingContent = { Text("Chiude le impostazioni e la mostra sulla Home") },
+            colors = prefColors(),
+            modifier = Modifier.clickable {
+                vm.overlay = Overlay.NONE
+                vm.playReturn(fromApp = false, force = true)
+            }
+        )
+    }
     Group("Animazioni") {
         ChoiceRow(
             "Velocità animazioni",

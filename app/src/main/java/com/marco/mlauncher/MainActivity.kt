@@ -128,6 +128,9 @@ class MainActivity : ComponentActivity(), Host {
         )
         window.isNavigationBarContrastEnforced = false
         syncOrientation(resources.configuration)
+        try {
+            registerReceiver(unlockReceiver, android.content.IntentFilter(Intent.ACTION_USER_PRESENT))
+        } catch (e: Exception) { }
         vm.checkUpdate(auto = true)
         vm.loadCrash()
         AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
@@ -139,13 +142,38 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    override fun onDestroy() {
+        try { unregisterReceiver(unlockReceiver) } catch (e: Exception) { }
+        super.onDestroy()
+    }
+
+    /** il Launcher è andato in secondo piano perché lo schermo si è spento */
+    private var stoppedByScreenOff = false
+    private var wasStopped = false
+
+    /** Sblocco del telefono: animazione di ritorno se la Home è quella che si vede. */
+    private val unlockReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context?, i: Intent?) {
+            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) vm.playReturn(fromApp = false)
+        }
+    }
+
     override fun onStart() {
         super.onStart()
+        // tornato da un'app (non dallo schermo spento): animazione di ritorno
+        if (wasStopped && !stoppedByScreenOff) vm.playReturn(fromApp = true)
+        wasStopped = false
         try { vm.widgetHost.startListening() } catch (e: Exception) { AppLog.e("Widget host non avviato", e) }
         AppLog.i("Home in primo piano")
     }
 
     override fun onStop() {
+        wasStopped = true
+        stoppedByScreenOff = try {
+            !getSystemService(android.os.PowerManager::class.java).isInteractive
+        } catch (e: Exception) {
+            false
+        }
         try { vm.widgetHost.stopListening() } catch (e: Exception) { }
         AppLog.i("Home in background")
         super.onStop()
@@ -222,6 +250,7 @@ class MainActivity : ComponentActivity(), Host {
             return
         }
         vm.recordLaunch(app.id)
+        vm.noteLaunched(app.id)
         AppLog.i("Apro ${app.label} (${app.pkg})")
         val i = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)

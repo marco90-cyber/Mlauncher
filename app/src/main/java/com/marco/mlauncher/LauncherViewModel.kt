@@ -333,6 +333,44 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // ---------- animazione di ritorno alla Home ----------
+
+    /** avanzamento dell'animazione di ritorno (1 = ferma) */
+    var returnP by mutableFloatStateOf(1f)
+    var returnSignal by mutableIntStateOf(0)
+        private set
+    /** ultima app aperta dalla Home (per il rimbalzo e l'onda) */
+    var returnAppId by mutableStateOf<String?>(null)
+        private set
+    /** cella da cui parte l'onda (colonna, riga) */
+    var returnOrigin by mutableStateOf(0f to 0f)
+        private set
+    private var launchedId: String? = null
+
+    fun noteLaunched(appId: String) {
+        launchedId = appId
+    }
+
+    /** [fromApp] true = tornato da un'app, false = sblocco del telefono. */
+    fun playReturn(fromApp: Boolean, force: Boolean = false) {
+        val s = settings
+        if (!force && (if (fromApp) !s.returnOnApp else !s.returnOnUnlock)) return
+        if (s.returnAnim == "none" && !s.returnBounce) return
+        if (overlay != Overlay.NONE || openFolderId != null || editMode) return
+        val id = if (fromApp) launchedId else null
+        returnAppId = id
+        val hit = if (id == null) null else items.firstOrNull { i ->
+            (i.page == currentPage || i.page == -1) && ((i is AppItem && i.appId == id) || (i is FolderItem && id in i.appIds))
+        }
+        returnOrigin = when {
+            hit == null -> (gridCols / 2f) to (gridRows / 2f)
+            hit.page == -1 -> (hit.x.toFloat() * gridCols / dockCount.coerceAtLeast(1)) to gridRows.toFloat()
+            else -> (hit.x + hit.spanX / 2f) to (hit.y + hit.spanY / 2f)
+        }
+        returnP = 0f
+        returnSignal += 1
+    }
+
     /** true se la Home è bloccata (e avvisa l'utente) */
     fun blockedByLock(): Boolean {
         if (!settings.lockHome) return false
