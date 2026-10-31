@@ -81,6 +81,25 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    /** Cartella del backup automatico: il permesso resta anche dopo il riavvio. */
+    private val folderLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                vm.setSetting("backupDir", uri.toString())
+                vm.runAutoBackup(force = true)
+            } catch (e: Exception) {
+                AppLog.e("Cartella del backup non utilizzabile", e)
+                Toast.makeText(this, "Cartella non utilizzabile", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private var pendingWidgetId = -1
     private var pendingInfo: AppWidgetProviderInfo? = null
 
@@ -132,6 +151,7 @@ class MainActivity : ComponentActivity(), Host {
         updateDefault()
         vm.checkLocationPermission()
         vm.readWallpaperHint()
+        vm.runAutoBackup()
         vm.refreshWeather()
         val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
         vm.listenerEnabled = enabled.contains(packageName)
@@ -296,6 +316,14 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun exportBackup() {
         exportLauncher.launch("mlauncher-backup.json")
+    }
+
+    override fun pickBackupFolder() {
+        try {
+            folderLauncher.launch(null)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Nessuna app per scegliere le cartelle", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun importBackup() {

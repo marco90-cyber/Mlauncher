@@ -541,6 +541,81 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Riferimento per un nuovo widget interno: le note hanno un proprio id per il testo. */
     private fun newRef(kind: String) = if (kind == "notes") WidgetRef("notes", -1, UUID.randomUUID().toString()) else WidgetRef(kind)
 
+    // ---------- backup automatico ----------
+
+    var lastAutoBackup by mutableStateOf(0L)
+        private set
+    var autoBackupBusy by mutableStateOf(false)
+        private set
+    var autoBackupError by mutableStateOf<String?>(null)
+        private set
+
+    /** Fa il backup nella cartella scelta se è passato il tempo impostato (o subito con [force]). */
+    fun runAutoBackup(force: Boolean = false) {
+        lastAutoBackup = sp.getLong("lastAutoBackup", 0L)
+        val dir = settings.backupDir
+        if (dir.isEmpty() || autoBackupBusy) return
+        if (!force) {
+            if (!settings.autoBackup) return
+            if (System.currentTimeMillis() - lastAutoBackup < settings.backupEvery * 24L * 3600_000L) return
+        }
+        val json = buildBackup()
+        val keep = settings.backupKeep
+        autoBackupBusy = true
+        viewModelScope.launch {
+            val err = withContext(Dispatchers.IO) { writeBackupTo(Uri.parse(dir), json, keep) }
+            autoBackupBusy = false
+            autoBackupError = err
+            if (err == null) {
+                lastAutoBackup = System.currentTimeMillis()
+                sp.edit().putLong("lastAutoBackup", lastAutoBackup).apply()
+                AppLog.i("Backup automatico salvato")
+            } else {
+                AppLog.w("Backup automatico non riuscito: $err")
+            }
+        }
+    }
+
+    /** Scrive un nuovo file nella cartella e cancella i backup più vecchi oltre [keep]. Restituisce l'errore o null. */
+    private fun writeBackupTo(tree: Uri, json: String, keep: Int): String? {
+        val cr = ctx.contentResolver
+        return try {
+            val rootId = android.provider.DocumentsContract.getTreeDocumentId(tree)
+            val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, rootId)
+            val name = "MLauncher-backup-" + java.text.SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ITALY).format(java.util.Date()) + ".json"
+            val doc = android.provider.DocumentsContract.createDocument(cr, parent, "application/json", name)
+                ?: return "impossibile creare il file"
+            cr.openOutputStream(doc, "wt")?.use { it.write(json.toByteArray()) } ?: return "impossibile scrivere"
+            // pulizia: tengo solo gli ultimi [keep]
+            val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, rootId)
+            val found = ArrayList<Pair<String, String>>()
+            cr.query(
+                children,
+                arrayOf(
+                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME
+                ),
+                null, null, null
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0)
+                    val n = c.getString(1) ?: continue
+                    if (n.startsWith("MLauncher-backup-") && n.endsWith(".json")) found.add(id to n)
+                }
+            }
+            found.sortedByDescending { it.second }.drop(keep).forEach { (id, _) ->
+                try {
+                    android.provider.DocumentsContract.deleteDocument(cr, android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id))
+                } catch (e: Exception) { }
+            }
+            null
+        } catch (e: SecurityException) {
+            "permesso sulla cartella perso, sceglila di nuovo"
+        } catch (e: Exception) {
+            e.message ?: e.javaClass.simpleName
+        }
+    }
+
     // ---------- note veloci ----------
 
     /** testo, colore e grandezza di ogni nota (chiave = id della nota) */

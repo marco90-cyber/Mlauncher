@@ -1050,6 +1050,53 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.clickable { host.importBackup() }
         )
     }
+    Group("Backup automatico") {
+        val s = vm.settings
+        SwitchRow(
+            "Backup automatico",
+            "Salva da solo Home, cartelle, note e impostazioni nella cartella che scegli",
+            s.autoBackup
+        ) {
+            vm.setSetting("autoBackup", it)
+            if (it && s.backupDir.isEmpty()) host.pickBackupFolder()
+        }
+        ListItem(
+            headlineContent = { Text("Cartella del backup") },
+            supportingContent = {
+                Text(
+                    if (s.backupDir.isEmpty()) "Nessuna: tocca per sceglierla"
+                    else android.net.Uri.decode(s.backupDir).substringAfterLast(':').ifEmpty { "Cartella scelta" }
+                )
+            },
+            colors = prefColors(),
+            modifier = Modifier.clickable { host.pickBackupFolder() }
+        )
+        ChoiceRow(
+            "Ogni quanto",
+            listOf("1" to "Ogni giorno", "3" to "Ogni 3 giorni", "7" to "Ogni settimana", "14" to "Ogni 2 settimane", "30" to "Ogni mese"),
+            s.backupEvery.toString()
+        ) { vm.setSetting("backupEvery", it.toInt()) }
+        ChoiceRow(
+            "Quanti backup tenere",
+            listOf("3" to "Gli ultimi 3", "5" to "Gli ultimi 5", "10" to "Gli ultimi 10"),
+            s.backupKeep.toString()
+        ) { vm.setSetting("backupKeep", it.toInt()) }
+        val last = vm.lastAutoBackup
+        ListItem(
+            headlineContent = { Text(if (vm.autoBackupBusy) "Backup in corso\u2026" else "Fai ora un backup") },
+            supportingContent = {
+                Text(
+                    vm.autoBackupError?.let { "Ultimo tentativo non riuscito: $it" }
+                        ?: if (last > 0) "Ultimo backup: " + java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.ITALY).format(java.util.Date(last))
+                        else "Ancora nessun backup automatico"
+                )
+            },
+            colors = prefColors(),
+            modifier = Modifier.clickable {
+                if (s.backupDir.isEmpty()) host.pickBackupFolder() else vm.runAutoBackup(force = true)
+            }
+        )
+    }
     Group("Manutenzione") {
         var confirmReset by remember { mutableStateOf(false) }
         ListItem(

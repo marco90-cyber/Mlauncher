@@ -192,6 +192,12 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "auto") ?: "auto")
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
+    var autoBackup by mutableStateOf(sp.getBoolean("autoBackup", false))
+    /** ogni quanti giorni */
+    var backupEvery by mutableIntStateOf(sp.getInt("backupEvery", 7))
+    /** quanti backup tenere */
+    var backupKeep by mutableIntStateOf(sp.getInt("backupKeep", 5))
+    var backupDir by mutableStateOf(sp.getString("backupDir", "") ?: "")
     /** colore dei nomi in Home: auto (dallo sfondo), white, dark */
     var labelColor by mutableStateOf(sp.getString("labelColor", "auto") ?: "auto")
     var homeOpensDrawer by mutableStateOf(sp.getBoolean("homeOpensDrawer", true))
@@ -320,6 +326,10 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
             "lockHome" -> lockHome = value as Boolean
+            "autoBackup" -> autoBackup = value as Boolean
+            "backupEvery" -> backupEvery = value as Int
+            "backupKeep" -> backupKeep = value as Int
+            "backupDir" -> backupDir = value as String
             "labelColor" -> labelColor = value as String
             "homeOpensDrawer" -> homeOpensDrawer = value as Boolean
             "newAppDot" -> newAppDot = value as Boolean

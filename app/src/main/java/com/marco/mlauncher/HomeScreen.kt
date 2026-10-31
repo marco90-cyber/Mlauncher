@@ -131,6 +131,7 @@ interface Host {
     fun addWidget(info: AppWidgetProviderInfo)
     fun exportBackup()
     fun importBackup()
+    fun pickBackupFolder()
     fun openListenerSettings()
     fun openAccessibilitySettings()
     fun lockScreen(): Boolean

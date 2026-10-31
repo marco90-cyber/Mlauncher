@@ -5,6 +5,7 @@ package com.marco.mlauncher
 class SettingEntry(val title: String, val page: String, val group: String, val hint: String)
 
 val SETTINGS_INDEX = listOf(
+    SettingEntry("Blocca la Home", "home", "Disposizione delle app", "Icone, cartelle e widget non si possono spostare né togliere. Si sblocca anche dal menu della Home"),
     SettingEntry("Modalità Home", "home", "Disposizione delle app", ""),
     SettingEntry("Cartelle intelligenti", "home", "Disposizione delle app", "Raggruppa le app in cartelle. Le app che non rientrano in nessun gruppo restano in Home, senza cartelle generiche"),
     SettingEntry("Raggruppa per", "home", "Disposizione delle app", ""),
@@ -13,6 +14,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Righe", "home", "Disposizione delle app", ""),
     SettingEntry("Dimensione icone", "home", "Disposizione delle app", ""),
     SettingEntry("Mostra i nomi delle app", "home", "Aspetto", ""),
+    SettingEntry("Colore dei nomi", "home", "Aspetto", ""),
     SettingEntry("Rotazione della Home", "home", "Aspetto", "In orizzontale la dock passa a lato. Spento: la Home resta in verticale"),
     SettingEntry("Indicatore di pagina", "home", "Pagine", ""),
     SettingEntry("Indicatore come la dock", "home", "Pagine", "Prende stile, trasparenza ed effetto vetro della dock"),
@@ -73,6 +75,10 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Animazione di disinstallazione", "look", "Animazioni", ""),
     SettingEntry("Esporta layout e impostazioni", "backup", "Backup", ""),
     SettingEntry("Ripristina da file", "backup", "Backup", ""),
+    SettingEntry("Backup automatico", "backup", "Backup automatico", "Salva da solo Home, cartelle, note e impostazioni nella cartella che scegli"),
+    SettingEntry("Cartella del backup", "backup", "Backup automatico", ""),
+    SettingEntry("Ogni quanto", "backup", "Backup automatico", ""),
+    SettingEntry("Quanti backup tenere", "backup", "Backup automatico", ""),
     SettingEntry("Ripristina Home", "backup", "Manutenzione", ""),
     SettingEntry("Ripristina Launcher", "backup", "Manutenzione", ""),
     SettingEntry("Riavvia Launcher", "backup", "Manutenzione", ""),
