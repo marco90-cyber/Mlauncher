@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -157,7 +158,8 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                 TextButton(onClick = {}) { Text(" ", color = Color.Transparent) }
             }
             // area di ritaglio
-            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            // clipToBounds: l'immagine ingrandita non deve coprire schede e pulsanti sotto
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds().padding(horizontal = 20.dp, vertical = 8.dp)) {
                 val aw = constraints.maxWidth.toFloat()
                 val ah = constraints.maxHeight.toFloat()
                 // cornice con la proporzione dello sfondo (un po' più larga dello schermo per la parallasse)
@@ -182,7 +184,7 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                 val il = fl + (fw - iw) / 2f + p.x
                 val itop = ft + (fh - ih) / 2f + p.y
                 Canvas(
-                    Modifier.fillMaxSize().pointerInput(bmp) {
+                    Modifier.fillMaxSize().clipToBounds().pointerInput(bmp) {
                         detectTransformGestures { _, panChange, zoomChange, _ ->
                             zoom = (zoom * zoomChange).coerceIn(1f, 5f)
                             pan = clampNow.value(pan + panChange)
