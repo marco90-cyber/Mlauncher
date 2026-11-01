@@ -150,6 +150,9 @@ class MainActivity : ComponentActivity(), Host {
     /** il Launcher è andato in secondo piano perché lo schermo si è spento */
     private var stoppedByScreenOff = false
     private var wasStopped = false
+    private var stoppedAt = 0L
+    /** un'app è stata aperta dal Launcher dopo l'ultimo ritorno in primo piano */
+    private var launchedSinceStart = false
 
     /** Sblocco del telefono: animazione di ritorno se la Home è quella che si vede. */
     private val unlockReceiver = object : android.content.BroadcastReceiver() {
@@ -161,14 +164,19 @@ class MainActivity : ComponentActivity(), Host {
     override fun onStart() {
         super.onStart()
         // tornato da un'app (non dallo schermo spento): animazione di ritorno
-        if (wasStopped && !stoppedByScreenOff) vm.playReturn(fromApp = true)
+        // (un gesto Recenti fatto e annullato sulla Home ferma il Launcher per un attimo:
+        //  lì niente animazione, altrimenti si sovrappone a quella del sistema)
+        val away = android.os.SystemClock.uptimeMillis() - stoppedAt
+        if (wasStopped && !stoppedByScreenOff && (launchedSinceStart || away > 1500)) vm.playReturn(fromApp = true)
         wasStopped = false
+        launchedSinceStart = false
         try { vm.widgetHost.startListening() } catch (e: Exception) { AppLog.e("Widget host non avviato", e) }
         AppLog.i("Home in primo piano")
     }
 
     override fun onStop() {
         wasStopped = true
+        stoppedAt = android.os.SystemClock.uptimeMillis()
         stoppedByScreenOff = try {
             !getSystemService(android.os.PowerManager::class.java).isInteractive
         } catch (e: Exception) {
@@ -251,6 +259,7 @@ class MainActivity : ComponentActivity(), Host {
         }
         vm.recordLaunch(app.id)
         vm.noteLaunched(app.id)
+        launchedSinceStart = true
         AppLog.i("Apro ${app.label} (${app.pkg})")
         val i = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)

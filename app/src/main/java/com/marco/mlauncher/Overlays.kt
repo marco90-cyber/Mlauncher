@@ -249,6 +249,16 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                     shadowElevation = if (followDock) 0.dp else 12.dp,
                     modifier = Modifier
                         .width(cardW)
+                        // prima di vetro e sfondo: così anche lo sfondo della cartella si rimpicciolisce e svanisce
+                        .graphicsLayer {
+                            val p = prog.value
+                            val sc = startScale + (1f - startScale) * p
+                            scaleX = sc
+                            scaleY = sc
+                            transformOrigin = TransformOrigin(geo[0], geo[1])
+                            alpha = minOf(1f, p * 4f)
+                            clip = false
+                        }
                         .then(
                             if (followDock && dockSpec != null)
                                 // base opaca sotto il vetro: la cartella resta leggibile anche con la dock molto trasparente
@@ -261,14 +271,6 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                     )
                             else Modifier
                         )
-                        .graphicsLayer {
-                            val p = prog.value
-                            val sc = startScale + (1f - startScale) * p
-                            scaleX = sc
-                            scaleY = sc
-                            transformOrigin = TransformOrigin(geo[0], geo[1])
-                            alpha = minOf(1f, p * 4f)
-                        }
                         .onGloballyPositioned { cardRect = it.boundsInRoot() }
                         .pointerInput(Unit) { detectTapGestures { } }
                 ) {

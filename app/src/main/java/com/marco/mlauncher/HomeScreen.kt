@@ -85,6 +85,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -380,6 +383,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     // anteprima dello spostamento, come Launcher3: fermo su un posto occupato per 650 ms,
     // gli altri elementi scivolano dove finiranno; sopra un'app o una cartella invece compare l'anteprima cartella
     val hoverKey = drag?.let { dd -> targetOf(dd.pos, dd.item)?.let { t -> Triple(dd.item.id, t, dd.collected.size) } }
+    val dragging = drag != null
+    LaunchedEffect(dragging) { if (!dragging) vm.dragSnapshot = null }
     LaunchedEffect(hoverKey) {
         vm.clearReorderPreview()
         val dd = drag ?: return@LaunchedEffect
@@ -630,6 +635,14 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 )
             }
         }
+        val fhId = d?.let { dd ->
+            targetOf(dd.pos, dd.item)?.let { t ->
+                val h = vm.hitAt(t.first, t.second, t.third, dd.item.id)
+                if (dd.item.spanX == 1 && dd.item.spanY == 1 && dd.item is AppItem &&
+                    (h is AppItem || (h is FolderItem && h.spanX == 1))) h.id else null
+            }
+        }
+        LaunchedEffect(fhId) { vm.folderHoverId = fhId }
         if (d != null) {
             val t = targetOf(d.pos, d.item)
             if (t != null) {
@@ -653,18 +666,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 val folderPreview = d.item.spanX == 1 && d.item.spanY == 1 && d.item is AppItem &&
                     (hit is AppItem || (hit is FolderItem && hit.spanX == 1))
                 if (folderPreview) {
-                    // anteprima cartella: un cerchio che si allarga dietro l'app o la cartella di destinazione
-                    val grow = remember(t) { androidx.compose.animation.core.Animatable(0f) }
-                    LaunchedEffect(t) { grow.animateTo(1f, tween(Motion.REORDER + 50, easing = Motion.EmphasizedDecelerate)) }
-                    val r = minOf(rect.width, rect.height) * (if (hit is FolderItem) 0.62f else 0.56f)
-                    Box(
-                        Modifier
-                            .offset { IntOffset((rect.center.x - r).roundToInt(), (rect.center.y - r - rect.height * 0.08f).roundToInt()) }
-                            .size(with(density) { (r * 2).toDp() })
-                            .graphicsLayer { scaleX = 0.6f + 0.4f * grow.value; scaleY = scaleX; alpha = grow.value }
-                            .background(cs.primaryContainer.copy(alpha = 0.75f), CircleShape)
-                            .border(2.dp, cs.primary.copy(alpha = 0.6f), CircleShape)
-                    )
+                    // anteprima cartella: il cerchio lo disegna l'icona di destinazione, dietro di sé (GridItem)
                 } else {
                     Box(
                         Modifier
@@ -683,8 +685,9 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             val ph = if (isBlock) cellHpx * di.spanY else pw
             // l'elemento "si solleva": cresce con un piccolo rimbalzo e prende un'ombra
             val lift = remember(di.id) { androidx.compose.animation.core.Animatable(1f) }
+            val liftTo = if (isBlock) 1.04f else 1.12f
             LaunchedEffect(di.id) {
-                lift.animateTo(1.12f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 520f))
+                lift.animateTo(liftTo, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 520f))
             }
             Box(
                 Modifier
@@ -693,8 +696,11 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     .graphicsLayer {
                         scaleX = lift.value
                         scaleY = lift.value
-                        shadowElevation = 14.dp.toPx() * ((lift.value - 1f) / 0.12f).coerceIn(0f, 1f)
-                        shape = RoundedCornerShape(if (isBlock) 24.dp else 18.dp)
+                        shadowElevation = 14.dp.toPx() * ((lift.value - 1f) / (liftTo - 1f)).coerceIn(0f, 1f)
+                        shape = if (isBlock) androidx.compose.foundation.shape.GenericShape { sz, _ ->
+                            val inset = 5.dp.toPx()
+                            addRoundRect(androidx.compose.ui.geometry.RoundRect(inset, inset, sz.width - inset, sz.height - inset, androidx.compose.ui.geometry.CornerRadius(28.dp.toPx())))
+                        } else RoundedCornerShape(18.dp)
                         clip = false
                     }
             ) {
@@ -721,12 +727,22 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                             .clip(RoundedCornerShape(32.dp))
                             .background(cs.surfaceContainerHigh.copy(alpha = 0.8f))
                     )
-                    else -> Box(
-                        Modifier.fillMaxSize().padding(5.dp)
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(cs.primary.copy(alpha = 0.35f))
-                            .border(2.dp, cs.primary, RoundedCornerShape(28.dp))
-                    )
+                    else -> {
+                        // il widget vero (fotografato all'inizio del trascinamento), sollevato con l'ombra
+                        val snap = vm.dragSnapshot?.takeIf { it.first == di.id }?.second
+                        if (snap != null) {
+                            androidx.compose.foundation.Image(
+                                bitmap = snap,
+                                contentDescription = null,
+                                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                                modifier = Modifier.fillMaxSize().padding(5.dp).clip(RoundedCornerShape(28.dp))
+                            )
+                        } else Box(
+                            Modifier.fillMaxSize().padding(5.dp)
+                                .clip(RoundedCornerShape(28.dp))
+                                .background(cs.surfaceContainerHigh.copy(alpha = 0.6f))
+                        )
+                    }
                 }
             }
         }
@@ -1235,9 +1251,33 @@ private fun GridItem(
         ) {
             val hl = vm.highlightId == item.id
             val hlColor = MaterialTheme.colorScheme.primary
+            // anteprima cartella (come Launcher3): cerchio ~1,3 volte l'icona, dietro di essa;
+            // l'app di destinazione si fa un po' più piccola, la cartella un po' più grande
+            val fh = vm.folderHoverId == item.id && !hidden
+            val ring by animateFloatAsState(
+                if (fh) 1f else 0f,
+                tween(Motion.REORDER + 50, easing = Motion.EmphasizedDecelerate), label = "fring"
+            )
+            val ringFill = MaterialTheme.colorScheme.primaryContainer
+            val ringEdge = MaterialTheme.colorScheme.primary
+            val targetScale = if (item is FolderItem) 1.06f else 0.9f
             Box(
                 Modifier
                     .size(iconSize)
+                    .drawBehind {
+                        if (ring > 0.001f) {
+                            val r = size.minDimension / 2f * 1.3f * (0.75f + 0.25f * ring)
+                            drawCircle(ringFill.copy(alpha = 0.7f * ring), r)
+                            drawCircle(
+                                ringEdge.copy(alpha = 0.55f * ring), r,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx())
+                            )
+                        }
+                    }
+                    .graphicsLayer {
+                        val sc = 1f + (targetScale - 1f) * ring
+                        scaleX = sc; scaleY = sc
+                    }
                     .then(
                         if (hl) Modifier
                             .background(hlColor.copy(alpha = 0.30f), RoundedCornerShape(24.dp))
@@ -1387,6 +1427,9 @@ private fun WidgetCell(
     val cwPx = with(density) { cellW.toPx() }
     val chPx = with(density) { cellH.toPx() }
     val shape = RoundedCornerShape(28.dp)
+    // il contenuto viene registrato in un layer: quando parte il trascinamento ne facciamo una foto
+    val snapLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val snapScope = rememberCoroutineScope()
 
     Box(
         modifier
@@ -1395,7 +1438,12 @@ private fun WidgetCell(
             .padding(5.dp)
             .alpha(if (hidden) 0f else 1f)
     ) {
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier.fillMaxSize().drawWithContent {
+                snapLayer.record { this@drawWithContent.drawContent() }
+                drawLayer(snapLayer)
+            }
+        ) {
             when (item) {
                 is WidgetItem -> GlassWidgetFrame(item.ref.kind) { WidgetContent(item.ref, vm, host, enterEdit, Modifier.fillMaxSize()) }
                 is StackItem -> StackContent(item, vm, host, enterEdit, Modifier.fillMaxSize())
@@ -1416,6 +1464,11 @@ private fun WidgetCell(
                         detectDragGesturesAfterLongPress(
                             onDragStart = { pos ->
                                 if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val id = curItem.id
+                                snapScope.launch {
+                                    val bmp = try { snapLayer.toImageBitmap() } catch (e: Exception) { null }
+                                    vm.dragSnapshot = bmp?.let { id to it }
+                                }
                                 curCb.start(curItem, holder.root + pos)
                             },
                             onDrag = { ch, _ -> curCb.move(holder.root + ch.position) },
