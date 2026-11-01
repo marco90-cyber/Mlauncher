@@ -1514,11 +1514,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     var highlightId by mutableStateOf<String?>(null)
+        private set
     /** app o cartella su cui si sta per creare/riempire una cartella (cerchio dietro l'icona) */
     var folderHoverId by mutableStateOf<String?>(null)
     /** fotografia del widget che si sta trascinando (il fantasma mostra il widget vero) */
     var dragSnapshot by mutableStateOf<Pair<String, androidx.compose.ui.graphics.ImageBitmap>?>(null)
-        private set
     var locatePage by mutableIntStateOf(-1)
         private set
     var locateSignal by mutableIntStateOf(0)
