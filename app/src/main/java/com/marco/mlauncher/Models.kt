@@ -121,7 +121,16 @@ class WeatherData(
     val time: Long
 )
 
-class DrawerDrag(val appId: String, start: androidx.compose.ui.geometry.Offset) {
+/**
+ * Icona trascinata da fuori della Home (cassetto o cartella aperta) verso la Home.
+ * [extras]: altre app raccolte insieme; [fromFolder]: cartella da cui escono.
+ */
+class DrawerDrag(
+    val appId: String,
+    start: androidx.compose.ui.geometry.Offset,
+    val extras: List<String> = emptyList(),
+    val fromFolder: String? = null
+) {
     var pos by mutableStateOf(start)
 }
 

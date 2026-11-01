@@ -148,7 +148,9 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
     }
     val geo = remember { floatArrayOf(0.5f, 0.5f) }
     run {
-        if (shown != null && (folder != null || prog.value > 0.001f)) {
+        // resta viva anche mentre le icone tirate fuori vengono portate sulla Home (il dito è ancora qui)
+        val handoffHere = shown != null && vm.drawerDrag?.fromFolder == shown.folderId
+        if (shown != null && (folder != null || prog.value > 0.001f || handoffHere)) {
             var name by remember(shown.folderId) { mutableStateOf(shown.name) }
             val nameRef = rememberUpdatedState(name)
             val folderId = shown.folderId
@@ -162,6 +164,26 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
             var dragApp by remember(folderId) { mutableStateOf<String?>(null) }
             var dragPos by remember(folderId) { mutableStateOf(Offset.Zero) }
             var menuApp by remember(folderId) { mutableStateOf<String?>(null) }
+            // più icone insieme: mentre ne trascini una, tocca le altre con un secondo dito
+            val picked = remember(folderId) { mutableStateListOf<String>() }
+            var outside by remember(folderId) { mutableStateOf(false) }
+            var handedOff by remember(folderId) { mutableStateOf(false) }
+            var handedApp by remember(folderId) { mutableStateOf<String?>(null) }
+            val view = androidx.compose.ui.platform.LocalView.current
+            // fuori dalla cartella per 400 ms (Launcher3 ON_EXIT_CLOSE_DELAY): si chiude e le icone passano sulla Home
+            LaunchedEffect(outside, dragApp) {
+                val main = dragApp
+                if (outside && main != null && !handedOff) {
+                    kotlinx.coroutines.delay(400)
+                    vm.startFolderDrag(folderId, main, picked.toList(), dragPos)
+                    if (vm.drawerDrag != null) {
+                        handedOff = true
+                        handedApp = main
+                        dragApp = null
+                        Haptics.tick(view)
+                    }
+                }
+            }
             var menuRect by remember(folderId) { mutableStateOf(Rect.Zero) }
             Box(
                 Modifier
@@ -266,7 +288,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                     Column(
                                         Modifier
                                             .fillMaxWidth()
-                                            .alpha(if (dragApp == appId) 0f else 1f)
+                                            .alpha(if (dragApp == appId || handedApp == appId) 0f else if (appId in picked) 0.45f else 1f)
                                             .onGloballyPositioned {
                                                 b.window = it.boundsInWindow()
                                                 b.root = it.positionInRoot()
@@ -275,8 +297,15 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                             .clip(RoundedCornerShape(16.dp))
                                             .pointerInput(appId) {
                                                 detectTapGestures(onTap = {
-                                                    vm.openFolderId = null
-                                                    host.launch(app, b.window)
+                                                    val dragging = dragApp
+                                                    if (dragging != null && dragging != curId) {
+                                                        // secondo dito: aggiunge o toglie questa icona dal gruppo trascinato
+                                                        if (curId in picked) picked.remove(curId) else picked.add(curId)
+                                                        Haptics.tick(view)
+                                                    } else if (dragging == null && !handedOff) {
+                                                        vm.openFolderId = null
+                                                        host.launch(app, b.window)
+                                                    }
                                                 })
                                             }
                                             .pointerInput(appId) {
@@ -294,10 +323,21 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                                             started = true
                                                             dragApp = curId
                                                         }
-                                                        if (started) dragPos = b.root + ch.position
+                                                        if (started) {
+                                                            dragPos = b.root + ch.position
+                                                            outside = cardRect != Rect.Zero && !cardRect.contains(dragPos)
+                                                            if (handedOff) vm.drawerDrag?.pos = dragPos
+                                                        }
                                                     },
                                                     onDragEnd = {
-                                                        if (started) {
+                                                        if (handedOff) {
+                                                            // il rilascio lo gestisce la Home
+                                                            vm.endDrawerDrag()
+                                                            handedOff = false
+                                                            handedApp = null
+                                                            outside = false
+                                                            picked.clear()
+                                                        } else if (started) {
                                                             val pos = dragPos
                                                             val moving = curId
                                                             dragApp = null
@@ -310,10 +350,13 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                                                 val idx = if (target != null) list.indexOf(target) else list.size - 1
                                                                 if (idx >= 0) vm.moveInFolder(folderId, moving, idx)
                                                             } else {
-                                                                vm.removeFromFolder(folderId, moving)
+                                                                // lasciata fuori prima che la cartella si chiudesse
+                                                                vm.dropAppsAt(listOf(moving) + picked, null, 0, 0, folderId)
                                                                 vm.openFolderId = null
-                                                                Toast.makeText(ctx, "Spostata nella Home", Toast.LENGTH_SHORT).show()
+                                                                Toast.makeText(ctx, if (picked.isEmpty()) "Spostata nella Home" else "Spostate nella Home", Toast.LENGTH_SHORT).show()
                                                             }
+                                                            picked.clear()
+                                                            outside = false
                                                         } else {
                                                             menuApp = curId
                                                             menuRect = b.window
@@ -321,8 +364,13 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                                         started = false
                                                     },
                                                     onDragCancel = {
+                                                        if (handedOff) vm.cancelDrawerDrag()
+                                                        handedOff = false
+                                                        handedApp = null
                                                         dragApp = null
                                                         started = false
+                                                        outside = false
+                                                        picked.clear()
                                                     }
                                                 )
                                             }
@@ -410,7 +458,16 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                     Modifier
                         .offset { IntOffset((dragPos.x - sz / 2f).roundToInt(), (dragPos.y - sz / 2f).roundToInt()) }
                         .size(52.dp)
-                ) { AppIcon(da, 52.dp, s.themedIcons) }
+                ) {
+                    picked.take(3).mapNotNull { vm.apps[it] }.forEachIndexed { i, a ->
+                        Box(Modifier.offset((6 * (i + 1)).dp, (6 * (i + 1)).dp).alpha(0.85f)) { AppIcon(a, 52.dp, s.themedIcons) }
+                    }
+                    AppIcon(da, 52.dp, s.themedIcons)
+                    if (picked.isNotEmpty()) Box(
+                        Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) { Text("${picked.size + 1}", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                }
             }
             val ma = menuApp?.let { vm.apps[it] }
             if (ma != null) {

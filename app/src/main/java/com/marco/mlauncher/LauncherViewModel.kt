@@ -1404,6 +1404,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun saveLayout() {
+        if (dryRun) return
         sp.edit()
             .putString(lk("layout"), encodeItems().toString())
             .putInt(lk("pages"), pageCount)
@@ -1609,8 +1610,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * nasce una cartella con tutte. Restituisce false se il punto non è una cartella/app.
      */
     fun dropGroup(main: AppItem, extra: List<String>, page: Int, x: Int, y: Int): Boolean {
-        if (page < 0) return false
         val ids = (listOf(main.appId) + extra).distinct().filter { it in apps }
+        // vale anche per la dock (page = -1): sopra una cartella della dock entrano tutte
         val target = items.firstOrNull { it.id != main.id && it.page == page && overlaps(it, page, x, y, 1, 1) } ?: return false
         when (target) {
             is FolderItem -> {
@@ -1658,6 +1659,96 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         saveLayout()
         AppLog.i("Pagina ${page + 1} riordinata scuotendo il telefono")
+    }
+
+    // ---------- trascinamento con anteprima (come Launcher3) ----------
+
+    /** dove andrebbero gli elementi spostati se si lasciasse ora (id -> pagina, colonna, riga) */
+    val reorderPreview = mutableStateMapOf<String, Triple<Int, Int, Int>>()
+    private var dryRun = false
+
+    /** Elemento che occupa la cella (diverso da [exceptId]). */
+    fun hitAt(page: Int, x: Int, y: Int, exceptId: String?): HomeItem? =
+        items.firstOrNull { it.id != exceptId && overlaps(it, page, x, y, 1, 1) }
+
+    /** Simula il rilascio senza cambiare niente e mostra dove si sposterebbero gli altri. */
+    fun showReorderPreview(dragged: HomeItem, page: Int, x: Int, y: Int) {
+        val saved = items.toList()
+        val pc = pageCount
+        dryRun = true
+        val moved = HashMap<String, Triple<Int, Int, Int>>()
+        try {
+            dropItem(dragged, page, x, y)
+            val after = items.associateBy { it.id }
+            for (o in saved) {
+                if (o.id == dragged.id) continue
+                val n = after[o.id] ?: continue
+                if (n.page != o.page || n.x != o.x || n.y != o.y) moved[o.id] = Triple(n.page, n.x, n.y)
+            }
+        } catch (e: Exception) {
+            // anteprima non possibile
+        } finally {
+            items.clear()
+            items.addAll(saved)
+            pageCount = pc
+            dryRun = false
+        }
+        reorderPreview.clear()
+        reorderPreview.putAll(moved)
+    }
+
+    fun clearReorderPreview() {
+        if (reorderPreview.isNotEmpty()) reorderPreview.clear()
+    }
+
+    // ---------- icone portate fuori da una cartella aperta ----------
+
+    /** La cartella aperta si chiude e le app trascinate passano sulla Home (il dito resta sull'icona). */
+    fun startFolderDrag(folderId: String, appId: String, extras: List<String>, pos: androidx.compose.ui.geometry.Offset) {
+        if (blockedByLock()) return
+        drawerDrag = DrawerDrag(appId, pos, extras, folderId)
+        openFolderId = null
+    }
+
+    /** Toglie le app dalla cartella senza rimetterle in Home (la cartella con una sola app si scioglie). */
+    private fun takeFromFolder(folderId: String, ids: List<String>) {
+        val f = items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem ?: return
+        val rest = f.appIds - ids.toSet()
+        if (rest.size <= 1) {
+            items.remove(f)
+            rest.firstOrNull()?.let { items.add(AppItem(it, f.page, f.x, f.y)) }
+        } else {
+            replace(f, f.copy(appIds = rest))
+        }
+    }
+
+    /**
+     * Rilascio di app (una o più) sulla cella indicata: sopra una cartella entrano tutte,
+     * sopra un'app nasce una cartella, in un posto libero va la prima e le altre vicino.
+     * [page] null = nessuna cella (finiscono nella pagina attuale).
+     */
+    fun dropAppsAt(ids0: List<String>, page: Int?, x: Int, y: Int, fromFolder: String? = null) {
+        val ids = ids0.distinct().filter { it in apps }
+        if (ids.isEmpty()) return
+        if (fromFolder != null) takeFromFolder(fromFolder, ids)
+        // le app eventualmente già sciolte in Home si spostano (niente doppioni)
+        items.removeAll { it is AppItem && it.appId in ids }
+        val hit = if (page == null) null else items.firstOrNull { overlaps(it, page, x, y, 1, 1) }
+        when {
+            page == null -> ids.forEach { addApp(it, maxOf(currentPage, 0)) }
+            hit is FolderItem && hit.spanX == 1 -> replace(hit, hit.copy(appIds = hit.appIds + ids.filter { it !in hit.appIds }))
+            hit is AppItem && hit.appId !in ids -> {
+                items.remove(hit)
+                items.add(FolderItem(UUID.randomUUID().toString(), "Cartella", listOf(hit.appId) + ids, page, hit.x, hit.y))
+            }
+            hit == null && areaFree(page, x, y, 1, 1) -> {
+                items.add(AppItem(ids.first(), page, x, y))
+                if (page >= 0) ensurePages(page)
+                ids.drop(1).forEach { addApp(it, maxOf(page, 0)) }
+            }
+            else -> ids.forEach { addApp(it, maxOf(page, 0)) }
+        }
+        saveLayout()
     }
 
     /** Sposta le app raccolte nei primi posti liberi della pagina indicata. */

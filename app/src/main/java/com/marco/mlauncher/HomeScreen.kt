@@ -206,6 +206,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     var dockRect by remember { mutableStateOf(Rect.Zero) }
     var drag by remember { mutableStateOf<DragState?>(null) }
     var menuItem by remember { mutableStateOf<HomeItem?>(null) }
+    var menuFading by remember { mutableStateOf(false) }
     var menuRect by remember { mutableStateOf(Rect.Zero) }
     val edit = vm.editMode
     val topPad by animateDpAsState(if (edit) 56.dp else 6.dp, androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate), label = "topPad")
@@ -242,7 +243,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     val cb = remember {
         DragCallbacks(
             start = { item, pos ->
-                menuItem = null
+                // il menu rapido non sparisce di colpo: si dissolve mentre l'icona si solleva
+                if (menuItem != null) menuFading = true
                 if (!vm.blockedByLock()) drag = DragState(item, pos)
             },
             move = { pos -> drag?.pos = pos },
@@ -271,6 +273,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                         if (extra.isNotEmpty()) vm.gatherApps(extra, t?.first?.takeIf { it >= 0 } ?: vm.currentPage)
                     }
                 }
+                // gli elementi sono già nelle posizioni dell'anteprima: tolgo l'anteprima senza scatti
+                vm.clearReorderPreview()
                 drag = null
             },
             collect = { it ->
@@ -293,6 +297,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         dockRect = Rect.Zero
     }
     val onMenu: (HomeItem, Rect) -> Unit = { item, rect ->
+        menuFading = false
         menuItem = item
         menuRect = rect
     }
@@ -347,6 +352,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             menuItem = null
             homeMenu = null
             val st = DragState(AppItem(dDrag.appId, -3, 0, 0), dDrag.pos)
+            dDrag.extras.forEach { st.collected.add("app:$it") }
             drag = st
             snapshotFlow { dDrag.pos }.collect { st.pos = it }
         } else if (drag?.item?.page == -3) {
@@ -359,12 +365,32 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         val e = vm.drawerDrag
         if (d != null && e != null) {
             val t = targetOf(d.pos, d.item)
-            if (t != null) vm.dropFromDrawer(e.appId, t.first, t.second, t.third) else vm.addToHome(e.appId)
+            if (e.fromFolder != null || e.extras.isNotEmpty()) {
+                // app uscite da una cartella (anche più di una insieme)
+                vm.dropAppsAt(listOf(e.appId) + e.extras, t?.first, t?.second ?: 0, t?.third ?: 0, e.fromFolder)
+            } else if (t != null) vm.dropFromDrawer(e.appId, t.first, t.second, t.third) else vm.addToHome(e.appId)
             Haptics.confirm(view)
         }
+        vm.clearReorderPreview()
         drag = null
         vm.overlay = Overlay.NONE
         vm.drawerDrag = null
+    }
+
+    // anteprima dello spostamento, come Launcher3: fermo su un posto occupato per 650 ms,
+    // gli altri elementi scivolano dove finiranno; sopra un'app o una cartella invece compare l'anteprima cartella
+    val hoverKey = drag?.let { dd -> targetOf(dd.pos, dd.item)?.let { t -> Triple(dd.item.id, t, dd.collected.size) } }
+    LaunchedEffect(hoverKey) {
+        vm.clearReorderPreview()
+        val dd = drag ?: return@LaunchedEffect
+        val t = hoverKey?.second ?: return@LaunchedEffect
+        if (dd.item.page == -3) return@LaunchedEffect
+        val hit = vm.hitAt(t.first, t.second, t.third, dd.item.id) ?: return@LaunchedEffect
+        val small = dd.item.spanX == 1 && dd.item.spanY == 1
+        if (small && dd.item is AppItem && (hit is AppItem || (hit is FolderItem && hit.spanX == 1))) return@LaunchedEffect
+        delay(650)
+        vm.showReorderPreview(dd.item, t.first, t.second, t.third)
+        Haptics.tick(view)
     }
 
     // posizione delle pagine per la parallasse dello sfondo
@@ -579,7 +605,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         // menu rapido
         val mi = menuItem
         if (mi != null && !edit) {
-            QuickMenu(mi, menuRect, vm, host) { menuItem = null }
+            QuickMenu(mi, menuRect, vm, host, fading = menuFading) { menuItem = null; menuFading = false }
         }
 
         // evidenzia la cella di destinazione e mostra l'elemento trascinato
@@ -623,13 +649,31 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                         gridRect.left + (t.second + d.item.spanX) * w, gridRect.top + (t.third + d.item.spanY) * h
                     )
                 }
-                Box(
-                    Modifier
-                        .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
-                        .size(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() })
-                        .padding(4.dp)
-                        .background(cs.primary.copy(alpha = 0.18f), RoundedCornerShape(22.dp))
-                )
+                val hit = vm.hitAt(t.first, t.second, t.third, d.item.id)
+                val folderPreview = d.item.spanX == 1 && d.item.spanY == 1 && d.item is AppItem &&
+                    (hit is AppItem || (hit is FolderItem && hit.spanX == 1))
+                if (folderPreview) {
+                    // anteprima cartella: un cerchio che si allarga dietro l'app o la cartella di destinazione
+                    val grow = remember(t) { androidx.compose.animation.core.Animatable(0f) }
+                    LaunchedEffect(t) { grow.animateTo(1f, tween(Motion.REORDER + 50, easing = Motion.EmphasizedDecelerate)) }
+                    val r = minOf(rect.width, rect.height) * (if (hit is FolderItem) 0.62f else 0.56f)
+                    Box(
+                        Modifier
+                            .offset { IntOffset((rect.center.x - r).roundToInt(), (rect.center.y - r - rect.height * 0.08f).roundToInt()) }
+                            .size(with(density) { (r * 2).toDp() })
+                            .graphicsLayer { scaleX = 0.6f + 0.4f * grow.value; scaleY = scaleX; alpha = grow.value }
+                            .background(cs.primaryContainer.copy(alpha = 0.75f), CircleShape)
+                            .border(2.dp, cs.primary.copy(alpha = 0.6f), CircleShape)
+                    )
+                } else {
+                    Box(
+                        Modifier
+                            .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
+                            .size(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() })
+                            .padding(4.dp)
+                            .background(cs.primary.copy(alpha = 0.18f), RoundedCornerShape(22.dp))
+                    )
+                }
             }
             val di = d.item
             val isBlock = di.spanX > 1 || di.spanY > 1
@@ -637,13 +681,21 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             val cellHpx = if (gridRect.height > 0f) gridRect.height / vm.gridRows else 200f
             val pw = if (isBlock) cellWpx * di.spanX else with(density) { (64.dp * s.iconScale).toPx() }
             val ph = if (isBlock) cellHpx * di.spanY else pw
+            // l'elemento "si solleva": cresce con un piccolo rimbalzo e prende un'ombra
+            val lift = remember(di.id) { androidx.compose.animation.core.Animatable(1f) }
+            LaunchedEffect(di.id) {
+                lift.animateTo(1.12f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 520f))
+            }
             Box(
                 Modifier
                     .offset { IntOffset((d.pos.x - pw / 2f).roundToInt(), (d.pos.y - ph / 2f).roundToInt()) }
                     .size(with(density) { pw.toDp() }, with(density) { ph.toDp() })
                     .graphicsLayer {
-                        scaleX = 1.06f
-                        scaleY = 1.06f
+                        scaleX = lift.value
+                        scaleY = lift.value
+                        shadowElevation = 14.dp.toPx() * ((lift.value - 1f) / 0.12f).coerceIn(0f, 1f)
+                        shape = RoundedCornerShape(if (isBlock) 24.dp else 18.dp)
+                        clip = false
                     }
             ) {
                 val iconDp = with(density) { pw.toDp() }
@@ -928,7 +980,18 @@ private fun HomePage(
         for (item in vm.items) {
             if (item.page == page) {
                 key(item.id) {
-                    val mod = Modifier.offset(cw * item.x, ch * item.y)
+                    // posizione animata: segue l'anteprima dello spostamento (150 ms, come Launcher3)
+                    val rp = vm.reorderPreview[item.id]
+                    val tx by animateFloatAsState(
+                        if (rp != null && rp.first == page) rp.second.toFloat() else item.x.toFloat(),
+                        tween(Motion.REORDER, easing = Motion.Standard), label = "rx"
+                    )
+                    val ty by animateFloatAsState(
+                        if (rp != null && rp.first == page) rp.third.toFloat() else item.y.toFloat(),
+                        tween(Motion.REORDER, easing = Motion.Standard), label = "ry"
+                    )
+                    val leaving = rp != null && rp.first != page
+                    val mod = Modifier.offset(cw * tx, ch * ty).alpha(if (leaving) 0.35f else 1f)
                     val hidden = item.id in dragId
                     when (item) {
                         is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
@@ -1471,9 +1534,19 @@ internal fun QuickMenu(
     rect: Rect,
     vm: LauncherViewModel,
     host: Host,
+    fading: Boolean = false,
     onDismiss: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
+    // compare crescendo un poco; quando inizi a trascinare sparisce in dissolvenza (come Launcher3)
+    val appear = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) { appear.animateTo(1f, tween(Motion.FADE, easing = Motion.EmphasizedDecelerate)) }
+    LaunchedEffect(fading) {
+        if (fading) {
+            appear.animateTo(0f, tween(Motion.FADE, easing = Motion.StandardAccelerate))
+            onDismiss()
+        }
+    }
     val density = LocalDensity.current
     val conf = LocalConfiguration.current
     val app = (item as? AppItem)?.let { vm.apps[it.appId] }
@@ -1502,7 +1575,12 @@ internal fun QuickMenu(
             shape = RoundedCornerShape(24.dp),
             color = cs.surfaceContainerHigh,
             shadowElevation = 8.dp,
-            modifier = Modifier.width(menuW)
+            modifier = Modifier.width(menuW).graphicsLayer {
+                alpha = appear.value
+                val sc = 0.92f + 0.08f * appear.value
+                scaleX = sc; scaleY = sc
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, if (below) 0f else 1f)
+            }
         ) {
             Column(Modifier.padding(vertical = 8.dp)) {
                 if (app != null) {
