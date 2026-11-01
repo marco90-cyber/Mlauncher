@@ -1463,7 +1463,58 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ---------- operazioni dalla UI ----------
 
-    fun dropItem(dragged: HomeItem, page: Int, x: Int, y: Int) {
+    /**
+     * Inserisce [item] (1x1) in una cella occupata spingendo le icone vicine, una dopo l'altra,
+     * fino al primo posto libero (come Launcher3). Prima prova verso il posto da cui arriva l'icona.
+     * I widget non si spostano: le icone li scavalcano.
+     */
+    private fun insertShift(item: HomeItem, page: Int, x: Int, y: Int): Boolean {
+        if (item.spanX != 1 || item.spanY != 1) return false
+        val cols = if (page == -1) curSlots else curCols
+        val rows = if (page == -1) 1 else curRows
+        val total = cols * rows
+        val t = y * cols + x
+        if (t !in 0 until total) return false
+        val inList = items.any { it.id == item.id }
+        val from = if (inList && item.page == page) item.y * cols + item.x else -1
+        val dirs = if (from in 0 until t) listOf(-1, 1) else listOf(1, -1)
+        for (dir in dirs) {
+            val slots = ArrayList<Int>()
+            val chain = ArrayList<HomeItem>()
+            var c = t
+            var ok = false
+            while (c in 0 until total) {
+                val cx = c % cols
+                val cy = c / cols
+                val occ = items.firstOrNull { it.id != item.id && overlaps(it, page, cx, cy, 1, 1) }
+                if (occ == null) {
+                    slots.add(c)
+                    ok = true
+                    break
+                }
+                if (occ.spanX == 1 && occ.spanY == 1) {
+                    slots.add(c)
+                    chain.add(occ)
+                } else if (c == t) {
+                    return false
+                }
+                c += dir
+            }
+            if (!ok || chain.isEmpty()) continue
+            chain.forEachIndexed { i, o ->
+                val sl = slots[i + 1]
+                replace(o, o.at(page, sl % cols, sl / cols))
+            }
+            val cur = items.firstOrNull { it.id == item.id }
+            if (cur != null) replace(cur, cur.at(page, x, y)) else items.add(item.at(page, x, y))
+            if (page >= 0) ensurePages(page)
+            return true
+        }
+        return false
+    }
+
+    /** [merge] false = l'icona va tra le altre (spostandole); true = sopra un'app/cartella crea o riempie la cartella. */
+    fun dropItem(dragged: HomeItem, page: Int, x: Int, y: Int, merge: Boolean = true) {
         // elementi "fantasma" (app che non esistono più) non devono bloccare le celle
         items.removeAll { g ->
             (g is AppItem && g.appId !in apps && g.id != dragged.id && g.appId !in exploding) ||
@@ -1483,12 +1534,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         } else if (hits.size == 1) {
             val target = hits[0]
             val small = sx == 1 && sy == 1 && target.spanX == 1 && target.spanY == 1
-            if (small && page >= 0 && item is AppItem && target is AppItem) {
+            if (small && !merge && insertShift(item, page, x, y)) {
+                // spostata tra le altre
+            } else if (small && merge && page >= 0 && item is AppItem && target is AppItem) {
                 val f = FolderItem(UUID.randomUUID().toString(), "Cartella", listOf(target.appId, item.appId), page, target.x, target.y)
                 items.remove(item)
                 items.remove(target)
                 items.add(f)
-            } else if (small && item is AppItem && target is FolderItem) {
+            } else if (small && merge && item is AppItem && target is FolderItem) {
                 replace(target, target.copy(appIds = target.appIds + item.appId))
                 items.remove(item)
             } else if (small) {
@@ -1676,13 +1729,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         items.firstOrNull { it.id != exceptId && overlaps(it, page, x, y, 1, 1) }
 
     /** Simula il rilascio senza cambiare niente e mostra dove si sposterebbero gli altri. */
-    fun showReorderPreview(dragged: HomeItem, page: Int, x: Int, y: Int) {
+    fun showReorderPreview(dragged: HomeItem, page: Int, x: Int, y: Int, merge: Boolean = false) {
         val saved = items.toList()
         val pc = pageCount
         dryRun = true
         val moved = HashMap<String, Triple<Int, Int, Int>>()
         try {
-            dropItem(dragged, page, x, y)
+            // icona che arriva dal cassetto o da una cartella: per la simulazione la metto in lista
+            if (items.none { it.id == dragged.id }) items.add(dragged)
+            dropItem(dragged, page, x, y, merge)
             val after = items.associateBy { it.id }
             for (o in saved) {
                 if (o.id == dragged.id) continue
@@ -1731,7 +1786,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * sopra un'app nasce una cartella, in un posto libero va la prima e le altre vicino.
      * [page] null = nessuna cella (finiscono nella pagina attuale).
      */
-    fun dropAppsAt(ids0: List<String>, page: Int?, x: Int, y: Int, fromFolder: String? = null) {
+    fun dropAppsAt(ids0: List<String>, page: Int?, x: Int, y: Int, fromFolder: String? = null, merge: Boolean = true) {
         val ids = ids0.distinct().filter { it in apps }
         if (ids.isEmpty()) return
         if (fromFolder != null) takeFromFolder(fromFolder, ids)
@@ -1740,6 +1795,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val hit = if (page == null) null else items.firstOrNull { overlaps(it, page, x, y, 1, 1) }
         when {
             page == null -> ids.forEach { addApp(it, maxOf(currentPage, 0)) }
+            !merge && hit != null && hit.spanX == 1 && hit.spanY == 1 &&
+                insertShift(AppItem(ids.first(), -3, 0, 0), page, x, y) ->
+                ids.drop(1).forEach { addApp(it, maxOf(page, 0)) }
             hit is FolderItem && hit.spanX == 1 -> replace(hit, hit.copy(appIds = hit.appIds + ids.filter { it !in hit.appIds }))
             hit is AppItem && hit.appId !in ids -> {
                 items.remove(hit)
@@ -1804,15 +1862,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Rilascio di un'app presa dal cassetto: cella libera, sopra un'app (cartella) o dentro una cartella. */
-    fun dropFromDrawer(appId: String, page: Int, x: Int, y: Int) {
+    fun dropFromDrawer(appId: String, page: Int, x: Int, y: Int, merge: Boolean = true) {
         val existing = items.firstOrNull { it is AppItem && it.appId == appId }
         if (existing != null) {
-            dropItem(existing, page, x, y)
+            dropItem(existing, page, x, y, merge)
             return
         }
         val hits = items.filter { overlaps(it, page, x, y, 1, 1) }
         val t = hits.singleOrNull()
         when {
+            !merge && t != null && t.spanX == 1 && t.spanY == 1 &&
+                insertShift(AppItem(appId, -3, 0, 0), page, x, y) -> {}
             hits.isEmpty() && areaFree(page, x, y, 1, 1) -> {
                 items.add(AppItem(appId, page, x, y))
                 if (page >= 0) ensurePages(page)

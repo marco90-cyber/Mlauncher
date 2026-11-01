@@ -241,6 +241,42 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         return null
     }
 
+    /**
+     * Come Launcher3: la cartella si crea solo se il dito è vicino al centro dell'icona di destinazione
+     * (entro ~0,55 volte la grandezza dell'icona); sul bordo invece l'icona va tra le altre.
+     */
+    fun mergeAt(p: Offset, item: HomeItem, t: Triple<Int, Int, Int>): Boolean {
+        if (item !is AppItem || item.spanX != 1 || item.spanY != 1) return false
+        val hit = vm.hitAt(t.first, t.second, t.third, item.id) ?: return false
+        if (!(hit is AppItem || (hit is FolderItem && hit.spanX == 1 && hit.spanY == 1))) return false
+        // l'icona si è già spostata per far posto (anteprima): la cella è libera
+        if (hit.id in vm.reorderPreview) return false
+        val c: Offset
+        val icon: Float
+        if (t.first < 0) {
+            if (dockRect == Rect.Zero) return false
+            if (landscape) {
+                val h = dockRect.height / vm.dockCount
+                c = Offset(dockRect.center.x, dockRect.top + (t.second + 0.5f) * h)
+                icon = minOf(dockRect.width, h) * 0.62f
+            } else {
+                val w = dockRect.width / vm.dockCount
+                c = Offset(dockRect.left + (t.second + 0.5f) * w, dockRect.center.y)
+                icon = minOf(w, dockRect.height) * 0.62f
+            }
+        } else {
+            if (gridRect == Rect.Zero) return false
+            val cw = gridRect.width / vm.gridCols
+            val ch = gridRect.height / vm.gridRows
+            val labels = s.showLabels
+            val base = if (labels) minOf(cw * 0.62f, ch * 0.50f) else minOf(cw * 0.82f, ch * 0.72f)
+            icon = minOf(base * s.iconScale, with(density) { 96.dp.toPx() })
+            val lift = if (labels) with(density) { 9.dp.toPx() } else 0f
+            c = Offset(gridRect.left + (t.second + 0.5f) * cw, gridRect.top + (t.third + 0.5f) * ch - lift)
+        }
+        return (p - c).getDistance() < icon * 0.55f
+    }
+
     val hiddenIds: Set<String> = drag?.let { setOf(it.item.id) + it.collected } ?: emptySet()
 
     val cb = remember {
@@ -261,14 +297,14 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                         vm.createFolderFrom(main, extra)
                         Haptics.confirm(view)
                     } else if (extra.isNotEmpty() && main is AppItem &&
-                        targetOf(d.pos, main)?.let { t -> vm.dropGroup(main, extra, t.first, t.second, t.third) } == true
+                        targetOf(d.pos, main)?.let { t -> mergeAt(d.pos, main, t) && vm.dropGroup(main, extra, t.first, t.second, t.third) } == true
                     ) {
                         // tutte le app raccolte sono entrate nella cartella (o ne hanno creata una)
                         Haptics.confirm(view)
                     } else {
                         val t = targetOf(d.pos, main)
                         if (t != null) {
-                            vm.dropItem(main, t.first, t.second, t.third)
+                            vm.dropItem(main, t.first, t.second, t.third, merge = mergeAt(d.pos, main, t))
                             Haptics.confirm(view)
                         } else {
                             Haptics.reject(view)
@@ -368,10 +404,11 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         val e = vm.drawerDrag
         if (d != null && e != null) {
             val t = targetOf(d.pos, d.item)
+            val merge = t != null && mergeAt(d.pos, d.item, t)
             if (e.fromFolder != null || e.extras.isNotEmpty()) {
                 // app uscite da una cartella (anche più di una insieme)
-                vm.dropAppsAt(listOf(e.appId) + e.extras, t?.first, t?.second ?: 0, t?.third ?: 0, e.fromFolder)
-            } else if (t != null) vm.dropFromDrawer(e.appId, t.first, t.second, t.third) else vm.addToHome(e.appId)
+                vm.dropAppsAt(listOf(e.appId) + e.extras, t?.first, t?.second ?: 0, t?.third ?: 0, e.fromFolder, merge)
+            } else if (t != null) vm.dropFromDrawer(e.appId, t.first, t.second, t.third, merge) else vm.addToHome(e.appId)
             Haptics.confirm(view)
         }
         vm.clearReorderPreview()
@@ -382,17 +419,17 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
 
     // anteprima dello spostamento, come Launcher3: fermo su un posto occupato per 650 ms,
     // gli altri elementi scivolano dove finiranno; sopra un'app o una cartella invece compare l'anteprima cartella
-    val hoverKey = drag?.let { dd -> targetOf(dd.pos, dd.item)?.let { t -> Triple(dd.item.id, t, dd.collected.size) } }
+    val hoverKey = drag?.let { dd -> targetOf(dd.pos, dd.item)?.let { t -> listOf(dd.item.id, t, dd.collected.size, mergeAt(dd.pos, dd.item, t)) } }
     val dragging = drag != null
     LaunchedEffect(dragging) { if (!dragging) vm.dragSnapshot = null }
     LaunchedEffect(hoverKey) {
         vm.clearReorderPreview()
         val dd = drag ?: return@LaunchedEffect
-        val t = hoverKey?.second ?: return@LaunchedEffect
-        if (dd.item.page == -3) return@LaunchedEffect
-        val hit = vm.hitAt(t.first, t.second, t.third, dd.item.id) ?: return@LaunchedEffect
-        val small = dd.item.spanX == 1 && dd.item.spanY == 1
-        if (small && dd.item is AppItem && (hit is AppItem || (hit is FolderItem && hit.spanX == 1))) return@LaunchedEffect
+        @Suppress("UNCHECKED_CAST")
+        val t = (hoverKey?.get(1) as? Triple<Int, Int, Int>) ?: return@LaunchedEffect
+        // vicino al centro di un'app/cartella: anteprima cartella, niente spostamenti
+        if (hoverKey[3] == true) return@LaunchedEffect
+        vm.hitAt(t.first, t.second, t.third, dd.item.id) ?: return@LaunchedEffect
         delay(650)
         vm.showReorderPreview(dd.item, t.first, t.second, t.third)
         Haptics.tick(view)
@@ -638,8 +675,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         val fhId = d?.let { dd ->
             targetOf(dd.pos, dd.item)?.let { t ->
                 val h = vm.hitAt(t.first, t.second, t.third, dd.item.id)
-                if (dd.item.spanX == 1 && dd.item.spanY == 1 && dd.item is AppItem &&
-                    (h is AppItem || (h is FolderItem && h.spanX == 1))) h.id else null
+                if (h != null && mergeAt(dd.pos, dd.item, t)) h.id else null
             }
         }
         LaunchedEffect(fhId) { vm.folderHoverId = fhId }
@@ -663,8 +699,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     )
                 }
                 val hit = vm.hitAt(t.first, t.second, t.third, d.item.id)
-                val folderPreview = d.item.spanX == 1 && d.item.spanY == 1 && d.item is AppItem &&
-                    (hit is AppItem || (hit is FolderItem && hit.spanX == 1))
+                val folderPreview = hit != null && mergeAt(d.pos, d.item, t)
                 if (folderPreview) {
                     // anteprima cartella: il cerchio lo disegna l'icona di destinazione, dietro di sé (GridItem)
                 } else {

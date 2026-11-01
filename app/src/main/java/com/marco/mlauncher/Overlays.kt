@@ -252,7 +252,9 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         // prima di vetro e sfondo: così anche lo sfondo della cartella si rimpicciolisce e svanisce
                         .graphicsLayer {
                             val p = prog.value
-                            val sc = startScale + (1f - startScale) * p
+                            // mentre le icone passano sulla Home la cartella svanisce senza rimpicciolirsi:
+                            // se cambiasse scala, le coordinate del dito (lette dentro la cartella) si sballerebbero
+                            val sc = if (handedOff) 1f else startScale + (1f - startScale) * p
                             scaleX = sc
                             scaleY = sc
                             transformOrigin = TransformOrigin(geo[0], geo[1])
