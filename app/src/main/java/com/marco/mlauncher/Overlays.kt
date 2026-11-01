@@ -96,6 +96,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.composed
@@ -416,29 +417,73 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                             }
                         }
                         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                singleLine = true,
-                                textStyle = TextStyle(
-                                    fontSize = if (s.folderSize == "large") 24.sp else 20.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    textAlign = TextAlign.Start,
-                                    color = fgColor
-                                ),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent
-                                ),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = {
-                                    vm.renameFolder(folderId, name)
-                                    focusManager.clearFocus()
-                                }),
-                                modifier = Modifier.weight(1f)
+                            // il nome si modifica solo tenendolo premuto (così un tocco non apre la tastiera)
+                            var editingName by remember(folderId) { mutableStateOf(false) }
+                            val nameStyle = TextStyle(
+                                fontSize = if (s.folderSize == "large") 24.sp else 20.sp,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Start,
+                                color = fgColor
                             )
+                            if (!editingName) {
+                                Box(
+                                    Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 56.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .pointerInput(folderId) {
+                                            detectTapGestures(onLongPress = {
+                                                if (!vm.blockedByLock()) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    editingName = true
+                                                }
+                                            })
+                                        }
+                                        .padding(horizontal = 16.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Text(name, style = nameStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            } else {
+                                val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+                                var tfv by remember {
+                                    mutableStateOf(
+                                        androidx.compose.ui.text.input.TextFieldValue(
+                                            name, androidx.compose.ui.text.TextRange(0, name.length)
+                                        )
+                                    )
+                                }
+                                var hadFocus by remember { mutableStateOf(false) }
+                                LaunchedEffect(Unit) { focus.requestFocus() }
+                                TextField(
+                                    value = tfv,
+                                    onValueChange = { tfv = it; name = it.text },
+                                    singleLine = true,
+                                    textStyle = nameStyle,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = fgColor.copy(alpha = 0.6f),
+                                        unfocusedIndicatorColor = Color.Transparent
+                                    ),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = {
+                                        vm.renameFolder(folderId, name)
+                                        focusManager.clearFocus()
+                                        editingName = false
+                                    }),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(focus)
+                                        .onFocusChanged { f ->
+                                            if (f.isFocused) hadFocus = true
+                                            else if (hadFocus) {
+                                                vm.renameFolder(folderId, name)
+                                                editingName = false
+                                            }
+                                        }
+                                )
+                            }
                             if (pageN > 1) {
                                 Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     repeat(pageN) { d ->
