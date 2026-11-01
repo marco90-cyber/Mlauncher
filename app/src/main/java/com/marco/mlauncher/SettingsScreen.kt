@@ -914,6 +914,16 @@ private fun PageFolders(vm: LauncherViewModel) {
         ) { vm.setSetting("folderBg", it) }
     }
     Group("Cartella aperta") {
+        ChoiceRow(
+            "Posizione",
+            listOf("center" to "Al centro dello schermo (HyperOS, iOS)", "icon" to "Vicino all'icona (Lawnchair, Pixel)"),
+            s.folderPos
+        ) { vm.setSetting("folderPos", it) }
+        ChoiceRow(
+            "Grandezza",
+            listOf("compact" to "Compatta", "large" to "Grande (quasi tutto lo schermo)"),
+            s.folderSize
+        ) { vm.setSetting("folderSize", it) }
         SliderRow("Sfocatura dello sfondo", if (s.folderBlur == 0) "Nessuna" else "${s.folderBlur} dp", s.folderBlur.toFloat(), 0f..40f, 0) {
             val v = (it / 2f).roundToInt() * 2
             if (v != s.folderBlur) vm.setSetting("folderBlur", v)

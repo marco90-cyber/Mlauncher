@@ -59,6 +59,8 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Forma della cartella", "folders", "Aspetto", ""),
     SettingEntry("Anteprima della cartella", "folders", "Aspetto", ""),
     SettingEntry("Sfondo della cartella", "folders", "Aspetto", ""),
+    SettingEntry("Posizione", "folders", "Cartella aperta", ""),
+    SettingEntry("Grandezza", "folders", "Cartella aperta", ""),
     SettingEntry("Sfocatura dello sfondo", "folders", "Cartella aperta", ""),
     SettingEntry("Colonne", "folders", "Cartella aperta", ""),
     SettingEntry("Ordina A-Z", "folders", "Cartella aperta", ""),

@@ -176,23 +176,33 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val conf = LocalConfiguration.current
                 val anchor = vm.folderAnchor
                 val cols = s.folderCols
-                val cardW = minOf((cols * 72 + 24).dp, (conf.screenWidthDp - 32).dp)
+                val big = s.folderSize == "large"
+                val cardW = if (big) (conf.screenWidthDp - 32).dp else minOf((cols * 72 + 24).dp, (conf.screenWidthDp - 32).dp)
                 val cardWpx = with(dens) { cardW.toPx() }
-                val sw = with(dens) { conf.screenWidthDp.dp.toPx() }
-                val sh = with(dens) { conf.screenHeightDp.dp.toPx() }
                 val m = with(dens) { 16.dp.toPx() }
+                // margini sicuri: mai sotto la barra di stato, la barra di navigazione o il foro della fotocamera
+                val bars = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                val safeTop = bars.getTop(dens) + with(dens) { 12.dp.toPx() }
+                val safeBottom = bars.getBottom(dens) + with(dens) { 12.dp.toPx() }
+                val safeLeft = maxOf(m, bars.getLeft(dens, androidx.compose.ui.unit.LayoutDirection.Ltr).toFloat() + m)
+                val safeRight = maxOf(m, bars.getRight(dens, androidx.compose.ui.unit.LayoutDirection.Ltr).toFloat() + m)
                 val hasAnchor = anchor != Rect.Zero
-                val cx = if (hasAnchor) anchor.center.x else sw / 2f
-                val cardX = (cx - cardWpx / 2f).coerceIn(m, maxOf(m, sw - cardWpx - m))
+                val centered = s.folderPos == "center" || !hasAnchor
                 val startScale = if (hasAnchor) (anchor.width / cardWpx).coerceIn(0.2f, 0.7f) else 0.85f
                 Box(
                     Modifier.layout { measurable, c ->
                         val pl = measurable.measure(c.copy(minWidth = 0, minHeight = 0))
+                        val sw = c.maxWidth.toFloat()
+                        val sh = c.maxHeight.toFloat()
+                        val cx = if (centered) sw / 2f else anchor.center.x
+                        val cardX = (cx - pl.width / 2f).coerceIn(safeLeft, maxOf(safeLeft, sw - pl.width - safeRight))
                         val y = when {
-                            !hasAnchor -> (sh - pl.height) / 2f
+                            centered -> safeTop + (sh - safeTop - safeBottom - pl.height) / 2f
                             else -> anchor.bottom + m * 0.75f - pl.height
-                        }.coerceIn(m, maxOf(m, sh - pl.height - m))
-                        geo[0] = ((cx - cardX) / cardWpx).coerceIn(0f, 1f)
+                        }.coerceIn(safeTop, maxOf(safeTop, sh - pl.height - safeBottom))
+                        // l'animazione parte sempre dall'icona della cartella
+                        val ox = if (hasAnchor) anchor.center.x else cx
+                        geo[0] = ((ox - cardX) / pl.width).coerceIn(0f, 1f)
                         geo[1] = if (hasAnchor) ((anchor.center.y - y) / pl.height).coerceIn(0f, 1f) else 0.5f
                         layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
                     }
@@ -319,10 +329,10 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                             .padding(vertical = 8.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        AppIcon(app, 52.dp, s.themedIcons)
+                                        AppIcon(app, if (s.folderSize == "large") 60.dp else 52.dp, s.themedIcons)
                                         Text(
                                             app.label,
-                                            fontSize = 11.sp,
+                                            fontSize = if (s.folderSize == "large") 12.sp else 11.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             color = fgColor,
@@ -332,7 +342,8 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 }
                             }
                         }
-                        Box(Modifier.fillMaxWidth().height(90.dp * ((minOf(ids.size, perPage) + fCols - 1) / fCols))) {
+                        val rowH = if (s.folderSize == "large") 104.dp else 90.dp
+                        Box(Modifier.fillMaxWidth().height(rowH * ((minOf(ids.size, perPage) + fCols - 1) / fCols))) {
                             androidx.compose.foundation.pager.HorizontalPager(
                                 state = fPager,
                                 flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
@@ -343,7 +354,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 val slice = ids.drop(pg * perPage).take(perPage)
                                 Column(Modifier.fillMaxSize()) {
                                     slice.chunked(fCols).forEach { rowIds ->
-                                        Row(Modifier.fillMaxWidth().height(90.dp)) {
+                                        Row(Modifier.fillMaxWidth().height(rowH)) {
                                             rowIds.forEach { id -> Box(Modifier.weight(1f)) { cell(id) } }
                                             repeat(fCols - rowIds.size) { Spacer(Modifier.weight(1f)) }
                                         }
@@ -357,7 +368,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 onValueChange = { name = it },
                                 singleLine = true,
                                 textStyle = TextStyle(
-                                    fontSize = 20.sp,
+                                    fontSize = if (s.folderSize == "large") 24.sp else 20.sp,
                                     fontWeight = FontWeight.Medium,
                                     textAlign = TextAlign.Start,
                                     color = fgColor

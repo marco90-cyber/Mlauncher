@@ -192,6 +192,10 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "auto") ?: "auto")
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
+    /** cartella aperta: "center" (al centro dello schermo) o "icon" (vicino all'icona) */
+    var folderPos by mutableStateOf(sp.getString("folderPos", "center") ?: "center")
+    /** cartella aperta: "compact" o "large" (quasi tutta la larghezza, stile HyperOS) */
+    var folderSize by mutableStateOf(sp.getString("folderSize", "compact") ?: "compact")
     var returnAnim by mutableStateOf(sp.getString("returnAnim", "settle") ?: "settle")
     var returnOnApp by mutableStateOf(sp.getBoolean("returnOnApp", true))
     var returnOnUnlock by mutableStateOf(sp.getBoolean("returnOnUnlock", true))
@@ -338,6 +342,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
             "lockHome" -> lockHome = value as Boolean
+            "folderPos" -> folderPos = value as String
+            "folderSize" -> folderSize = value as String
             "returnAnim" -> returnAnim = value as String
             "returnOnApp" -> returnOnApp = value as Boolean
             "returnOnUnlock" -> returnOnUnlock = value as Boolean
