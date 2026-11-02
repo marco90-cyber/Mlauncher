@@ -201,7 +201,10 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val anchor = vm.folderAnchor
                 val cols = s.folderCols
                 val big = s.folderSize == "large"
-                val cardW = if (big) (conf.screenWidthDp - 32).dp else minOf((cols * 72 + 24).dp, (conf.screenWidthDp - 32).dp)
+                // icone grandi come quelle della Home: se le ingrandisci lì, crescono anche qui
+                val folderIcon = vm.homeIconDp().dp
+                val colW = maxOf(72.dp, folderIcon + 22.dp)
+                val cardW = if (big) (conf.screenWidthDp - 32).dp else minOf(colW * cols + 24.dp, (conf.screenWidthDp - 32).dp)
                 val cardWpx = with(dens) { cardW.toPx() }
                 val m = with(dens) { 16.dp.toPx() }
                 // margini sicuri: mai sotto la barra di stato, la barra di navigazione o il foro della fotocamera
@@ -383,7 +386,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                             .padding(vertical = 8.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        AppIcon(app, if (s.folderSize == "large") 60.dp else 52.dp, s.themedIcons)
+                                        AppIcon(app, folderIcon, s.themedIcons)
                                         Text(
                                             app.label,
                                             fontSize = if (s.folderSize == "large") 12.sp else 11.sp,
@@ -396,7 +399,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 }
                             }
                         }
-                        val rowH = if (s.folderSize == "large") 104.dp else 90.dp
+                        val rowH = folderIcon + (if (s.folderSize == "large") 46.dp else 38.dp)
                         Box(Modifier.fillMaxWidth().height(rowH * ((minOf(ids.size, perPage) + fCols - 1) / fCols))) {
                             androidx.compose.foundation.pager.HorizontalPager(
                                 state = fPager,
@@ -503,16 +506,16 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
             }
             val da = dragApp?.let { vm.apps[it] }
             if (da != null) {
-                val sz = with(androidx.compose.ui.platform.LocalDensity.current) { 52.dp.toPx() }
+                val sz = with(androidx.compose.ui.platform.LocalDensity.current) { vm.homeIconDp().dp.toPx() }
                 Box(
                     Modifier
                         .offset { IntOffset((dragPos.x - sz / 2f).roundToInt(), (dragPos.y - sz / 2f).roundToInt()) }
-                        .size(52.dp)
+                        .size(vm.homeIconDp().dp)
                 ) {
                     picked.take(3).mapNotNull { vm.apps[it] }.forEachIndexed { i, a ->
-                        Box(Modifier.offset((6 * (i + 1)).dp, (6 * (i + 1)).dp).alpha(0.85f)) { AppIcon(a, 52.dp, s.themedIcons) }
+                        Box(Modifier.offset((6 * (i + 1)).dp, (6 * (i + 1)).dp).alpha(0.85f)) { AppIcon(a, vm.homeIconDp().dp, s.themedIcons) }
                     }
-                    AppIcon(da, 52.dp, s.themedIcons)
+                    AppIcon(da, vm.homeIconDp().dp, s.themedIcons)
                     if (picked.isNotEmpty()) Box(
                         Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center

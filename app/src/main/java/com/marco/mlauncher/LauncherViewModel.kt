@@ -1163,6 +1163,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** app installate da poco e mai aperte: puntino nel cassetto */
     val newApps = mutableStateListOf<String>()
 
+    /** Grandezza delle icone della Home (dp), uguale a quella calcolata in GridItem: la usano anche le cartelle. */
+    fun homeIconDp(): Float {
+        val cw = cellWdp
+        val ch = cellHdp
+        if (cw <= 0f || ch <= 0f) return 56f * settings.iconScale
+        val base = if (settings.showLabels) minOf(cw * 0.62f, ch * 0.50f) else minOf(cw * 0.82f, ch * 0.72f)
+        return minOf(base * settings.iconScale, 96f)
+    }
+
     fun searchCount(appId: String) = sp.getInt("srch_$appId", 0)
 
     /** app aperta dai risultati della ricerca: finisce tra le "Cercate spesso" */
