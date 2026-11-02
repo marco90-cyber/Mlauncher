@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
@@ -152,38 +153,77 @@ fun applyWallFx(src: Bitmap, fx: WallFx): Bitmap {
 
 val GEN_STYLES = listOf(
     "aurora" to "Aurora",
+    "mesh" to "Mesh",
     "waves" to "Onde",
+    "hills" to "Colline",
     "linear" to "Gradiente",
     "radial" to "Radiale",
     "bubbles" to "Bolle",
-    "diagonal" to "Diagonale"
+    "rings" to "Cerchi",
+    "rays" to "Raggi",
+    "poly" to "Poligoni",
+    "diagonal" to "Strisce"
 )
+
+/** Tavolozze pronte (4 colori ciascuna). */
+val GEN_PALETTES = listOf(
+    "Aurora" to listOf(0xFF27F5A6, 0xFF3A7BFF, 0xFFB14BFF, 0xFF0E3B3A),
+    "Tramonto" to listOf(0xFFFF2E7E, 0xFFFFB347, 0xFFFF7A00, 0xFF3B0A45),
+    "Oceano" to listOf(0xFF19C3E6, 0xFF2A6CFF, 0xFF00E0B0, 0xFF03224C),
+    "Bosco" to listOf(0xFF2E7D32, 0xFF81C784, 0xFFC5E1A5, 0xFF1B3A1F),
+    "Lavanda" to listOf(0xFFB39DDB, 0xFFF8BBD0, 0xFF9FA8DA, 0xFF4A3F6B),
+    "Pesca" to listOf(0xFFFFCCBC, 0xFFFFAB91, 0xFFFFE0B2, 0xFFE57373),
+    "Neon" to listOf(0xFFFF00E5, 0xFF00F0FF, 0xFF7C4DFF, 0xFF0A0A1F),
+    "Sabbia" to listOf(0xFFD7CCC8, 0xFFBCAAA4, 0xFFFFE0B2, 0xFF6D4C41),
+    "Ghiaccio" to listOf(0xFFE1F5FE, 0xFF81D4FA, 0xFFB3E5FC, 0xFF37474F),
+    "Fuoco" to listOf(0xFFFFEB3B, 0xFFFF9800, 0xFFF44336, 0xFF3E0A0A),
+    "Menta" to listOf(0xFF4FD1A5, 0xFFB6F2FF, 0xFF2BB673, 0xFFE8FFF6),
+    "Notte" to listOf(0xFF4B2BFF, 0xFF8E2DE2, 0xFF0B3D91, 0xFF05060F)
+).map { (n, l) -> n to l.map { it.toInt() } }
 
 /** Regole di uno sfondo creato: si ridisegna sempre alla risoluzione del telefono. */
 data class GenWall(
     val id: String,
     val name: String,
     val style: String = "aurora",
-    val c1: Int = 0xFF27F5A6.toInt(),
-    val c2: Int = 0xFF3A7BFF.toInt(),
-    val c3: Int = 0xFFB14BFF.toInt(),
-    /** da dove vengono i colori: "mine", "system", "theme" */
+    /** da 1 a 4 colori */
+    val colors: List<Int> = listOf(0xFF27F5A6.toInt(), 0xFF3A7BFF.toInt(), 0xFFB14BFF.toInt()),
+    /** da dove vengono i colori: "mine", "system", "theme", "wall" */
     val source: String = "mine",
     val seed: Int = 1,
     val soft: Float = 0.5f,
     val grain: Float = 0f,
-    val dark: Boolean = true
+    val dark: Boolean = true,
+    /** direzione (gradiente, strisce, raggi), da 0 a 1 = mezzo giro */
+    val angle: Float = 0.3f,
+    /** quantità di elementi (bolle, onde, cerchi, raggi, poligoni, colline, strisce) */
+    val density: Float = 0.5f,
+    /** da -1 a 1 */
+    val bright: Float = 0f,
+    val sat: Float = 0f,
+    val vignette: Float = 0f,
+    val blur: Float = 0f
 ) {
     fun toJson(): JSONObject = JSONObject().put("id", id).put("n", name).put("st", style)
-        .put("c1", c1).put("c2", c2).put("c3", c3).put("src", source).put("seed", seed)
+        .put("cols", JSONArray(colors)).put("src", source).put("seed", seed)
         .put("soft", soft.toDouble()).put("gr", grain.toDouble()).put("dk", dark)
+        .put("ang", angle.toDouble()).put("den", density.toDouble()).put("br", bright.toDouble())
+        .put("sat", sat.toDouble()).put("vig", vignette.toDouble()).put("bl", blur.toDouble())
 
     companion object {
-        fun fromJson(o: JSONObject) = GenWall(
-            o.getString("id"), o.optString("n", "Il mio sfondo"), o.optString("st", "aurora"),
-            o.optInt("c1"), o.optInt("c2"), o.optInt("c3"), o.optString("src", "mine"),
-            o.optInt("seed", 1), o.optDouble("soft", 0.5).toFloat(), o.optDouble("gr", 0.0).toFloat(), o.optBoolean("dk", true)
-        )
+        fun fromJson(o: JSONObject): GenWall {
+            val arr = o.optJSONArray("cols")
+            // le prime versioni avevano sempre 3 colori in c1, c2, c3
+            val cols = if (arr != null && arr.length() > 0) (0 until arr.length()).map { arr.getInt(it) }
+            else listOf(o.optInt("c1"), o.optInt("c2"), o.optInt("c3"))
+            return GenWall(
+                o.getString("id"), o.optString("n", "Il mio sfondo"), o.optString("st", "aurora"),
+                cols.take(4), o.optString("src", "mine"),
+                o.optInt("seed", 1), o.optDouble("soft", 0.5).toFloat(), o.optDouble("gr", 0.0).toFloat(), o.optBoolean("dk", true),
+                o.optDouble("ang", 0.3).toFloat(), o.optDouble("den", 0.5).toFloat(), o.optDouble("br", 0.0).toFloat(),
+                o.optDouble("sat", 0.0).toFloat(), o.optDouble("vig", 0.0).toFloat(), o.optDouble("bl", 0.0).toFloat()
+            )
+        }
 
         fun listFrom(json: String): List<GenWall> = try {
             val a = JSONArray(json)
@@ -199,21 +239,40 @@ data class GenWall(
 /** Colori di uno degli sfondi inclusi, per partire da lì con "Personalizza". */
 fun builtinGen(key: String, label: String): GenWall {
     val (c, dark) = when (key) {
-        "ocean" -> intArrayOf(0xFF19C3E6.toInt(), 0xFF2A6CFF.toInt(), 0xFF00E0B0.toInt()) to true
-        "sunset" -> intArrayOf(0xFFFF2E7E.toInt(), 0xFFFFB347.toInt(), 0xFFFF7A00.toInt()) to true
-        "night" -> intArrayOf(0xFF4B2BFF.toInt(), 0xFF8E2DE2.toInt(), 0xFF0B3D91.toInt()) to true
-        "mint" -> intArrayOf(0xFF4FD1A5.toInt(), 0xFFB6F2FF.toInt(), 0xFF2BB673.toInt()) to false
-        "candy" -> intArrayOf(0xFFFFA8D2.toInt(), 0xFFA8C8FF.toInt(), 0xFFC9A8FF.toInt()) to false
-        else -> intArrayOf(0xFF27F5A6.toInt(), 0xFF3A7BFF.toInt(), 0xFFB14BFF.toInt()) to true
+        "ocean" -> listOf(0xFF19C3E6, 0xFF2A6CFF, 0xFF00E0B0) to true
+        "sunset" -> listOf(0xFFFF2E7E, 0xFFFFB347, 0xFFFF7A00) to true
+        "night" -> listOf(0xFF4B2BFF, 0xFF8E2DE2, 0xFF0B3D91) to true
+        "mint" -> listOf(0xFF4FD1A5, 0xFFB6F2FF, 0xFF2BB673) to false
+        "candy" -> listOf(0xFFFFA8D2, 0xFFA8C8FF, 0xFFC9A8FF) to false
+        else -> listOf(0xFF27F5A6, 0xFF3A7BFF, 0xFFB14BFF) to true
     }
-    return GenWall(java.util.UUID.randomUUID().toString(), "$label (mio)", "aurora", c[0], c[1], c[2], "mine", 1, 0.55f, 0f, dark)
+    return GenWall(java.util.UUID.randomUUID().toString(), "$label (mio)", "aurora", c.map { it.toInt() }, "mine", 1, 0.55f, 0f, dark)
+}
+
+/** Uno sfondo tutto a caso: stile, tavolozza e regolazioni. */
+fun randomGen(id: String, name: String): GenWall {
+    val r = java.util.Random()
+    val pal = GEN_PALETTES[r.nextInt(GEN_PALETTES.size)].second
+    val n = 2 + r.nextInt(3)
+    return GenWall(
+        id, name, GEN_STYLES[r.nextInt(GEN_STYLES.size)].first, pal.shuffled(r).take(n), "mine",
+        1 + r.nextInt(1_000_000), 0.3f + r.nextFloat() * 0.6f, if (r.nextBoolean()) 0.25f else 0f, r.nextBoolean(),
+        r.nextFloat(), 0.3f + r.nextFloat() * 0.5f
+    )
 }
 
 private fun withL(c: Int, l: Float, satMul: Float = 1f): Int {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(c, hsl)
     hsl[1] = (hsl[1] * satMul).coerceIn(0f, 1f)
-    hsl[2] = l
+    hsl[2] = l.coerceIn(0f, 1f)
+    return ColorUtils.HSLToColor(hsl)
+}
+
+private fun shiftL(c: Int, d: Float): Int {
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(c, hsl)
+    hsl[2] = (hsl[2] + d).coerceIn(0.03f, 0.97f)
     return ColorUtils.HSLToColor(hsl)
 }
 
@@ -225,40 +284,63 @@ fun genWall(g: GenWall, w: Int, h: Int): Bitmap {
     val c = Canvas(bm)
     val p = Paint(Paint.ANTI_ALIAS_FLAG)
     val r = java.util.Random(g.seed.toLong() * 7919L + g.style.hashCode())
-    val cols = intArrayOf(g.c1, g.c2, g.c3)
-    // base chiara o scura con la tinta del primo colore
-    val b1 = if (g.dark) withL(g.c1, 0.07f, 0.8f) else withL(g.c1, 0.94f, 0.6f)
-    val b2 = if (g.dark) withL(g.c2, 0.16f, 0.8f) else withL(g.c2, 0.86f, 0.6f)
+    // con un solo colore uso tre sue sfumature
+    val src = g.colors.ifEmpty { listOf(0xFF3A7BFF.toInt()) }
+    val cols = if (src.size == 1) listOf(src[0], shiftL(src[0], 0.18f), shiftL(src[0], -0.18f)) else src
+    fun pick(i: Int) = cols[((i % cols.size) + cols.size) % cols.size]
+    // base chiara o scura con la tinta dei primi colori
+    val b1 = if (g.dark) withL(pick(0), 0.07f, 0.8f) else withL(pick(0), 0.94f, 0.6f)
+    val b2 = if (g.dark) withL(pick(1), 0.16f, 0.8f) else withL(pick(1), 0.86f, 0.6f)
     val big = max(w, h).toFloat()
     val soft = g.soft.coerceIn(0f, 1f)
+    val dens = g.density.coerceIn(0f, 1f)
+    val ang = g.angle * PI.toFloat()
     fun base() {
         p.shader = LinearGradient(0f, 0f, w * 0.35f, h.toFloat(), b1, b2, Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
     }
-    fun col(i: Int) = if (g.dark) cols[i % 3] else withL(cols[i % 3], 0.72f)
+    fun col(i: Int) = if (g.dark) pick(i) else withL(pick(i), 0.72f)
+    fun gradColors(lights: List<Float>) = IntArray(cols.size) { i ->
+        val l = lights[i % lights.size]
+        withL(cols[i], l)
+    }
+    val full = android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat())
     when (g.style) {
         "linear" -> {
-            val ang = r.nextFloat() * PI.toFloat()
             val dx = kotlin.math.cos(ang) * big / 2f
             val dy = kotlin.math.sin(ang) * big / 2f
-            val list = if (g.dark) intArrayOf(withL(g.c1, 0.22f), withL(g.c2, 0.32f), withL(g.c3, 0.18f))
-            else intArrayOf(withL(g.c1, 0.82f), withL(g.c2, 0.74f), withL(g.c3, 0.86f))
-            p.shader = LinearGradient(w / 2f - dx, h / 2f - dy, w / 2f + dx, h / 2f + dy, list, floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
-            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            val list = if (g.dark) gradColors(listOf(0.22f, 0.32f, 0.18f, 0.12f)) else gradColors(listOf(0.82f, 0.74f, 0.86f, 0.9f))
+            val stops = FloatArray(list.size) { it / max(1f, list.size - 1f) }
+            p.shader = LinearGradient(w / 2f - dx, h / 2f - dy, w / 2f + dx, h / 2f + dy, if (list.size == 1) intArrayOf(list[0], list[0]) else list,
+                if (list.size == 1) floatArrayOf(0f, 1f) else stops, Shader.TileMode.CLAMP)
+            c.drawRect(full, p)
         }
         "radial" -> {
             val cx = w * (0.2f + r.nextFloat() * 0.6f)
             val cy = h * (0.1f + r.nextFloat() * 0.35f)
-            val list = if (g.dark) intArrayOf(withL(g.c1, 0.55f), withL(g.c2, 0.25f), withL(g.c3, 0.08f))
-            else intArrayOf(withL(g.c1, 0.95f), withL(g.c2, 0.80f), withL(g.c3, 0.66f))
-            p.shader = RadialGradient(cx, cy, big * (0.7f + soft * 0.6f), list, floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
-            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            val list = if (g.dark) gradColors(listOf(0.55f, 0.25f, 0.12f, 0.06f)) else gradColors(listOf(0.95f, 0.82f, 0.7f, 0.6f))
+            val stops = FloatArray(list.size) { it / max(1f, list.size - 1f) }
+            p.shader = RadialGradient(cx, cy, big * (0.7f + soft * 0.6f), if (list.size == 1) intArrayOf(list[0], list[0]) else list,
+                if (list.size == 1) floatArrayOf(0f, 1f) else stops, Shader.TileMode.CLAMP)
+            c.drawRect(full, p)
+        }
+        "mesh" -> {
+            // quattro angoli che si fondono
+            base()
+            val pts = listOf(0f to 0f, 1f to 0f, 0f to 1f, 1f to 1f).shuffled(r)
+            pts.forEachIndexed { i, (px, py) ->
+                val cx = w * (px + (r.nextFloat() - 0.5f) * 0.3f)
+                val cy = h * (py + (r.nextFloat() - 0.5f) * 0.3f)
+                val cc = col(i)
+                p.shader = RadialGradient(cx, cy, big * (0.6f + soft * 0.5f), cc, cc and 0x00FFFFFF, Shader.TileMode.CLAMP)
+                c.drawRect(full, p)
+            }
         }
         "waves" -> {
             base()
-            p.shader = null
-            for (i in 0 until 4) {
-                val y0 = h * (0.35f + i * 0.15f)
+            val n = 3 + (dens * 6).toInt()
+            for (i in 0 until n) {
+                val y0 = h * (0.3f + i * (0.6f / n))
                 val amp = h * (0.03f + r.nextFloat() * 0.05f)
                 val len = w * (0.8f + r.nextFloat() * 0.9f)
                 val ph = r.nextFloat() * 6.28f
@@ -272,41 +354,137 @@ fun genWall(g: GenWall, w: Int, h: Int): Bitmap {
                 path.lineTo(w.toFloat(), h.toFloat())
                 path.close()
                 val cc = col(i)
-                p.shader = LinearGradient(0f, y0 - amp, 0f, h.toFloat(), alpha(cc, 0.55f + 0.2f * (1f - soft)), alpha(cc, 0.15f), Shader.TileMode.CLAMP)
+                p.shader = LinearGradient(0f, y0 - amp, 0f, h.toFloat(), alpha(cc, 0.5f + 0.2f * (1f - soft)), alpha(cc, 0.12f), Shader.TileMode.CLAMP)
+                c.drawPath(path, p)
+            }
+        }
+        "hills" -> {
+            // cielo sfumato e colline una davanti all'altra, dalla più chiara alla più scura
+            p.shader = LinearGradient(0f, 0f, 0f, h.toFloat(),
+                if (g.dark) withL(pick(0), 0.12f) else withL(pick(0), 0.9f),
+                if (g.dark) withL(pick(1), 0.3f) else withL(pick(1), 0.75f), Shader.TileMode.CLAMP)
+            c.drawRect(full, p)
+            p.shader = null
+            val n = 3 + (dens * 4).toInt()
+            for (i in 0 until n) {
+                val t = i / max(1f, n - 1f)
+                val y0 = h * (0.45f + t * 0.4f)
+                val path = Path()
+                path.moveTo(0f, h.toFloat())
+                val f1 = 1f + r.nextFloat() * 2f
+                val f2 = 2f + r.nextFloat() * 3f
+                val ph = r.nextFloat() * 6.28f
+                var x = 0f
+                while (x <= w) {
+                    val u = x / w * 6.28f
+                    path.lineTo(x, y0 - h * 0.06f * (sin(u * f1 + ph) * 0.7f + sin(u * f2 + ph * 2) * 0.3f))
+                    x += w / 80f
+                }
+                path.lineTo(w.toFloat(), h.toFloat())
+                path.close()
+                val l = if (g.dark) 0.45f - t * 0.35f else 0.75f - t * 0.45f
+                p.color = withL(pick(i + 1), l)
                 c.drawPath(path, p)
             }
         }
         "bubbles" -> {
             base()
-            val n = 10 + r.nextInt(10)
+            val n = 6 + (dens * 30).toInt()
             repeat(n) { i ->
                 val cx = w * r.nextFloat()
                 val cy = h * r.nextFloat()
-                val rad = big * (0.04f + r.nextFloat() * 0.16f)
+                val rad = big * (0.03f + r.nextFloat() * (0.18f - dens * 0.08f))
                 val cc = col(i)
                 val a = 0.25f + r.nextFloat() * 0.45f
-                // morbidezza: bordo sfumato
                 p.shader = RadialGradient(cx, cy, rad, intArrayOf(alpha(cc, a), alpha(cc, a * (1f - soft * 0.7f)), alpha(cc, 0f)),
                     floatArrayOf(0f, 0.7f + 0.25f * (1f - soft), 1f), Shader.TileMode.CLAMP)
                 c.drawCircle(cx, cy, rad, p)
             }
         }
+        "rings" -> {
+            base()
+            val cx = w * (0.2f + r.nextFloat() * 0.6f)
+            val cy = h * (0.2f + r.nextFloat() * 0.6f)
+            val n = 5 + (dens * 20).toInt()
+            val step = big * 1.1f / n
+            p.shader = null
+            for (i in n downTo 1) {
+                p.color = alpha(col(i), 0.35f + 0.4f * (i % 2))
+                if (soft > 0.05f) {
+                    val cc = col(i)
+                    p.shader = RadialGradient(cx, cy, step * i, intArrayOf(alpha(cc, 0.75f), alpha(cc, 0.75f), alpha(cc, 0.75f * (1f - soft))),
+                        floatArrayOf(0f, 0.85f, 1f), Shader.TileMode.CLAMP)
+                }
+                c.drawCircle(cx, cy, step * i, p)
+            }
+        }
+        "rays" -> {
+            base()
+            val cx = w * (0.3f + r.nextFloat() * 0.4f)
+            val cy = h * (0.15f + r.nextFloat() * 0.3f)
+            val n = 8 + (dens * 28).toInt()
+            val len = big * 1.6f
+            val wedge = (2 * PI / n).toFloat()
+            p.shader = null
+            for (i in 0 until n) {
+                val a0 = ang * 2f + i * wedge
+                val a1 = a0 + wedge * 0.5f
+                val path = Path()
+                path.moveTo(cx, cy)
+                path.lineTo(cx + kotlin.math.cos(a0) * len, cy + kotlin.math.sin(a0) * len)
+                path.lineTo(cx + kotlin.math.cos(a1) * len, cy + kotlin.math.sin(a1) * len)
+                path.close()
+                p.color = alpha(col(i), 0.35f)
+                c.drawPath(path, p)
+            }
+            // bagliore al centro
+            val cc = if (g.dark) withL(pick(0), 0.7f) else Color.White.toArgb()
+            p.shader = RadialGradient(cx, cy, big * (0.25f + soft * 0.4f), alpha(cc, 0.7f), alpha(cc, 0f), Shader.TileMode.CLAMP)
+            c.drawRect(full, p)
+        }
+        "poly" -> {
+            // poligoni (triangoli) con i colori che sfumano dall'alto in basso
+            val cell = big / (5f + dens * 14f)
+            val cx = (w / cell).toInt() + 2
+            val cy = (h / cell).toInt() + 2
+            val px = Array(cy) { FloatArray(cx) }
+            val py = Array(cy) { FloatArray(cx) }
+            for (j in 0 until cy) for (i in 0 until cx) {
+                px[j][i] = (i - 0.5f) * cell + (r.nextFloat() - 0.5f) * cell * 0.8f
+                py[j][i] = (j - 0.5f) * cell + (r.nextFloat() - 0.5f) * cell * 0.8f
+            }
+            p.shader = null
+            fun colorAt(y: Float): Int {
+                val t = (y / h).coerceIn(0f, 1f) * (cols.size - 1)
+                val k = t.toInt().coerceAtMost(cols.size - 2).coerceAtLeast(0)
+                val a = if (cols.size == 1) cols[0] else ColorUtils.blendARGB(cols[k], cols[min(k + 1, cols.size - 1)], t - k)
+                return if (g.dark) withL(a, 0.18f + r.nextFloat() * 0.18f) else withL(a, 0.62f + r.nextFloat() * 0.2f)
+            }
+            for (j in 0 until cy - 1) for (i in 0 until cx - 1) {
+                val t1 = Path().apply { moveTo(px[j][i], py[j][i]); lineTo(px[j][i + 1], py[j][i + 1]); lineTo(px[j + 1][i], py[j + 1][i]); close() }
+                val t2 = Path().apply { moveTo(px[j][i + 1], py[j][i + 1]); lineTo(px[j + 1][i + 1], py[j + 1][i + 1]); lineTo(px[j + 1][i], py[j + 1][i]); close() }
+                p.color = colorAt(py[j][i]); c.drawPath(t1, p)
+                p.color = colorAt(py[j + 1][i + 1]); c.drawPath(t2, p)
+            }
+        }
         "diagonal" -> {
             base()
-            val bands = 5 + r.nextInt(4)
-            val list = IntArray(bands * 2) { i -> alpha(col(i / 2), if (i % 2 == 0) 0.55f else 0.0f + soft * 0.35f) }
+            val bands = 3 + (dens * 10).toInt()
+            val list = IntArray(bands * 2) { i -> alpha(col(i / 2), if (i % 2 == 0) 0.55f else soft * 0.45f) }
             val stops = FloatArray(bands * 2) { i -> i / (bands * 2f - 1f) }
-            p.shader = LinearGradient(0f, 0f, w.toFloat(), h * 0.6f, list, stops, Shader.TileMode.MIRROR)
-            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            val dx = kotlin.math.cos(ang) * big
+            val dy = kotlin.math.sin(ang) * big
+            p.shader = LinearGradient(0f, 0f, dx, dy, list, stops, Shader.TileMode.MIRROR)
+            c.drawRect(full, p)
         }
         else -> {
             // aurora: grandi macchie sfumate
             base()
-            val n = 3 + r.nextInt(2)
+            val n = max(3, cols.size) + (dens * 3).toInt()
             repeat(n) { i ->
                 val cx = w * (0.1f + r.nextFloat() * 0.8f)
                 val cy = h * (0.05f + (i + r.nextFloat()) / n * 0.9f)
-                val rad = big * (0.35f + soft * 0.35f)
+                val rad = big * (0.3f + soft * 0.35f)
                 val cc = col(i)
                 p.shader = RadialGradient(cx, cy, rad, cc, cc and 0x00FFFFFF, Shader.TileMode.CLAMP)
                 c.drawCircle(cx, cy, rad, p)
@@ -314,14 +492,18 @@ fun genWall(g: GenWall, w: Int, h: Int): Bitmap {
         }
     }
     p.shader = null
-    if (g.grain > 0f) {
-        val gp = Paint()
-        gp.shader = BitmapShader(noiseTile(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-        gp.alpha = (g.grain * 0.22f * 255).toInt()
-        gp.blendMode = android.graphics.BlendMode.OVERLAY
-        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), gp)
+    // luminosità e saturazione
+    var out = bm
+    if (g.bright != 0f || g.sat != 0f) {
+        val m = wallColorMatrix(g.bright * 0.6f, 0f, g.sat, 0f, "none")
+        if (m != null) {
+            val o2 = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            Canvas(o2).drawBitmap(bm, 0f, 0f, Paint().apply { colorFilter = android.graphics.ColorMatrixColorFilter(m) })
+            out = o2
+        }
     }
-    return bm
+    // effetti finali: sfocatura, vignettatura, grana
+    return applyWallFx(out, WallFx(blur = g.blur, vignette = g.vignette, grain = g.grain))
 }
 
 /** Colori pronti per la scelta. */
@@ -333,6 +515,19 @@ private val PALETTE = listOf(
     0xFF1B5E20, 0xFF0D47A1, 0xFF311B92, 0xFF880E4F, 0xFFBF360C, 0xFF263238
 ).map { it.toInt() }
 
+@Composable
+private fun GenLabel(t: String) {
+    Text(t, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
+}
+
+@Composable
+private fun GenSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float> = 0f..1f, onChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(86.dp))
+        Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.weight(1f).height(30.dp))
+    }
+}
+
 /** Editor di "Crea il tuo sfondo". */
 @Composable
 fun WallGenerator(vm: LauncherViewModel, start: GenWall) {
@@ -342,82 +537,135 @@ fun WallGenerator(vm: LauncherViewModel, start: GenWall) {
     var pickIdx by remember { mutableStateOf(-1) }
     BackHandler { vm.genEdit = null }
     val (tw, th) = vm.wallTarget()
-    val pw = 300
-    val ph = (pw * th.toFloat() / tw).toInt().coerceAtLeast(300)
+    val pw = 320
+    val ph = (pw * th.toFloat() / tw).toInt().coerceAtLeast(320)
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(g) {
         preview = withContext(Dispatchers.Default) { genWall(g, pw, ph).asImageBitmap() }
     }
-    // colori dal sistema o dal tema
+    // colori dal sistema, dal tema o dallo sfondo attuale
     val sys = remember {
-        intArrayOf(
+        listOf(
             ctx.getColor(android.R.color.system_accent1_400),
             ctx.getColor(android.R.color.system_accent2_400),
-            ctx.getColor(android.R.color.system_accent3_400)
+            ctx.getColor(android.R.color.system_accent3_400),
+            ctx.getColor(android.R.color.system_accent1_700)
         )
     }
-    val theme = intArrayOf(cs.primary.toArgb(), cs.secondary.toArgb(), cs.tertiary.toArgb())
+    val theme = listOf(cs.primary.toArgb(), cs.secondary.toArgb(), cs.tertiary.toArgb(), cs.primaryContainer.toArgb())
+    val wallCols = remember(vm.wallBitmap) {
+        try {
+            val b = vm.wallBitmap?.asAndroidBitmap() ?: return@remember null
+            val wc = android.app.WallpaperColors.fromBitmap(b)
+            val p0 = wc.primaryColor.toArgb()
+            listOf(p0, (wc.secondaryColor ?: wc.primaryColor).toArgb(), (wc.tertiaryColor ?: wc.primaryColor).toArgb(), shiftL(p0, -0.25f))
+        } catch (e: Throwable) {
+            null
+        }
+    }
+    fun withCount(n: Int, from: List<Int>): List<Int> = List(n) { i -> from.getOrNull(i) ?: shiftL(from[i % from.size], if (i % 2 == 0) 0.2f else -0.2f) }
+    fun setSource(src: String, list: List<Int>) { g = g.copy(source = src, colors = withCount(g.colors.size, list)) }
 
     Surface(color = cs.surface, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { vm.genEdit = null }) { Text("Annulla") }
                 Text("Crea il tuo sfondo", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                TextButton(onClick = { g = g.copy(seed = (1..1_000_000).random()) }) { Text("Varia") }
+                TextButton(onClick = { g = randomGen(g.id, g.name) }) { Text("A caso") }
             }
             Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 // anteprima
-                Box(
-                    Modifier.fillMaxHeight().aspectRatio(tw.toFloat() / th).clip(RoundedCornerShape(22.dp))
-                        .border(1.dp, cs.outlineVariant, RoundedCornerShape(22.dp))
-                        .background(cs.surfaceContainer)
-                ) {
-                    preview?.let {
-                        androidx.compose.foundation.Image(
-                            it, contentDescription = "Anteprima",
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                Column(Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.weight(1f).aspectRatio(tw.toFloat() / th).clip(RoundedCornerShape(22.dp))
+                            .border(1.dp, cs.outlineVariant, RoundedCornerShape(22.dp))
+                            .background(cs.surfaceContainer)
+                    ) {
+                        preview?.let {
+                            androidx.compose.foundation.Image(
+                                it, contentDescription = "Anteprima",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
+                    OutlinedButton(onClick = { g = g.copy(seed = (1..1_000_000).random()) }, modifier = Modifier.padding(top = 8.dp)) { Text("Varia") }
                 }
                 Spacer(Modifier.width(12.dp))
                 // comandi
-                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Stile", style = MaterialTheme.typography.labelLarge, color = cs.primary)
+                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                    GenLabel("Stile")
                     GEN_STYLES.chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { (k, l) ->
-                                FilterChip(selected = g.style == k, onClick = { g = g.copy(style = k) }, label = { Text(l) }, modifier = Modifier.weight(1f))
+                                FilterChip(selected = g.style == k, onClick = { g = g.copy(style = k) }, label = { Text(l, maxLines = 1) }, modifier = Modifier.weight(1f))
                             }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
-                    Text("Colori", style = MaterialTheme.typography.labelLarge, color = cs.primary, modifier = Modifier.padding(top = 6.dp))
+                    GenLabel("Quanti colori")
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(selected = g.source == "mine", onClick = { g = g.copy(source = "mine") }, label = { Text("Miei") })
-                        FilterChip(selected = g.source == "system", onClick = { g = g.copy(source = "system", c1 = sys[0], c2 = sys[1], c3 = sys[2]) }, label = { Text("Sistema") })
+                        (1..4).forEach { n ->
+                            FilterChip(
+                                selected = g.colors.size == n,
+                                onClick = { g = g.copy(colors = withCount(n, g.colors)) },
+                                label = { Text("$n") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
-                    FilterChip(selected = g.source == "theme", onClick = { g = g.copy(source = "theme", c1 = theme[0], c2 = theme[1], c3 = theme[2]) }, label = { Text("Dal tema") })
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        listOf(g.c1, g.c2, g.c3).forEachIndexed { i, col ->
+                    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        g.colors.forEachIndexed { i, col ->
                             Box(
-                                Modifier.size(40.dp).clip(CircleShape).background(Color(col))
+                                Modifier.size(38.dp).clip(CircleShape).background(Color(col))
                                     .border(1.dp, cs.outline, CircleShape)
                                     .clickable { pickIdx = i }
                             )
                         }
                     }
-                    Text("Morbidezza", style = MaterialTheme.typography.labelLarge, color = cs.primary, modifier = Modifier.padding(top = 6.dp))
-                    Slider(value = g.soft, onValueChange = { g = g.copy(soft = it) })
-                    Text("Grana", style = MaterialTheme.typography.labelLarge, color = cs.primary)
-                    Slider(value = g.grain, onValueChange = { g = g.copy(grain = it) })
+                    Text("Tocca un colore per cambiarlo", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                    GenLabel("Colori da")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(selected = g.source == "mine", onClick = { g = g.copy(source = "mine") }, label = { Text("Miei") })
+                        FilterChip(selected = g.source == "system", onClick = { setSource("system", sys) }, label = { Text("Sistema") })
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(selected = g.source == "theme", onClick = { setSource("theme", theme) }, label = { Text("Tema") })
+                        if (wallCols != null) FilterChip(selected = g.source == "wall", onClick = { setSource("wall", wallCols) }, label = { Text("Sfondo") })
+                    }
+                    GenLabel("Tavolozze pronte")
+                    GEN_PALETTES.chunked(3).forEach { row ->
+                        Row(Modifier.padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { (n, pal) ->
+                                Row(
+                                    Modifier.weight(1f).height(26.dp).clip(RoundedCornerShape(13.dp))
+                                        .clickable { g = g.copy(source = "mine", colors = withCount(max(g.colors.size, 2), pal)) }
+                                ) {
+                                    pal.forEach { pc -> Box(Modifier.weight(1f).fillMaxHeight().background(Color(pc))) }
+                                }
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                    GenLabel("Forma")
+                    GenSlider("Morbidezza", g.soft) { g = g.copy(soft = it) }
+                    GenSlider("Quantità", g.density) { g = g.copy(density = it) }
+                    GenSlider("Direzione", g.angle) { g = g.copy(angle = it) }
+                    GenLabel("Luce e colore")
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FilterChip(selected = !g.dark, onClick = { g = g.copy(dark = false) }, label = { Text("Chiaro") })
                         FilterChip(selected = g.dark, onClick = { g = g.copy(dark = true) }, label = { Text("Scuro") })
                     }
+                    GenSlider("Luminosità", g.bright, -1f..1f) { g = g.copy(bright = it) }
+                    GenSlider("Saturazione", g.sat, -1f..1f) { g = g.copy(sat = it) }
+                    GenLabel("Effetti")
+                    GenSlider("Grana", g.grain) { g = g.copy(grain = it) }
+                    GenSlider("Vignettatura", g.vignette) { g = g.copy(vignette = it) }
+                    GenSlider("Sfocatura", g.blur) { g = g.copy(blur = it) }
                     OutlinedTextField(
                         value = g.name, onValueChange = { g = g.copy(name = it) },
                         singleLine = true, label = { Text("Nome") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                     )
                 }
             }
@@ -429,19 +677,14 @@ fun WallGenerator(vm: LauncherViewModel, start: GenWall) {
     }
 
     if (pickIdx >= 0) {
-        val cur = when (pickIdx) { 0 -> g.c1; 1 -> g.c2; else -> g.c3 }
-        ColorPickDialog(cur, onDismiss = { pickIdx = -1 }) { picked ->
-            g = when (pickIdx) {
-                0 -> g.copy(c1 = picked, source = "mine")
-                1 -> g.copy(c2 = picked, source = "mine")
-                else -> g.copy(c3 = picked, source = "mine")
-            }
+        ColorPickDialog(g.colors.getOrElse(pickIdx) { g.colors.first() }, onDismiss = { pickIdx = -1 }) { picked ->
+            g = g.copy(colors = g.colors.toMutableList().also { if (pickIdx < it.size) it[pickIdx] = picked }, source = "mine")
             pickIdx = -1
         }
     }
 }
 
-/** Scelta di un colore: tavolozza pronta più tonalità e luminosità regolabili. */
+/** Scelta di un colore: tavolozza pronta, tonalità, intensità e luminosità, o codice esadecimale. */
 @Composable
 private fun ColorPickDialog(start: Int, onDismiss: () -> Unit, onPick: (Int) -> Unit) {
     val cs = MaterialTheme.colorScheme
@@ -450,22 +693,24 @@ private fun ColorPickDialog(start: Int, onDismiss: () -> Unit, onPick: (Int) -> 
     var sat by remember { mutableStateOf(hsl0[1]) }
     var light by remember { mutableStateOf(hsl0[2]) }
     val current = ColorUtils.HSLToColor(floatArrayOf(hue, sat, light))
+    var hex by remember { mutableStateOf("") }
+    fun setFrom(c: Int) {
+        val h = FloatArray(3)
+        ColorUtils.colorToHSL(c, h)
+        hue = h[0]; sat = h[1]; light = h[2]
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Scegli un colore") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PALETTE.chunked(6).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         row.forEach { c ->
                             Box(
                                 Modifier.size(34.dp).clip(CircleShape).background(Color(c))
                                     .border(if (c == current) 3.dp else 0.dp, cs.primary, CircleShape)
-                                    .clickable {
-                                        val h = FloatArray(3)
-                                        ColorUtils.colorToHSL(c, h)
-                                        hue = h[0]; sat = h[1]; light = h[2]
-                                    }
+                                    .clickable { setFrom(c) }
                             )
                         }
                     }
@@ -473,15 +718,32 @@ private fun ColorPickDialog(start: Int, onDismiss: () -> Unit, onPick: (Int) -> 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Color(current)))
                     Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Tonalità", style = MaterialTheme.typography.labelMedium)
-                        Slider(value = hue, onValueChange = { hue = it }, valueRange = 0f..360f, modifier = Modifier.height(30.dp))
-                        Text("Intensità", style = MaterialTheme.typography.labelMedium)
-                        Slider(value = sat, onValueChange = { sat = it }, modifier = Modifier.height(30.dp))
-                        Text("Luminosità", style = MaterialTheme.typography.labelMedium)
-                        Slider(value = light, onValueChange = { light = it }, valueRange = 0.05f..0.95f, modifier = Modifier.height(30.dp))
-                    }
+                    OutlinedTextField(
+                        value = hex.ifEmpty { String.format("#%06X", current and 0xFFFFFF) },
+                        onValueChange = { t ->
+                            hex = t
+                            val clean = t.trim().removePrefix("#")
+                            if (clean.length == 6) clean.toLongOrNull(16)?.let { setFrom((0xFF000000 or it).toInt()); hex = "" }
+                        },
+                        singleLine = true,
+                        label = { Text("Codice") },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
+                Text("Tonalità", style = MaterialTheme.typography.labelMedium)
+                // striscia arcobaleno sotto il cursore della tonalità
+                Box(
+                    Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            (0..6).map { Color(ColorUtils.HSLToColor(floatArrayOf(it * 60f, 0.8f, 0.55f))) }
+                        )
+                    )
+                )
+                Slider(value = hue, onValueChange = { hue = it; hex = "" }, valueRange = 0f..360f, modifier = Modifier.height(30.dp))
+                Text("Intensità", style = MaterialTheme.typography.labelMedium)
+                Slider(value = sat, onValueChange = { sat = it; hex = "" }, modifier = Modifier.height(30.dp))
+                Text("Luminosità", style = MaterialTheme.typography.labelMedium)
+                Slider(value = light, onValueChange = { light = it; hex = "" }, valueRange = 0.05f..0.95f, modifier = Modifier.height(30.dp))
             }
         },
         confirmButton = { TextButton(onClick = { onPick(current) }) { Text("Scegli") } },
