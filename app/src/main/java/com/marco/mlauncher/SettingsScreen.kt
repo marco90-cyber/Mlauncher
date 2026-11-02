@@ -285,6 +285,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     Group(null) {
         ListItem(
             headlineContent = { Text("Imposta come Home") },
+            trailingContent = { Chevron() },
             supportingContent = {
                 Text(if (vm.isDefaultHome) "MLauncher è la Home predefinita" else "Tocca per scegliere MLauncher come Home")
             },
@@ -309,7 +310,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
             Cat("look", "Tema e animazioni", "Tema ${(themeNames[s.theme] ?: "").lowercase()}", Icons.Default.Create)
         ),
         "Sistema" to listOf(
-            Cat("backup", "Backup e manutenzione", "Esporta, ripristina, riavvia", Icons.Default.Build),
+            Cat("backup", "Backup e manutenzione", (if (s.autoBackup) "Backup automatico attivo" else "Backup automatico spento") + " \u00b7 esporta, ripristina", Icons.Default.Build),
             Cat("log", "Registro log", if (vm.lastCrash != null) "C'è un errore registrato" else "Eventi ed errori del Launcher", Icons.Default.Warning),
             Cat("info", "Informazioni", vm.updateInfo?.let { "Aggiornamento ${it.version} disponibile" } ?: "MLauncher ${vm.currentVersionName} \u00b7 aggiornamenti", Icons.Default.Info)
         )
@@ -325,6 +326,17 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
                             Modifier.size(44.dp).clip(CircleShape).background(cs.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) { Icon(c.icon, contentDescription = null, tint = cs.onPrimaryContainer) }
+                    },
+                    trailingContent = {
+                        // come Android 16: freccia per il sottomenu, separatore e interruttore principale
+                        when (c.key) {
+                            "gestures" -> NavSwitch(s.haptics) { vm.setSetting("haptics", it) }
+                            "backup" -> NavSwitch(s.autoBackup) {
+                                vm.setSetting("autoBackup", it)
+                                if (it && s.backupDir.isEmpty()) host.pickBackupFolder()
+                            }
+                            else -> Chevron()
+                        }
                     },
                     colors = prefColors(),
                     modifier = Modifier.clickable { vm.settingsPage = c.key }
@@ -474,6 +486,7 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
         Group("Scegli l'immagine") {
             if (bm != null) ListItem(
                 headlineContent = { Text("Modifica lo sfondo attuale") },
+                trailingContent = { Chevron() },
                 supportingContent = { Text("Ritaglia, ruota, regola luce e colori, filtri") },
                 colors = prefColors(),
                 modifier = Modifier.hl("Modifica lo sfondo attuale").clickable { vm.editCurrentWallpaper() }
@@ -780,6 +793,7 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
         if (s.badges != "off" && !vm.listenerEnabled) {
             ListItem(
                 headlineContent = { Text("Serve l'accesso alle notifiche") },
+                trailingContent = { Chevron() },
                 supportingContent = { Text("Tocca per attivarlo per MLauncher") },
                 colors = prefColors(),
                 modifier = Modifier.clickable { host.openListenerSettings() }
@@ -790,6 +804,7 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
         var hiddenOpen by remember { mutableStateOf(false) }
         ListItem(
             headlineContent = { Text("App nascoste") },
+            trailingContent = { Chevron() },
             supportingContent = { Text("${vm.hidden.size} nascoste") },
             colors = prefColors(),
             modifier = Modifier.clickable { hiddenOpen = true }
@@ -1007,6 +1022,7 @@ private fun PageWidgets(vm: LauncherViewModel, host: Host) {
     Group("Meteo") {
         ListItem(
             headlineContent = { Text("Città del meteo") },
+            trailingContent = { Chevron() },
             supportingContent = {
                 Text(vm.weatherCity?.let { c -> c.name + (if (c.area.isNotEmpty()) " \u00b7 " + c.area else "") } ?: "Posizione del telefono")
             },
@@ -1068,6 +1084,7 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
         if (s.doubleTapLock && !vm.accessibilityEnabled) {
             ListItem(
                 headlineContent = { Text("Serve il servizio di accessibilità") },
+                trailingContent = { Chevron() },
                 supportingContent = { Text("Tocca per attivare MLauncher") },
                 colors = prefColors(),
                 modifier = Modifier.clickable { host.openAccessibilitySettings() }
@@ -1200,6 +1217,7 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
         }
         ListItem(
             headlineContent = { Text("Cartella del backup") },
+            trailingContent = { Chevron() },
             supportingContent = {
                 Text(
                     if (s.backupDir.isEmpty()) "Nessuna: tocca per sceglierla"
@@ -1302,6 +1320,7 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
     Group("Guida") {
         ListItem(
             headlineContent = { Text("Rivedi il benvenuto") },
+            trailingContent = { Chevron() },
             supportingContent = { Text("Le schermate della prima installazione: modalità, stile, permessi, backup") },
             colors = prefColors(),
             modifier = Modifier.hl("Rivedi il benvenuto").clickable {
@@ -1630,6 +1649,29 @@ private fun Group(title: String?, content: @Composable () -> Unit) {
             Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(28.dp)),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) { content() }
+    }
+}
+
+/** Freccia che indica un sottomenu (stile Android 16). */
+@Composable
+internal fun Chevron() {
+    Icon(
+        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+/** Riga che apre un sottomenu e ha anche un interruttore: freccia | separatore | interruttore. */
+@Composable
+internal fun NavSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Chevron()
+        Box(
+            Modifier.padding(horizontal = 12.dp).width(1.dp).height(32.dp)
+                .background(MaterialTheme.colorScheme.outline)
+        )
+        MLSwitch(checked = checked, onCheckedChange = onChange)
     }
 }
 
