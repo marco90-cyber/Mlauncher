@@ -27,8 +27,12 @@ class AppEntry(
 /** Un widget: kind = "clock" | "weather" | "ext" (widget Android vero). */
 data class WidgetRef(val kind: String, val widgetId: Int = -1, val provider: String = "")
 
-/** Widget della pagina −1: [size] 1 piccolo, 2 medio, 3 grande. */
-data class MinusW(val uid: String, val ref: WidgetRef, val size: Int)
+/** griglia della pagina −1: colonne e righe massime di un widget */
+const val MINUS_COLS = 4
+const val MINUS_ROWS = 5
+
+/** Widget della pagina −1: larghezza [sx] e altezza [sy] in celle, come in Home. */
+data class MinusW(val uid: String, val ref: WidgetRef, val sx: Int, val sy: Int)
 
 sealed class HomeItem {
     abstract val id: String

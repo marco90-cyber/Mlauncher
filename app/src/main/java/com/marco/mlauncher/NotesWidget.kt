@@ -47,13 +47,21 @@ import androidx.compose.ui.window.DialogProperties
 /** Colori del foglio: chiave -> (sfondo, testo). */
 private val NOTE_COLORS = listOf(
     "yellow" to (Color(0xFFFFF3B0) to Color(0xFF3B3200)),
-    "green" to (Color(0xFFD4F5D0) to Color(0xFF0E3A12)),
-    "blue" to (Color(0xFFD3E6FF) to Color(0xFF0B2A52)),
+    "orange" to (Color(0xFFFFDDB8) to Color(0xFF4A2500)),
+    "red" to (Color(0xFFFFD4CF) to Color(0xFF5A1410)),
     "pink" to (Color(0xFFFFD9E4) to Color(0xFF4A0F24)),
     "purple" to (Color(0xFFE7DBFF) to Color(0xFF2D1660)),
+    "blue" to (Color(0xFFD3E6FF) to Color(0xFF0B2A52)),
+    "teal" to (Color(0xFFC8F1EA) to Color(0xFF00382F)),
+    "green" to (Color(0xFFD4F5D0) to Color(0xFF0E3A12)),
     "gray" to (Color(0xFFE6E6EA) to Color(0xFF202126)),
     "dark" to (Color(0xFF2B2D33) to Color(0xFFF1F1F4)),
     "theme" to (Color.Unspecified to Color.Unspecified)
+)
+
+private val NOTE_NAMES = mapOf(
+    "yellow" to "Giallo", "orange" to "Arancione", "red" to "Rosso", "pink" to "Rosa", "purple" to "Viola",
+    "blue" to "Blu", "teal" to "Acqua", "green" to "Verde", "gray" to "Grigio", "dark" to "Scuro", "theme" to "Tema"
 )
 
 @Composable
@@ -130,16 +138,27 @@ private fun NoteEditor(start: NoteData, onSave: (NoteData) -> Unit, onClose: () 
                 Spacer(Modifier.height(14.dp))
                 Text("Colore del foglio", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    NOTE_COLORS.forEach { (k, _) ->
-                        val (b, _) = noteColors(k)
-                        Box(
-                            Modifier.size(32.dp).clip(CircleShape).background(b)
-                                .border(if (k == color) 3.dp else 1.dp, if (k == color) cs.primary else cs.outlineVariant, CircleShape)
-                                .clickable { color = k },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (k == color) Icon(Icons.Default.Check, contentDescription = null, tint = noteColors(k).second, modifier = Modifier.size(16.dp))
+                // 11 colori su due righe, con il nome sotto
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NOTE_COLORS.chunked(6).forEach { row ->
+                        Row(Modifier.fillMaxWidth()) {
+                            row.forEach { (k, _) ->
+                                val (b, f) = noteColors(k)
+                                Column(
+                                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { color = k }.padding(vertical = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Box(
+                                        Modifier.size(36.dp).clip(CircleShape).background(b)
+                                            .border(if (k == color) 3.dp else 1.dp, if (k == color) cs.primary else cs.outlineVariant, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (k == color) Icon(Icons.Default.Check, contentDescription = null, tint = f, modifier = Modifier.size(18.dp))
+                                    }
+                                    Text(NOTE_NAMES[k] ?: "", fontSize = 10.sp, color = cs.onSurfaceVariant, maxLines = 1)
+                                }
+                            }
+                            repeat(6 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }

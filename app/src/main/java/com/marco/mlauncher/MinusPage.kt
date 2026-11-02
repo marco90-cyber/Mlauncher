@@ -80,6 +80,7 @@ object MinusAnim {
 
     fun settle(scope: kotlinx.coroutines.CoroutineScope, vm: LauncherViewModel, open: Boolean) {
         cancel()
+        if (!open) vm.minusEdit = false
         val from = vm.minusP
         val to = if (open) 1f else 0f
         if (from == to) return
@@ -168,6 +169,11 @@ private fun MinusContent(vm: LauncherViewModel, host: Host) {
     ) {
         item(key = "head") {
             Column(Modifier.padding(horizontal = 8.dp)) {
+                if (vm.minusEdit) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                        FilledTonalButton(onClick = { vm.minusEdit = false }) { Text("Fine") }
+                    }
+                }
                 if (s.minusGreet) {
                     val h = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
                     val name = vm.greetName()
@@ -212,11 +218,16 @@ private fun MinusContent(vm: LauncherViewModel, host: Host) {
                 if (vm.minusWidgets.isEmpty()) {
                     MinusEmpty(vm)
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        vm.minusWidgets.forEachIndexed { i, m ->
-                            androidx.compose.runtime.key(m.uid) { MinusWidgetCard(vm, host, m, i) }
+                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        // stessa griglia della Home: 4 colonne, celle alte come quelle della Home
+                        val cw = maxWidth / MINUS_COLS
+                        val ch = if (vm.cellHdp > 40f) minOf(vm.cellHdp.dp, cw * 1.35f) else cw * 1.1f
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            vm.minusWidgets.forEachIndexed { i, m ->
+                                androidx.compose.runtime.key(m.uid) { MinusWidgetCard(vm, host, m, i, cw, ch) }
+                            }
+                            AddRow(vm)
                         }
-                        AddRow(vm)
                     }
                 }
             }
@@ -244,29 +255,109 @@ private fun MinusContainer(vm: LauncherViewModel, content: @Composable () -> Uni
 }
 
 @Composable
-private fun MinusWidgetCard(vm: LauncherViewModel, host: Host, m: MinusW, index: Int) {
+private fun MinusWidgetCard(
+    vm: LauncherViewModel,
+    host: Host,
+    m: MinusW,
+    index: Int,
+    cw: androidx.compose.ui.unit.Dp,
+    ch: androidx.compose.ui.unit.Dp
+) {
     val cs = MaterialTheme.colorScheme
-    var menu by remember { mutableStateOf(false) }
-    val h = when (m.size) {
-        1 -> 112.dp
-        3 -> 320.dp
-        else -> 196.dp
-    }
-    Box(Modifier.fillMaxWidth().height(h)) {
-        val onLong = { if (!vm.blockedByLock()) menu = true }
-        GlassWidgetFrame(m.ref.kind) { WidgetContent(m.ref, vm, host, onLong, Modifier.fillMaxSize()) }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            if (index > 0) DropdownMenuItem(text = { Text("Sposta su") }, onClick = { menu = false; vm.moveMinus(m.uid, -1) })
-            if (index < vm.minusWidgets.size - 1) DropdownMenuItem(text = { Text("Sposta giù") }, onClick = { menu = false; vm.moveMinus(m.uid, 1) })
-            listOf(1 to "Piccolo", 2 to "Medio", 3 to "Grande").forEach { (k, l) ->
-                if (k != m.size) DropdownMenuItem(text = { Text(l) }, onClick = { menu = false; vm.sizeMinus(m.uid, k) })
+    val view = androidx.compose.ui.platform.LocalView.current
+    val density = LocalDensity.current
+    val edit = vm.minusEdit
+    // grandezza durante il trascinamento della maniglia (si salva al rilascio)
+    var liveSx by remember(m.uid, m.sx) { mutableStateOf(m.sx) }
+    var liveSy by remember(m.uid, m.sy) { mutableStateOf(m.sy) }
+    val w by androidx.compose.animation.core.animateDpAsState(cw * liveSx, tween(Motion.REORDER), label = "mw")
+    val h by androidx.compose.animation.core.animateDpAsState(ch * liveSy, tween(Motion.REORDER), label = "mh")
+    val shape = RoundedCornerShape(28.dp)
+    // i widget più stretti della pagina restano centrati
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.size(w, h).padding(4.dp)) {
+            val onLong = {
+                if (!vm.blockedByLock()) {
+                    Haptics.tick(view)
+                    vm.minusEdit = true
+                }
             }
-            DropdownMenuItem(
-                text = { Text("Rimuovi", color = cs.error) },
-                onClick = { menu = false; vm.removeMinus(m.uid) }
-            )
+            GlassWidgetFrame(m.ref.kind) { WidgetContent(m.ref, vm, host, onLong, Modifier.fillMaxSize()) }
+            if (edit) {
+                // in modifica il widget non si usa: si sposta, si ridimensiona o si toglie
+                Box(
+                    Modifier.fillMaxSize().clip(shape)
+                        .background(cs.primary.copy(alpha = 0.08f))
+                        .border(2.dp, cs.primary, shape)
+                        .pointerInput(Unit) { detectTapGestures { } }
+                )
+                // togli
+                Box(
+                    Modifier.align(Alignment.TopStart).padding(6.dp).size(28.dp).clip(CircleShape)
+                        .background(cs.error).clickable { vm.removeMinus(m.uid) },
+                    contentAlignment = Alignment.Center
+                ) { Box(Modifier.size(12.dp, 2.5.dp).background(cs.onError)) }
+                // sposta su / giù
+                Row(Modifier.align(Alignment.TopEnd).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (index > 0) MiniRound(cs.secondaryContainer, cs.onSecondaryContainer, "\u2191") { vm.moveMinus(m.uid, -1) }
+                    if (index < vm.minusWidgets.size - 1) MiniRound(cs.secondaryContainer, cs.onSecondaryContainer, "\u2193") { vm.moveMinus(m.uid, 1) }
+                }
+                // maniglia per ridimensionare, come in Home
+                val cwPx = with(density) { cw.toPx() }
+                val chPx = with(density) { ch.toPx() }
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(cs.primary)
+                        .pointerInput(m.uid) {
+                            var startX = 1
+                            var startY = 1
+                            var acc = Offset.Zero
+                            androidx.compose.foundation.gestures.detectDragGestures(
+                                onDragStart = { startX = liveSx; startY = liveSy; acc = Offset.Zero },
+                                onDrag = { c, d ->
+                                    c.consume()
+                                    acc += d
+                                    // il widget è centrato: si allarga da entrambi i lati, quindi mezza cella per colonna
+                                    val nx = (startX + (acc.x / (cwPx / 2f)).roundToIntSafe()).coerceIn(1, MINUS_COLS)
+                                    val ny = (startY + (acc.y / chPx).roundToIntSafe()).coerceIn(1, MINUS_ROWS)
+                                    if (nx != liveSx || ny != liveSy) {
+                                        liveSx = nx
+                                        liveSy = ny
+                                        Haptics.tick(view)
+                                    }
+                                },
+                                onDragEnd = { vm.resizeMinus(m.uid, liveSx, liveSy) },
+                                onDragCancel = { vm.resizeMinus(m.uid, liveSx, liveSy) }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("\u2922", color = cs.onPrimary, fontSize = 14.sp)
+                }
+                Text(
+                    "${liveSx}\u00d7${liveSy}",
+                    color = cs.onPrimary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+                        .clip(CircleShape).background(cs.primary).padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
         }
     }
+}
+
+private fun Float.roundToIntSafe(): Int = kotlin.math.round(this).toInt()
+
+@Composable
+private fun MiniRound(bg: Color, fg: Color, label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(28.dp).clip(CircleShape).background(bg).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { Text(label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
 }
 
 @Composable

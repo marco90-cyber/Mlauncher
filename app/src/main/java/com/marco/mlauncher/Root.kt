@@ -108,7 +108,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     // gesto indietro sulla Home senza nulla di aperto: come Launcher3 non chiude il Launcher
     // (prima l'attività si chiudeva e si ricaricava); riporta alla prima pagina
     BackHandler(enabled = !vm.showWelcome && vm.wallEditSrc == null) { vm.backOnHome() }
-    BackHandler(enabled = vm.minusP > 0f) { vm.closeMinus() }
+    BackHandler(enabled = vm.minusP > 0f) { if (vm.minusEdit) vm.minusEdit = false else vm.closeMinus() }
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }
     BackHandler(enabled = vm.openFolderId != null) { vm.openFolderId = null }
     BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }

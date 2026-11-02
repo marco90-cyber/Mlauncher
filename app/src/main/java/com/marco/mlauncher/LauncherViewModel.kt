@@ -788,11 +788,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val a = JSONArray(settings.minusWidgets)
             for (i in 0 until a.length()) {
                 val o = a.getJSONObject(i)
+                // le prime versioni salvavano solo la grandezza (1-3): larghe tutta la pagina
+                val old = o.optInt("s", 2)
                 minusWidgets.add(
                     MinusW(
                         o.getString("u"),
                         WidgetRef(o.getString("k"), o.optInt("w", -1), o.optString("p", "")),
-                        o.optInt("s", 2)
+                        o.optInt("x", 4),
+                        o.optInt("y", old)
                     )
                 )
             }
@@ -804,13 +807,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun saveMinus() {
         val a = JSONArray()
         minusWidgets.forEach { m ->
-            a.put(JSONObject().put("u", m.uid).put("k", m.ref.kind).put("w", m.ref.widgetId).put("p", m.ref.provider).put("s", m.size))
+            a.put(JSONObject().put("u", m.uid).put("k", m.ref.kind).put("w", m.ref.widgetId).put("p", m.ref.provider).put("x", m.sx).put("y", m.sy))
         }
         settings.set("minusWidgets", a.toString())
     }
 
-    private fun addToMinus(ref: WidgetRef, size: Int) {
-        minusWidgets.add(MinusW(UUID.randomUUID().toString(), ref, size.coerceIn(1, 3)))
+    /** la pagina −1 è in modifica: bordo, maniglia per ridimensionare, frecce e "togli" */
+    var minusEdit by mutableStateOf(false)
+
+    private fun addToMinus(ref: WidgetRef, sx: Int, sy: Int) {
+        minusWidgets.add(MinusW(UUID.randomUUID().toString(), ref, sx.coerceIn(1, MINUS_COLS), sy.coerceIn(1, MINUS_ROWS)))
         saveMinus()
         minusPick = false
         stackTarget = null
@@ -827,10 +833,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveMinus()
     }
 
-    fun sizeMinus(uid: String, size: Int) {
+    fun resizeMinus(uid: String, sx: Int, sy: Int) {
         val i = minusWidgets.indexOfFirst { it.uid == uid }
         if (i < 0) return
-        minusWidgets[i] = minusWidgets[i].copy(size = size.coerceIn(1, 3))
+        val m = minusWidgets[i]
+        val nx = sx.coerceIn(1, MINUS_COLS)
+        val ny = sy.coerceIn(1, MINUS_ROWS)
+        if (m.sx == nx && m.sy == ny) return
+        minusWidgets[i] = m.copy(sx = nx, sy = ny)
         saveMinus()
     }
 
@@ -849,6 +859,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun closeMinus() {
+        minusEdit = false
         if (minusP > 0f) minusCloseSignal += 1
     }
 
@@ -1060,7 +1071,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun addWidgetFromPicker(kind: String, sx: Int, sy: Int) {
         if (minusPick) {
-            addToMinus(newRef(kind), if (sy <= 1) 1 else if (sy == 2) 2 else 3)
+            addToMinus(newRef(kind), sx, sy)
             return
         }
         val t = stackTarget
@@ -1086,8 +1097,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun addExternalWidget(widgetId: Int, info: AppWidgetProviderInfo) {
         if (minusPick) {
-            val hDp = info.minHeight / ctx.resources.displayMetrics.density
-            addToMinus(WidgetRef("ext", widgetId, info.provider.flattenToString()), if (hDp <= 110f) 1 else if (hDp <= 220f) 2 else 3)
+            val d = ctx.resources.displayMetrics.density
+            val mx = ceil(((info.minWidth / d - 8f).coerceAtLeast(1f)) / cellWdp.coerceAtLeast(40f)).toInt()
+            val my = ceil(((info.minHeight / d - 8f).coerceAtLeast(1f)) / cellHdp.coerceAtLeast(40f)).toInt()
+            addToMinus(WidgetRef("ext", widgetId, info.provider.flattenToString()), mx, my)
             return
         }
         val t = stackTarget
