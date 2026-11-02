@@ -25,6 +25,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
