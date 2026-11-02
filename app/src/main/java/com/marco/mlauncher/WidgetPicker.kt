@@ -164,10 +164,6 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                     item { EmptyStackCard(vm, 4, 2) }
                     item { EmptyStackCard(vm, 2, 1) }
                     item { EmptyStackCard(vm, 4, 4) }
-                    item { StackCard(vm, host, "Stack", 2, 2, listOf("clock", "weather")) }
-                    item { StackCard(vm, host, "Stack", 4, 2, listOf("clock", "weather")) }
-                    item { StackCard(vm, host, "Stack meteo", 2, 2, listOf("weather", "clock")) }
-                    item { StackCard(vm, host, "Stack", 2, 1, listOf("clock", "weather")) }
                 }
                 Spacer(Modifier.height(12.dp))
             }
