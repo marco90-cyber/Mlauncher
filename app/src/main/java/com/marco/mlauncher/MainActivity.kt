@@ -93,6 +93,51 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    private val exportLayoutLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.openOutputStream(uri)?.use { it.write(vm.buildLayoutBackup().toByteArray()) }
+                Toast.makeText(this, "Disposizione salvata", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Salvataggio non riuscito", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private val importLayoutLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val text = contentResolver.openInputStream(uri)?.use { String(it.readBytes()) } ?: ""
+                val lost = vm.restoreLayout(text)
+                Toast.makeText(
+                    this,
+                    when {
+                        lost < 0 -> "File non valido"
+                        lost == 0 -> "Disposizione ripristinata"
+                        lost == 1 -> "Disposizione ripristinata (1 widget non disponibile)"
+                        else -> "Disposizione ripristinata ($lost widget non disponibili)"
+                    },
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Ripristino non riuscito", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    override fun exportLayout() {
+        val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ITALY).format(java.util.Date())
+        exportLayoutLauncher.launch("mlauncher-home-$d.json")
+    }
+
+    override fun importLayout() {
+        importLayoutLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+    }
+
     /** Cartella del backup automatico: il permesso resta anche dopo il riavvio. */
     private val folderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()

@@ -100,6 +100,8 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Apri la pagina −1", "minus", "Widget", ""),
     SettingEntry("Esporta layout e impostazioni", "backup", "Backup", ""),
     SettingEntry("Ripristina da file", "backup", "Backup", ""),
+    SettingEntry("Salva la disposizione della Home", "backup", "Solo la disposizione", ""),
+    SettingEntry("Ripristina la disposizione", "backup", "Solo la disposizione", ""),
     SettingEntry("Backup automatico", "backup", "Backup automatico", "Salva da solo Home, cartelle, note e impostazioni nella cartella che scegli"),
     SettingEntry("Cartella del backup", "backup", "Backup automatico", ""),
     SettingEntry("Ogni quanto", "backup", "Backup automatico", ""),

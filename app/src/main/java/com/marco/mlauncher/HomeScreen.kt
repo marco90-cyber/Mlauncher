@@ -145,6 +145,8 @@ interface Host {
     fun webSearch(query: String)
     fun restartLauncher()
     fun requestContactsName()
+    fun exportLayout()
+    fun importLayout()
 }
 
 class DragState(val item: HomeItem, start: Offset) {

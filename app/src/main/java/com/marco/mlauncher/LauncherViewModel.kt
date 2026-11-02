@@ -1500,7 +1500,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return arr
     }
 
-    private fun decodeItems(arr: JSONArray, skipExt: Boolean): List<HomeItem> {
+    internal fun decodeItems(arr: JSONArray, skipExt: Boolean): List<HomeItem> {
         val out = ArrayList<HomeItem>()
         for (i in 0 until arr.length()) {
             val o = arr.getJSONObject(i)
@@ -1569,6 +1569,107 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         o.put("notes", JSONObject().apply { notes.forEach { (k, n) -> put(k, JSONObject().put("t", n.text).put("c", n.color).put("s", n.size)) } })
         o.put("settings", settings.dump())
         return o.toString(2)
+    }
+
+    /** Solo la disposizione: icone, cartelle, widget e pagine (verticale e orizzontale) e pagina −1. Niente impostazioni. */
+    fun buildLayoutBackup(): String {
+        val o = JSONObject()
+        o.put("version", 1)
+        o.put("type", "layout")
+        saveLayout()
+        o.put("layout", JSONArray(sp.getString("layout", "[]")))
+        o.put("pages", sp.getInt("pages", 1))
+        sp.getString("layout_l", null)?.let { o.put("layout_l", JSONArray(it)); o.put("pages_l", sp.getInt("pages_l", 1)) }
+        o.put("minus", JSONArray(settings.minusWidgets))
+        o.put("notes", JSONObject().apply { notes.forEach { (k, n) -> put(k, JSONObject().put("t", n.text).put("c", n.color).put("s", n.size)) } })
+        return o.toString(2)
+    }
+
+    /**
+     * Widget di altre app da un backup: se l'id esiste già su questo telefono resta,
+     * altrimenti provo a ricollegarlo (riesce se hai permesso a MLauncher di aggiungere widget);
+     * se non è possibile, quel widget viene saltato.
+     */
+    private fun reviveRef(ref: WidgetRef): WidgetRef? {
+        if (ref.kind != "ext") return ref
+        try {
+            val info = widgetMgr.getAppWidgetInfo(ref.widgetId)
+            if (info != null && info.provider.flattenToString() == ref.provider) return ref
+        } catch (e: Exception) { }
+        val cn = android.content.ComponentName.unflattenFromString(ref.provider) ?: return null
+        return try {
+            val id = widgetHost.allocateAppWidgetId()
+            if (widgetMgr.bindAppWidgetIdIfAllowed(id, cn)) ref.copy(widgetId = id)
+            else {
+                discardWidgetId(id)
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun reviveItems(list: List<HomeItem>): Pair<List<HomeItem>, Int> {
+        var lost = 0
+        val out = list.mapNotNull { i ->
+            when (i) {
+                is WidgetItem -> reviveRef(i.ref)?.let { i.copy(ref = it) } ?: run { lost++; null }
+                is StackItem -> {
+                    val refs = i.refs.mapNotNull { r -> reviveRef(r) ?: run { lost++; null } }
+                    i.copy(refs = refs)
+                }
+                else -> i
+            }
+        }
+        return out to lost
+    }
+
+    /**
+     * Ripristina solo la disposizione (va bene anche un backup completo: le impostazioni restano quelle attuali).
+     * Restituisce quanti widget di altre app non è stato possibile rimettere, oppure -1 se il file non è valido.
+     */
+    fun restoreLayout(text: String): Int {
+        return try {
+            val o = JSONObject(text)
+            val (list, lostP) = reviveItems(decodeItems(o.getJSONArray("layout"), false))
+            var lost = lostP
+            layoutLand = false
+            items.clear()
+            items.addAll(list)
+            pageCount = o.optInt("pages", 1).coerceAtLeast(1)
+            val e = sp.edit().remove("layout_l").remove("pages_l")
+            o.optJSONArray("layout_l")?.let {
+                val (l, lostL) = reviveItems(decodeItems(it, false))
+                lost += lostL
+                e.putString("layout_l", encodeItems(l).toString()).putInt("pages_l", o.optInt("pages_l", 1))
+            }
+            e.apply()
+            o.optJSONArray("minus")?.let { a ->
+                // pagina −1: stessi controlli sui widget delle altre app
+                val keep = JSONArray()
+                for (i in 0 until a.length()) {
+                    val m = a.getJSONObject(i)
+                    val r = reviveRef(WidgetRef(m.getString("k"), m.optInt("w", -1), m.optString("p", "")))
+                    if (r == null) lost++ else keep.put(JSONObject(m.toString()).put("w", r.widgetId))
+                }
+                settings.set("minusWidgets", keep.toString())
+                loadMinus()
+            }
+            o.optJSONObject("notes")?.let { no ->
+                for (k in no.keys()) no.optJSONObject(k)?.let { n ->
+                    saveNote(k, NoteData(n.optString("t"), n.optString("c", "yellow"), n.optInt("s", 15)))
+                }
+            }
+            hasLayout = true
+            saveLayout()
+            if (settings.actualLand) swapTo(true)
+            refresh(null)
+            AppLog.i("Disposizione ripristinata" + if (lost > 0) " ($lost widget non disponibili)" else "")
+            lost
+        } catch (e: Exception) {
+            AppLog.e("Ripristino disposizione non riuscito", e)
+            -1
+        }
     }
 
     fun restoreBackup(text: String): Boolean {

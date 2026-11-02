@@ -1316,14 +1316,43 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
     Group("Backup") {
         ListItem(
             headlineContent = { Text("Esporta layout e impostazioni") },
+            supportingContent = { Text("Tutto: Home, cartelle, widget e impostazioni") },
             colors = prefColors(),
             modifier = Modifier.clickable { host.exportBackup() }
         )
         ListItem(
             headlineContent = { Text("Ripristina da file") },
+            supportingContent = { Text("Rimette Home e impostazioni da un backup completo") },
             colors = prefColors(),
             modifier = Modifier.clickable { host.importBackup() }
         )
+    }
+    Group("Solo la disposizione") {
+        ListItem(
+            headlineContent = { Text("Salva la disposizione della Home") },
+            supportingContent = { Text("Posizione di icone e cartelle, widget, pagine e pagina \u22121. Le impostazioni non vengono toccate") },
+            colors = prefColors(),
+            modifier = Modifier.hl("Salva la disposizione della Home").clickable { host.exportLayout() }
+        )
+        var confirmLayout by remember { mutableStateOf(false) }
+        ListItem(
+            headlineContent = { Text("Ripristina la disposizione") },
+            supportingContent = { Text("Da un file della disposizione o da un backup completo. I widget di altre app tornano se sono ancora disponibili") },
+            trailingContent = { Chevron() },
+            colors = prefColors(),
+            modifier = Modifier.hl("Ripristina la disposizione").clickable { confirmLayout = true }
+        )
+        if (confirmLayout) {
+            AlertDialog(
+                onDismissRequest = { confirmLayout = false },
+                title = { Text("Ripristinare la disposizione?") },
+                text = { Text("Icone, cartelle e widget della Home verranno sostituiti con quelli del file. Tema, colori e tutte le altre impostazioni restano come sono.") },
+                confirmButton = {
+                    TextButton(onClick = { confirmLayout = false; host.importLayout() }) { Text("Scegli il file") }
+                },
+                dismissButton = { TextButton(onClick = { confirmLayout = false }) { Text("Annulla") } }
+            )
+        }
     }
     Group("Backup automatico") {
         val s = vm.settings
