@@ -639,7 +639,7 @@ private fun BoxScope.MiniMinus(vm: LauncherViewModel, on: Boolean) {
     val wall = if (vm.customWallActive) vm.wallBitmap else null
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(cs.primary.copy(alpha = 0.55f), cs.tertiary.copy(alpha = 0.45f))))) {
         if (wall != null) androidx.compose.foundation.Image(
-            wall.asImageBitmap(), contentDescription = null,
+            wall, contentDescription = null,
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             modifier = Modifier.fillMaxSize().blur(if (on) 8.dp else 0.dp)
         )
