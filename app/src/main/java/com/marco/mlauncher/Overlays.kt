@@ -738,6 +738,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
                 keyboardActions = KeyboardActions(onSearch = {
                     list.firstOrNull()?.let {
                         vm.overlay = Overlay.NONE
+                        vm.recordSearch(it.id)
                         host.launch(it, null)
                     }
                 }),
@@ -750,7 +751,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
             if (query.isNotBlank()) {
                 SearchResults(Modifier.weight(1f), list, query, vm, host)
             } else if (searchOnly) {
-                EmptySearch(Modifier.weight(1f))
+                SearchSuggestions(Modifier.weight(1f), vm, host)
             }
             val showGrid = !searchOnly && query.isBlank()
             if (showGrid) {
@@ -1120,6 +1121,7 @@ private fun ResultCard(app: AppEntry, query: String, vm: LauncherViewModel, host
                 }
                 .drawerGestures(app, vm, bounds, onTap = {
                     vm.overlay = Overlay.NONE
+                    vm.recordSearch(app.id)
                     host.launch(app, bounds.window)
                 }, onMenu = { menu = it })
         ) {
@@ -1216,6 +1218,55 @@ private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: Strin
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Ricerca vuota: le app che cerchi più spesso e quelle che usi di più,
+ * così spesso non serve nemmeno scrivere.
+ */
+@Composable
+private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: Host) {
+    val cs = MaterialTheme.colorScheme
+    val (searched, used) = remember(vm.sortedApps, vm.hidden.toList(), vm.homeSignal) {
+        val visible = vm.sortedApps.filter { it.id !in vm.hidden }
+        val s = visible.filter { vm.searchCount(it.id) > 0 }.sortedByDescending { vm.searchCount(it.id) }.take(8)
+        val u = visible.filter { it !in s && vm.useCount(it.id) > 0 }.sortedByDescending { vm.useCount(it.id) }.take(8)
+        s to u
+    }
+    if (searched.isEmpty() && used.isEmpty()) {
+        EmptySearch(modifier)
+        return
+    }
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        listOf("Cercate spesso" to searched, "Più usate" to used).forEach { (title, apps) ->
+            if (apps.isNotEmpty()) {
+                item(key = title) {
+                    Column {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = cs.primary,
+                            modifier = Modifier.padding(start = 8.dp, bottom = 6.dp)
+                        )
+                        Surface(shape = RoundedCornerShape(24.dp), color = cs.surfaceContainerHigh.copy(alpha = 0.7f)) {
+                            Column(Modifier.fillMaxWidth().padding(8.dp)) {
+                                apps.chunked(4).forEach { row ->
+                                    Row(Modifier.fillMaxWidth()) {
+                                        row.forEach { a -> Box(Modifier.weight(1f)) { DrawerApp(a, vm, host, forceGrid = true) } }
+                                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

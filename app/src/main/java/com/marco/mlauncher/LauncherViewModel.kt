@@ -1133,6 +1133,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** app installate da poco e mai aperte: puntino nel cassetto */
     val newApps = mutableStateListOf<String>()
 
+    fun searchCount(appId: String) = sp.getInt("srch_$appId", 0)
+
+    /** app aperta dai risultati della ricerca: finisce tra le "Cercate spesso" */
+    fun recordSearch(appId: String) {
+        val k = "srch_$appId"
+        sp.edit().putInt(k, sp.getInt(k, 0) + 1).apply()
+    }
+
     fun recordLaunch(appId: String) {
         if (newApps.remove(appId)) sp.edit().putStringSet("newApps", HashSet(newApps)).apply()
         val k = "use_$appId"

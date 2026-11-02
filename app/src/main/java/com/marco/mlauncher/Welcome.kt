@@ -52,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -70,7 +71,7 @@ import kotlinx.coroutines.delay
  * infine "Tutto pronto" con Home predefinita e permessi facoltativi.
  */
 
-private enum class Step { HELLO, WALLPAPER, THEME, COLORS, MODE, FOLDERS, ICONS, DOCK, ANIM, DONE }
+private enum class Step { HELLO, WALLPAPER, THEME, COLORS, MODE, FOLDERS, ICONS, DOCK, MINUS, ANIM, DONE }
 
 @Composable
 fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
@@ -120,6 +121,7 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
                         Step.FOLDERS -> PickFolders(vm)
                         Step.ICONS -> PickIcons(vm)
                         Step.DOCK -> PickDock(vm)
+                        Step.MINUS -> PickMinus(vm, host)
                         Step.ANIM -> PickAnim(vm)
                         Step.DONE -> Done(vm, host)
                     }
@@ -275,6 +277,35 @@ private fun PickTheme(vm: LauncherViewModel) {
         onClick = { vm.setSetting("theme", "auto") },
         label = { Text("Segui il telefono (automatico)") }
     )
+    Label("Stile degli interruttori")
+    val cs = MaterialTheme.colorScheme
+    // un interruttore di prova: si accende e si spegne da solo per far vedere lo stile
+    var demo by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1400)
+            demo = !demo
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SWITCH_STYLES.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (k, l) ->
+                    val on = s.switchStyle == k
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).clickable { vm.setSetting("switchStyle", k) }
+                            .background(if (on) cs.primaryContainer else cs.surfaceContainerHigh)
+                            .border(if (on) 2.dp else 0.dp, if (on) cs.primary else Color.Transparent, RoundedCornerShape(18.dp))
+                            .padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        MLSwitch(checked = demo, onCheckedChange = null, style = k)
+                        Text(l.substringBefore(" ("), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -411,7 +442,7 @@ private fun PickDock(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val dark = isDarkPreview(s.theme)
-    Headline("Ultimo!", "La dock e l'indicatore delle pagine.")
+    Headline("La dock", "La barra delle app in basso e l'indicatore delle pagine.")
     fun pickDock(k: String) {
         vm.setSetting("liquid", k == "liquid")
         vm.setSetting("dockStyle", k)
@@ -495,6 +526,12 @@ private fun Done(vm: LauncherViewModel, host: Host) {
         "Puntini delle notifiche", "Quante notifiche ha ogni app, sulla sua icona",
         vm.listenerEnabled, "Attiva"
     ) { host.openListenerSettings() }
+    ToggleRow("Scuoti per riordinare", "In modifica, scuoti il telefono per compattare la pagina", vm.settings.shakeTidy) {
+        vm.setSetting("shakeTidy", it)
+    }
+    ToggleRow("Blocca la Home", "Icone e widget non si spostano per sbaglio (sblocchi tenendo premuto uno spazio vuoto)", vm.settings.lockHome) {
+        vm.setSetting("lockHome", it)
+    }
     SetupRow(
         "Backup automatico", "Ogni settimana in una cartella a scelta (cambi frequenza nelle impostazioni)",
         vm.settings.autoBackup && vm.settings.backupDir.isNotEmpty(), "Attiva"
@@ -534,6 +571,108 @@ private fun PickWallpaper(vm: LauncherViewModel, host: Host) {
             }
         }
         if (vm.wallBusy) Text("Preparo lo sfondo…", color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+@Composable
+private fun ToggleRow(title: String, why: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh)
+            .clickable { onChange(!checked) }.padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium)
+            Text(why, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        MLSwitch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+/** Pagina −1: sì o no; se sì, il nome per il saluto e lo stile del contenitore. */
+@Composable
+private fun PickMinus(vm: LauncherViewModel, host: Host) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    Headline("Pagina \u22121", "Scorri verso destra dalla prima pagina: un saluto, la ricerca e i tuoi widget preferiti.")
+    AB(
+        s.minusOn, !s.minusOn, "S\u00ec, la voglio", "No, grazie",
+        { vm.setSetting("minusOn", true) }, { vm.setSetting("minusOn", false) },
+        { MiniMinus(vm, true) },
+        { MiniMinus(vm, false) }
+    )
+    if (s.minusOn) {
+        Label("Come ti chiami?")
+        var t by remember { mutableStateOf(s.minusName.ifEmpty { vm.autoName ?: "" }) }
+        androidx.compose.material3.OutlinedTextField(
+            value = t,
+            onValueChange = { t = it; vm.setSetting("minusName", it.trim()) },
+            singleLine = true,
+            placeholder = { Text("Il tuo nome") },
+            supportingText = { Text("Per il saluto: \u201cBuongiorno, ${t.trim().ifEmpty { "\u2026" }}\u201d") },
+            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        // se il telefono lo trova dopo il permesso, lo scrivo nel campo
+        LaunchedEffect(vm.autoName) {
+            val a = vm.autoName
+            if (a != null && t.isBlank()) { t = a; vm.setSetting("minusName", a) }
+        }
+        if (vm.autoName == null) TextButton(onClick = { host.requestContactsName() }) {
+            Text("Prendi il nome dal profilo del telefono")
+        }
+        Label("Contenitore dei widget")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("dock" to "Come la dock", "tonal" to "Tonale", "glass" to "Vetro").forEach { (k, l) ->
+                FilterChip(selected = s.minusStyle == k, onClick = { vm.setSetting("minusStyle", k) }, label = { Text(l) })
+            }
+        }
+    }
+}
+
+/** Anteprima della pagina −1 (o della Home senza) per la scelta nel benvenuto. */
+@Composable
+private fun BoxScope.MiniMinus(vm: LauncherViewModel, on: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    val wall = if (vm.customWallActive) vm.wallBitmap else null
+    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(cs.primary.copy(alpha = 0.55f), cs.tertiary.copy(alpha = 0.45f))))) {
+        if (wall != null) androidx.compose.foundation.Image(
+            wall.asImageBitmap(), contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().blur(if (on) 8.dp else 0.dp)
+        )
+        if (on) {
+            Box(Modifier.fillMaxSize().background(cs.surface.copy(alpha = 0.35f)))
+            Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(10.dp))
+                Text("Buongiorno", color = cs.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Box(Modifier.fillMaxWidth(0.6f).height(5.dp).clip(CircleShape).background(cs.onSurface.copy(alpha = 0.35f)))
+                Box(Modifier.fillMaxWidth().height(14.dp).clip(CircleShape).background(cs.surfaceContainerHigh))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(cs.surfaceContainer.copy(alpha = 0.85f)).padding(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(9.dp)).background(cs.primaryContainer))
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Box(Modifier.weight(1f).height(34.dp).clip(RoundedCornerShape(9.dp)).background(cs.tertiaryContainer))
+                        Box(Modifier.weight(1f).height(34.dp).clip(RoundedCornerShape(9.dp)).background(cs.secondaryContainer))
+                    }
+                    Box(Modifier.fillMaxWidth().height(20.dp).clip(RoundedCornerShape(9.dp)).background(cs.surfaceContainerHighest))
+                }
+            }
+        } else {
+            // Home normale: solo icone
+            Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(30.dp))
+                repeat(3) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        repeat(4) { Box(Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.85f))) }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -741,7 +880,9 @@ private fun Summary(vm: LauncherViewModel) {
         "Colori" to (ACCENTS.firstOrNull { it.first == s.accent }?.second ?: ""),
         "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
         "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
+        "Interruttori" to (SWITCH_STYLES.firstOrNull { it.first == s.switchStyle }?.second?.substringBefore(" (") ?: ""),
         "Dock" to (DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""),
+        "Pagina \u22121" to (if (s.minusOn) "Attiva" else "Spenta"),
         "Ritorno alla Home" to (RETURN_ANIMS.firstOrNull { it.first == s.returnAnim }?.second?.substringBefore(" (") ?: "")
     )
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh).padding(16.dp)) {
