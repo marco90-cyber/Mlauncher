@@ -117,6 +117,7 @@ private fun pageTitle(key: String?) = when (key) {
     "folders" -> "Cartelle"
     "drawer" -> "Cassetto app"
     "widgets" -> "Widget e meteo"
+    "minus" -> "Pagina \u22121"
     "gestures" -> "Gesti e vibrazione"
     "look" -> "Tema e animazioni"
     "backup" -> "Backup e manutenzione"
@@ -219,6 +220,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "folders" -> PageFolders(vm)
                     "drawer" -> PageDrawer(vm)
                     "widgets" -> PageWidgets(vm, host)
+                    "minus" -> PageMinus(vm, host)
                     "gestures" -> PageGestures(vm, host)
                     "look" -> PageLook(vm, host)
                     "wallpaper" -> PageWallpaper(vm, host)
@@ -306,7 +308,8 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
                 Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
             ) else emptyArray()),
             Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 badge \u00b7 app nascoste", Icons.Default.Star),
-            Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Search)
+            Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Search),
+            Cat("minus", "Pagina \u22121", if (s.minusOn) "Saluto, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.DateRange)
         ),
         "Comportamento" to listOf(
             Cat("gestures", "Gesti e vibrazione", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
@@ -334,6 +337,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
                         // come Android 16: freccia per il sottomenu, separatore e interruttore principale
                         when (c.key) {
                             "gestures" -> NavSwitch(s.haptics) { vm.setSetting("haptics", it) }
+                            "minus" -> NavSwitch(s.minusOn) { vm.setSetting("minusOn", it) }
                             "backup" -> NavSwitch(s.autoBackup) {
                                 vm.setSetting("autoBackup", it)
                                 if (it && s.backupDir.isEmpty()) host.pickBackupFolder()
@@ -1207,6 +1211,106 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
 }
 
 @Composable
+private fun PageMinus(vm: LauncherViewModel, host: Host) {
+    val s = vm.settings
+    Group(null) {
+        SwitchRow("Pagina −1", "Scorri verso destra dalla prima pagina per aprirla", s.minusOn) { vm.setSetting("minusOn", it) }
+    }
+    Group("Intestazione") {
+        Dependent(s.minusOn) {
+            SwitchRow("Saluto", "Buongiorno, Buon pomeriggio, Buonasera con il tuo nome", s.minusGreet) { vm.setSetting("minusGreet", it) }
+            Dependent(s.minusGreet) {
+                var nameDlg by remember { mutableStateOf(false) }
+                val auto = vm.autoName
+                ListItem(
+                    headlineContent = { Text("Il tuo nome") },
+                    supportingContent = {
+                        Text(
+                            when {
+                                s.minusName.isNotBlank() -> s.minusName
+                                auto != null -> "$auto (dal telefono)"
+                                else -> "Non trovato: tocca per scriverlo"
+                            }
+                        )
+                    },
+                    trailingContent = { Chevron() },
+                    colors = prefColors(),
+                    modifier = Modifier.hl("Il tuo nome").clickable { nameDlg = true }
+                )
+                if (nameDlg) {
+                    var t by remember { mutableStateOf(s.minusName) }
+                    AlertDialog(
+                        onDismissRequest = { nameDlg = false },
+                        title = { Text("Il tuo nome") },
+                        text = {
+                            Column {
+                                androidx.compose.material3.OutlinedTextField(
+                                    value = t,
+                                    onValueChange = { t = it },
+                                    singleLine = true,
+                                    placeholder = { Text(auto ?: "Nome") }
+                                )
+                                Text(
+                                    "Lascia vuoto per usare il nome del proprietario del telefono.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                                TextButton(onClick = { host.requestContactsName() }) {
+                                    Text("Prendi il nome dal profilo del telefono")
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { vm.setSetting("minusName", t.trim()); nameDlg = false }) { Text("Salva") }
+                        },
+                        dismissButton = { TextButton(onClick = { nameDlg = false }) { Text("Annulla") } }
+                    )
+                }
+            }
+            SwitchRow("Meteo accanto alla data", null, s.minusWeather) { vm.setSetting("minusWeather", it) }
+        }
+    }
+    Group("Aspetto") {
+        Dependent(s.minusOn) {
+            ChoiceRow(
+                "Contenitore dei widget",
+                listOf("dock" to "Come la dock", "tonal" to "Tonale", "glass" to "Vetro trasparente"),
+                s.minusStyle
+            ) { vm.setSetting("minusStyle", it) }
+            SliderRow("Sfocatura della Home", if (s.minusBlur == 0) "No" else "${s.minusBlur} dp", s.minusBlur.toFloat(), 0f..40f, 0) {
+                val v = it.roundToInt()
+                if (v != s.minusBlur) vm.setSetting("minusBlur", v)
+            }
+            SliderRow("Velo del tema", "${s.minusDim}%", s.minusDim.toFloat(), 0f..70f, 13) {
+                val v = (it / 5f).roundToInt() * 5
+                if (v != s.minusDim) vm.setSetting("minusDim", v)
+            }
+        }
+    }
+    Group("Widget") {
+        Dependent(s.minusOn) {
+            ListItem(
+                headlineContent = { Text("Aggiungi un widget") },
+                supportingContent = {
+                    val n = vm.minusWidgets.size
+                    Text(if (n == 0) "La pagina è vuota" else if (n == 1) "1 widget nella pagina" else "$n widget nella pagina")
+                },
+                trailingContent = { Chevron() },
+                colors = prefColors(),
+                modifier = Modifier.hl("Aggiungi un widget").clickable { vm.minusP = 1f; vm.openMinusPicker() }
+            )
+            ListItem(
+                headlineContent = { Text("Apri la pagina −1") },
+                supportingContent = { Text("Tieni premuto un widget per spostarlo, cambiarne la grandezza o toglierlo") },
+                trailingContent = { Chevron() },
+                colors = prefColors(),
+                modifier = Modifier.clickable { vm.overlay = Overlay.NONE; vm.minusP = 1f }
+            )
+        }
+    }
+}
+
+@Composable
 private fun PageBackup(vm: LauncherViewModel, host: Host) {
     Group("Backup") {
         ListItem(
@@ -1631,7 +1735,9 @@ private fun prefColors(): androidx.compose.material3.ListItemColors = com.marco.
  * e non si possono toccare (il loro valore resta quello di prima).
  */
 @Composable
-private fun Dependent(enabled: Boolean, content: @Composable () -> Unit) = com.marco.mltheme.MLDependent(enabled, content)
+private fun Dependent(enabled: Boolean, content: @Composable () -> Unit) =
+    // dentro un'altra voce spenta resta spenta anche questa
+    com.marco.mltheme.MLDependent(enabled && LocalPrefEnabled.current, content)
 
 /** Gruppo a elementi separati da un filo di spazio, con gli angoli esterni molto arrotondati. */
 @Composable

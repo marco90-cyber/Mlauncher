@@ -769,6 +769,119 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Riferimento per un nuovo widget interno: le note hanno un proprio id per il testo. */
+    // ---------- pagina −1 ----------
+
+    /** apertura della pagina −1: 0 chiusa, 1 aperta (segue il dito) */
+    var minusP by mutableFloatStateOf(0f)
+    /** il prossimo widget scelto va nella pagina −1 */
+    var minusPick by mutableStateOf(false)
+    var minusCloseSignal by mutableIntStateOf(0)
+        private set
+    val minusWidgets = mutableStateListOf<MinusW>()
+    /** nome del proprietario del telefono (se trovato) */
+    var autoName by mutableStateOf<String?>(null)
+        private set
+
+    fun loadMinus() {
+        minusWidgets.clear()
+        try {
+            val a = JSONArray(settings.minusWidgets)
+            for (i in 0 until a.length()) {
+                val o = a.getJSONObject(i)
+                minusWidgets.add(
+                    MinusW(
+                        o.getString("u"),
+                        WidgetRef(o.getString("k"), o.optInt("w", -1), o.optString("p", "")),
+                        o.optInt("s", 2)
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            AppLog.e("Pagina -1 non letta", e)
+        }
+    }
+
+    private fun saveMinus() {
+        val a = JSONArray()
+        minusWidgets.forEach { m ->
+            a.put(JSONObject().put("u", m.uid).put("k", m.ref.kind).put("w", m.ref.widgetId).put("p", m.ref.provider).put("s", m.size))
+        }
+        settings.set("minusWidgets", a.toString())
+    }
+
+    private fun addToMinus(ref: WidgetRef, size: Int) {
+        minusWidgets.add(MinusW(UUID.randomUUID().toString(), ref, size.coerceIn(1, 3)))
+        saveMinus()
+        minusPick = false
+        stackTarget = null
+        overlay = Overlay.NONE
+        AppLog.i("Widget ${ref.kind} aggiunto alla pagina -1")
+    }
+
+    fun moveMinus(uid: String, dir: Int) {
+        val i = minusWidgets.indexOfFirst { it.uid == uid }
+        val j = i + dir
+        if (i < 0 || j !in minusWidgets.indices) return
+        val m = minusWidgets.removeAt(i)
+        minusWidgets.add(j, m)
+        saveMinus()
+    }
+
+    fun sizeMinus(uid: String, size: Int) {
+        val i = minusWidgets.indexOfFirst { it.uid == uid }
+        if (i < 0) return
+        minusWidgets[i] = minusWidgets[i].copy(size = size.coerceIn(1, 3))
+        saveMinus()
+    }
+
+    fun removeMinus(uid: String) {
+        val m = minusWidgets.firstOrNull { it.uid == uid } ?: return
+        if (m.ref.kind == "ext") discardWidgetId(m.ref.widgetId)
+        minusWidgets.remove(m)
+        saveMinus()
+    }
+
+    fun openMinusPicker() {
+        if (blockedByLock()) return
+        minusPick = true
+        stackTarget = null
+        overlay = Overlay.WIDGETS
+    }
+
+    fun closeMinus() {
+        if (minusP > 0f) minusCloseSignal += 1
+    }
+
+    /** Nome per il saluto: quello scritto nelle impostazioni, altrimenti quello del telefono. */
+    fun greetName(): String = settings.minusName.trim().ifEmpty { autoName ?: "" }
+
+    fun loadAutoName() {
+        viewModelScope.launch {
+            autoName = withContext(Dispatchers.IO) {
+                val generic = setOf("owner", "proprietario", "utente", "user", "me", "io", "proprietaria")
+                var n: String? = try {
+                    ctx.getSystemService(android.os.UserManager::class.java)?.userName
+                } catch (e: Exception) {
+                    null
+                }
+                if (n.isNullOrBlank() || n.trim().lowercase() in generic) n = null
+                if (n == null && ctx.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    n = try {
+                        ctx.contentResolver.query(
+                            android.provider.ContactsContract.Profile.CONTENT_URI,
+                            arrayOf(android.provider.ContactsContract.Profile.DISPLAY_NAME), null, null, null
+                        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                n?.trim()?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() }
+            }
+        }
+    }
+
     private fun newRef(kind: String) = if (kind == "notes") WidgetRef("notes", -1, UUID.randomUUID().toString()) else WidgetRef(kind)
 
     // ---------- backup automatico ----------
@@ -946,6 +1059,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addWidgetFromPicker(kind: String, sx: Int, sy: Int) {
+        if (minusPick) {
+            addToMinus(newRef(kind), if (sy <= 1) 1 else if (sy == 2) 2 else 3)
+            return
+        }
         val t = stackTarget
         if (t != null && addRefToStack(t, newRef(kind))) return
         addInternalWidget(kind, sx, sy, currentPage)
@@ -968,6 +1085,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addExternalWidget(widgetId: Int, info: AppWidgetProviderInfo) {
+        if (minusPick) {
+            val hDp = info.minHeight / ctx.resources.displayMetrics.density
+            addToMinus(WidgetRef("ext", widgetId, info.provider.flattenToString()), if (hDp <= 110f) 1 else if (hDp <= 220f) 2 else 3)
+            return
+        }
         val t = stackTarget
         if (t != null && addRefToStack(t, WidgetRef("ext", widgetId, info.provider.flattenToString()))) return
         val density = ctx.resources.displayMetrics.density
@@ -1433,6 +1555,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val o = JSONObject(text)
             val list = decodeItems(o.getJSONArray("layout"), true)
             settings.load(o.getJSONObject("settings"))
+            loadMinus()
             layoutLand = false
             items.clear()
             items.addAll(list)
@@ -1948,6 +2071,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onHomePressed(alreadyHome: Boolean = false) {
+        // pagina −1 aperta: il tasto Home la chiude
+        if (minusP > 0f) {
+            closeMinus()
+            overlay = Overlay.NONE
+            openFolderId = null
+            return
+        }
         // già sulla prima pagina, senza nulla di aperto: il tasto Home apre il cassetto
         if (alreadyHome && settings.homeOpensDrawer && overlay == Overlay.NONE && openFolderId == null &&
             !editMode && currentPage == 0
@@ -2546,6 +2676,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         sp.getStringSet("newApps", null)?.let { newApps.addAll(it) }
         loadNotes()
         loadWallpaper()
+        loadMinus()
+        loadAutoName()
         // le vecchie voci "cartelle per lettera/categoria" ora sono modalità delle cartelle intelligenti
         when (settings.homeOrder) {
             "letter_folders", "cat_folders" -> {

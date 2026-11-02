@@ -40,6 +40,18 @@ class MainActivity : ComponentActivity(), Host {
         ActivityResultContracts.RequestPermission()
     ) { vm.checkLocationPermission(); vm.refreshWeather(true) }
 
+    private val contactsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { vm.loadAutoName() }
+
+    override fun requestContactsName() {
+        if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            vm.loadAutoName()
+        } else {
+            try { contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS) } catch (e: Exception) { }
+        }
+    }
+
     private val btLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }

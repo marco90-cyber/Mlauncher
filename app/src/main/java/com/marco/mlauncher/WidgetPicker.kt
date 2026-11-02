@@ -118,7 +118,7 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
     }
     var expanded by remember { mutableStateOf<String?>(null) }
     androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose { vm.stackTarget = null }
+        onDispose { vm.stackTarget = null; vm.minusPick = false }
     }
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
@@ -131,7 +131,7 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                 .background(cs.outlineVariant)
         )
         Text(
-            if (vm.stackTarget != null) "Aggiungi allo stack" else "Widget",
+            if (vm.minusPick) "Aggiungi alla pagina \u22121" else if (vm.stackTarget != null) "Aggiungi allo stack" else "Widget",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
@@ -160,10 +160,10 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                     item { InternalCard(vm, host, "Ricerca (icona)", "search", 1, 1) }
                     item { InternalCard(vm, host, "Meteo", "weather", 2, 2) }
                     item { InternalCard(vm, host, "Meteo", "weather", 4, 2) }
-                    item { EmptyStackCard(vm, 2, 2) }
-                    item { EmptyStackCard(vm, 4, 2) }
-                    item { EmptyStackCard(vm, 2, 1) }
-                    item { EmptyStackCard(vm, 4, 4) }
+                    if (!vm.minusPick) item { EmptyStackCard(vm, 2, 2) }
+                    if (!vm.minusPick) item { EmptyStackCard(vm, 4, 2) }
+                    if (!vm.minusPick) item { EmptyStackCard(vm, 2, 1) }
+                    if (!vm.minusPick) item { EmptyStackCard(vm, 4, 4) }
                 }
                 Spacer(Modifier.height(12.dp))
             }

@@ -84,13 +84,14 @@ fun Root(vm: LauncherViewModel, host: Host) {
         } else null
         Box(Modifier.fillMaxSize().onSizeChanged { rootSize = it; vm.screenPx = it }) {
             androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
-                Box(Modifier.fillMaxSize().blur(blurRadius)) {
+                Box(Modifier.fillMaxSize().blur(maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp))) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
                     if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm)) {
                         WallpaperLayer(wall, vm.settings.wallDim / 100f, vm.settings.wallBlur.dp)
                     }
                     if (vm.loaded) HomeScreen(vm, host)
                 }
+                if (vm.loaded) MinusPage(vm, host)
                 FolderOverlay(vm, host)
             }
             AppsOverlay(vm, host)
@@ -107,6 +108,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     // gesto indietro sulla Home senza nulla di aperto: come Launcher3 non chiude il Launcher
     // (prima l'attività si chiudeva e si ricaricava); riporta alla prima pagina
     BackHandler(enabled = !vm.showWelcome && vm.wallEditSrc == null) { vm.backOnHome() }
+    BackHandler(enabled = vm.minusP > 0f) { vm.closeMinus() }
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }
     BackHandler(enabled = vm.openFolderId != null) { vm.openFolderId = null }
     BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }

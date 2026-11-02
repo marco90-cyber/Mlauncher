@@ -27,6 +27,9 @@ class AppEntry(
 /** Un widget: kind = "clock" | "weather" | "ext" (widget Android vero). */
 data class WidgetRef(val kind: String, val widgetId: Int = -1, val provider: String = "")
 
+/** Widget della pagina −1: [size] 1 piccolo, 2 medio, 3 grande. */
+data class MinusW(val uid: String, val ref: WidgetRef, val size: Int)
+
 sealed class HomeItem {
     abstract val id: String
     abstract val page: Int // -1 = dock
@@ -200,6 +203,16 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "system") ?: "system")
+    // pagina −1 (widget a sinistra della prima pagina)
+    var minusOn by mutableStateOf(sp.getBoolean("minusOn", true))
+    var minusGreet by mutableStateOf(sp.getBoolean("minusGreet", true))
+    var minusWeather by mutableStateOf(sp.getBoolean("minusWeather", true))
+    var minusName by mutableStateOf(sp.getString("minusName", "") ?: "")
+    /** contenitore dei widget: "dock" (come la dock), "tonal", "glass" */
+    var minusStyle by mutableStateOf(sp.getString("minusStyle", "dock") ?: "dock")
+    var minusBlur by mutableStateOf(sp.getInt("minusBlur", 24))
+    var minusDim by mutableStateOf(sp.getInt("minusDim", 30))
+    var minusWidgets by mutableStateOf(sp.getString("minusWidgets", "[]") ?: "[]")
     /** stile degli interruttori: android16 (predefinito), material, ios, hyperos */
     var switchStyle by mutableStateOf((sp.getString("switchStyle", "android16") ?: "android16").also { SwitchLook.style = it })
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
@@ -352,6 +365,14 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapPage" -> hapPage = value as Boolean
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
+            "minusOn" -> minusOn = value as Boolean
+            "minusGreet" -> minusGreet = value as Boolean
+            "minusWeather" -> minusWeather = value as Boolean
+            "minusName" -> minusName = value as String
+            "minusStyle" -> minusStyle = value as String
+            "minusBlur" -> minusBlur = value as Int
+            "minusDim" -> minusDim = value as Int
+            "minusWidgets" -> minusWidgets = value as String
             "switchStyle" -> { switchStyle = value as String; SwitchLook.style = switchStyle }
             "lockHome" -> lockHome = value as Boolean
             "folderPos" -> folderPos = value as String

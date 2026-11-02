@@ -86,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.geometry.Offset
@@ -143,6 +144,7 @@ interface Host {
     fun requestBluetooth()
     fun webSearch(query: String)
     fun restartLauncher()
+    fun requestContactsName()
 }
 
 class DragState(val item: HomeItem, start: Offset) {
@@ -499,10 +501,51 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         vm.returnP = 1f
     }
 
+    // pagina −1: dalla prima pagina, lo scorrimento verso destra che il pager non usa la apre
+    val minusEnabled = rememberUpdatedState(s.minusOn && !edit && drag == null && vm.overlay == Overlay.NONE)
+    val minusScope = rememberCoroutineScope()
+    val minusConn = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            fun w() = vm.screenPx.width.toFloat().coerceAtLeast(1f)
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                if (vm.minusP <= 0f || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return Offset.Zero
+                MinusAnim.cancel()
+                val before = vm.minusP
+                vm.minusP = (before + available.x / w()).coerceIn(0f, 1f)
+                return Offset((vm.minusP - before) * w(), 0f)
+            }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                if (!minusEnabled.value || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput ||
+                    available.x <= 0f || pagerState.currentPage != 0
+                ) return Offset.Zero
+                MinusAnim.cancel()
+                val before = vm.minusP
+                vm.minusP = (before + available.x / w()).coerceIn(0f, 1f)
+                return Offset((vm.minusP - before) * w(), 0f)
+            }
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (vm.minusP <= 0f || vm.minusP >= 1f) return androidx.compose.ui.unit.Velocity.Zero
+                val open = if (abs(available.x) > 900f) available.x > 0f else vm.minusP > 0.35f
+                MinusAnim.settle(minusScope, vm, open)
+                return available
+            }
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
             .returnWhole(vm)
+            .graphicsLayer {
+                // la Home si sposta un po' mentre arriva la pagina −1
+                val mp = vm.minusP
+                if (mp > 0f) {
+                    translationX = mp * 56.dp.toPx()
+                    val sc = 1f - 0.05f * mp
+                    scaleX = sc
+                    scaleY = sc
+                }
+            }
             .pointerInput(Unit) {
                 // mentre un'icona è tenuta premuta, un secondo dito che scorre cambia pagina
                 awaitPointerEventScope {
@@ -545,6 +588,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 ),
                 userScrollEnabled = drag == null,
                 modifier = mod
+                    .nestedScroll(minusConn)
                     .onGloballyPositioned { gridRect = it.boundsInRoot() }
             ) { page ->
                 HomePage(
