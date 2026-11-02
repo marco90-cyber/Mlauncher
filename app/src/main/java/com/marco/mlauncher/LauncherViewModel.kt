@@ -355,7 +355,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun playReturn(fromApp: Boolean, force: Boolean = false) {
         val s = settings
         if (!force && (if (fromApp) !s.returnOnApp else !s.returnOnUnlock)) return
-        if (s.returnAnim == "none" && !s.returnBounce) return
+        if (s.returnAnim == "none") return
         if (overlay != Overlay.NONE || openFolderId != null || editMode) return
         val id = if (fromApp) launchedId else null
         returnAppId = id

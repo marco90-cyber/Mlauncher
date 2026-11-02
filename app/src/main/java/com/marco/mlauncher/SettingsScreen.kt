@@ -71,6 +71,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.horizontalScroll
@@ -81,6 +82,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.roundToInt
 
 private class Cat(val key: String, val title: String, val summary: String, val icon: ImageVector)
@@ -524,8 +526,8 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
                 }
             }
         }
-        if (bm != null) {
-            Group("Effetti") {
+        run {
+            Group("Effetti") { Dependent(bm != null) {
                 SliderRow("Scurisci", if (s.wallDim == 0) "No" else "${s.wallDim}%", s.wallDim.toFloat(), 0f..60f, 11) {
                     val v = (it / 5f).roundToInt() * 5
                     if (v != s.wallDim) vm.setSetting("wallDim", v)
@@ -535,8 +537,8 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
                     if (v != s.wallBlur) vm.setSetting("wallBlur", v)
                 }
                 SwitchRow("Parallasse", "Lo sfondo scorre piano quando cambi pagina", s.wallParallax) { vm.setSetting("wallParallax", it) }
-            }
-            Group("Schermata di blocco") {
+            } }
+            Group("Schermata di blocco") { Dependent(bm != null) {
                 ListItem(
                     headlineContent = { Text("Usa anche sulla schermata di blocco") },
                     supportingContent = { Text("Imposta questa immagine come sfondo di blocco di Android. Per uno diverso, scegli lì un'altra immagine") },
@@ -546,7 +548,7 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
                         android.widget.Toast.makeText(ctx, if (ok) "Sfondo di blocco impostato" else "Non riuscito", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 )
-            }
+            } }
         }
     }
 }
@@ -616,7 +618,7 @@ private fun PageHome(vm: LauncherViewModel) {
                 "Raggruppa le app in cartelle. Le app che non rientrano in nessun gruppo restano in Home, senza cartelle generiche",
                 s.autoFolders
             ) { vm.setSetting("autoFolders", it) }
-            if (s.autoFolders) ChoiceRow("Raggruppa per", smartModes, s.smartMode) { vm.setSetting("smartMode", it) }
+            Dependent(s.autoFolders) { ChoiceRow("Raggruppa per", smartModes, s.smartMode) { vm.setSetting("smartMode", it) } }
             ChoiceRow(if (s.autoFolders) "Come disporre le app sciolte" else "Come disporre le app", orderOptions, s.homeOrder) { vm.setSetting("homeOrder", it) }
         } else {
             SwitchRow(
@@ -666,11 +668,13 @@ private fun PageHome(vm: LauncherViewModel) {
     }
     Group("Aspetto") {
         SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
-        if (s.showLabels) ChoiceRow(
-            "Colore dei nomi",
-            listOf("auto" to "Automatico (in base allo sfondo)", "white" to "Sempre bianchi", "dark" to "Sempre scuri"),
-            s.labelColor
-        ) { vm.setSetting("labelColor", it) }
+        Dependent(s.showLabels) {
+            ChoiceRow(
+                "Colore dei nomi",
+                listOf("auto" to "Automatico (in base allo sfondo)", "white" to "Sempre bianchi", "dark" to "Sempre scuri"),
+                s.labelColor
+            ) { vm.setSetting("labelColor", it) }
+        }
         SwitchRow(
             "Rotazione della Home",
             "In orizzontale la dock passa a lato. Spento: la Home resta in verticale",
@@ -693,11 +697,13 @@ private fun PageHome(vm: LauncherViewModel) {
             s.pageIndicator,
             preview = { IndicatorPreview(it) }
         ) { vm.setSetting("pageIndicator", it) }
-        SwitchRow(
-            "Indicatore come la dock",
-            "Prende stile, trasparenza ed effetto vetro della dock",
-            s.indFollowDock
-        ) { vm.setSetting("indFollowDock", it) }
+        Dependent(s.pageIndicator != "none") {
+            SwitchRow(
+                "Indicatore come la dock",
+                "Prende stile, trasparenza ed effetto vetro della dock",
+                s.indFollowDock
+            ) { vm.setSetting("indFollowDock", it) }
+        }
         ChoiceRow(
             "Effetto cambio pagina",
             listOf(
@@ -730,6 +736,7 @@ private fun PageDock(vm: LauncherViewModel) {
             s.dockStyle,
             preview = { DockPreview(it, s.dockSlots, s.dockOpacity, s.dockGlass, s.dockCorner) }
         ) { vm.setSetting("dockStyle", it) }
+        Dependent(s.dockStyle != "none") {
         SwitchRow(
             "Effetto glass",
             "Riflesso e bordo luminoso come il vetro",
@@ -742,6 +749,7 @@ private fun PageDock(vm: LauncherViewModel) {
         SliderRow("Arrotondamento", "${s.dockCorner} dp", s.dockCorner.toFloat(), 0f..40f, 0) {
             val v = it.roundToInt()
             if (v != s.dockCorner) vm.setSetting("dockCorner", v)
+        }
         }
     }
     OrientedGroup("Dimensioni", s) {
@@ -850,12 +858,12 @@ private fun PageDrawer(vm: LauncherViewModel) {
     }
     Group("Ricerca e scorrimento") {
         SwitchRow("Barra di ricerca", "In cima al cassetto", s.drSearchBar) { vm.setSetting("drSearchBar", it) }
-        if (s.drSearchBar) SwitchRow("Sfondo della barra di ricerca", null, s.drSearchBg) { vm.setSetting("drSearchBg", it) }
+        Dependent(s.drSearchBar) { SwitchRow("Sfondo della barra di ricerca", null, s.drSearchBg) { vm.setSetting("drSearchBg", it) } }
         SwitchRow("Barra laterale A-Z", "Scorri veloce tra le lettere", s.drScrollbar) { vm.setSetting("drScrollbar", it) }
     }
     Group("Nomi delle app") {
         SwitchRow("Mostra i nomi", null, s.drLabels) { vm.setSetting("drLabels", it) }
-        if (s.drLabels) {
+        Dependent(s.drLabels) {
             SliderRow("Dimensione del testo", "${s.drLabelSize} sp", s.drLabelSize.toFloat(), 9f..16f, 6) {
                 val v = it.roundToInt()
                 if (v != s.drLabelSize) vm.setSetting("drLabelSize", v)
@@ -880,9 +888,11 @@ private fun PageDrawer(vm: LauncherViewModel) {
         }
     }
     OrientedGroup("Griglia e spaziatura", s) {
-        if (s.drLayout == "grid") SliderRow("Colonne", "${s.drCols}", s.drCols.toFloat(), 3f..6f, 2) {
-            val v = it.roundToInt()
-            if (v != s.drCols) vm.setSetting("drCols", v)
+        Dependent(s.drLayout == "grid") {
+            SliderRow("Colonne", "${s.drCols}", s.drCols.toFloat(), 3f..6f, 2) {
+                val v = it.roundToInt()
+                if (v != s.drCols) vm.setSetting("drCols", v)
+            }
         }
         SliderRow("Dimensione icone", "${(s.drIcon * 100).roundToInt()}%", s.drIcon, 0.7f..1.4f, 13) {
             vm.setSetting("drIcon", (it * 20).roundToInt() / 20f)
@@ -922,12 +932,14 @@ private fun PageFolders(vm: LauncherViewModel) {
             s.folderPreview,
             preview = { FolderPreview(it, s.folderBg, s.folderShape) }
         ) { vm.setSetting("folderPreview", it) }
-        if (!s.folderFollowDock) ChoiceRow(
-            "Sfondo della cartella",
-            listOf("tonal" to "Tonale", "primary" to "Colore principale", "dark" to "Scuro trasparente", "glass" to "Vetro chiaro"),
-            s.folderBg,
-            preview = { FolderPreview(s.folderPreview, it, s.folderShape) }
-        ) { vm.setSetting("folderBg", it) }
+        Dependent(!s.folderFollowDock) {
+            ChoiceRow(
+                "Sfondo della cartella",
+                listOf("tonal" to "Tonale", "primary" to "Colore principale", "dark" to "Scuro trasparente", "glass" to "Vetro chiaro"),
+                s.folderBg,
+                preview = { FolderPreview(s.folderPreview, it, s.folderShape) }
+            ) { vm.setSetting("folderBg", it) }
+        }
     }
     Group("Cartella aperta") {
         ChoiceRow(
@@ -1099,7 +1111,7 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
             s.haptics
         ) { vm.setSetting("haptics", it) }
     }
-    if (s.haptics) Group("Quando vibrare") {
+    Group("Quando vibrare") { Dependent(s.haptics) {
         SwitchRow(
             "Pressione lunga e trascinamento",
             "Menu rapidi, inizio spostamento di icone e widget",
@@ -1120,7 +1132,7 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
             "Ridimensionamento, lista del cassetto, gesti su e giù",
             s.hapTick
         ) { vm.setSetting("hapTick", it) }
-    }
+    } }
 }
 
 @Composable
@@ -1164,6 +1176,7 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
     }
     Group("Ritorno alla Home") {
         ChoiceRow("Animazione", RETURN_ANIMS, s.returnAnim) { vm.setSetting("returnAnim", it) }
+        Dependent(s.returnAnim != "none") {
         SwitchRow("Quando torni da un'app", null, s.returnOnApp) { vm.setSetting("returnOnApp", it) }
         SwitchRow("Quando sblocchi il telefono", null, s.returnOnUnlock) { vm.setSetting("returnOnUnlock", it) }
         SwitchRow("Rimbalzo dell'icona", "L'icona dell'app appena chiusa fa un piccolo salto", s.returnBounce) { vm.setSetting("returnBounce", it) }
@@ -1177,6 +1190,7 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
                 vm.playReturn(fromApp = false, force = true)
             }
         )
+        }
     }
     Group("Animazioni") {
         ChoiceRow(
@@ -1216,6 +1230,7 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
             vm.setSetting("autoBackup", it)
             if (it && s.backupDir.isEmpty()) host.pickBackupFolder()
         }
+        Dependent(s.autoBackup) {
         ListItem(
             headlineContent = { Text("Cartella del backup") },
             trailingContent = { Chevron() },
@@ -1253,6 +1268,7 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
                 if (s.backupDir.isEmpty()) host.pickBackupFolder() else vm.runAutoBackup(force = true)
             }
         )
+        }
     }
     Group("Manutenzione") {
         var confirmReset by remember { mutableStateOf(false) }
@@ -1631,7 +1647,40 @@ private fun BadgePreview(key: String) {
 // ---------------------------------------------------------------------
 
 @Composable
-private fun prefColors() = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+private fun prefColors(): androidx.compose.material3.ListItemColors {
+    val cs = MaterialTheme.colorScheme
+    return if (LocalPrefEnabled.current) ListItemDefaults.colors(containerColor = cs.surfaceContainer)
+    else ListItemDefaults.colors(
+        containerColor = cs.surfaceContainer,
+        headlineColor = cs.onSurface.copy(alpha = 0.38f),
+        supportingColor = cs.onSurfaceVariant.copy(alpha = 0.38f),
+        leadingIconColor = cs.onSurfaceVariant.copy(alpha = 0.38f),
+        trailingIconColor = cs.onSurfaceVariant.copy(alpha = 0.38f)
+    )
+}
+
+/**
+ * Voci che dipendono da un'altra impostazione: con [enabled] false restano visibili ma in grigio
+ * e non si possono toccare (il loro valore resta quello di prima).
+ */
+@Composable
+private fun Dependent(enabled: Boolean, content: @Composable () -> Unit) {
+    Box {
+        androidx.compose.runtime.CompositionLocalProvider(LocalPrefEnabled provides enabled) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { content() }
+        }
+        if (!enabled) {
+            Box(
+                Modifier.matchParentSize().pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            .changes.forEach { it.consume() }
+                    }
+                }
+            )
+        }
+    }
+}
 
 /** Gruppo a elementi separati da un filo di spazio, con gli angoli esterni molto arrotondati. */
 @Composable
@@ -1659,7 +1708,7 @@ internal fun Chevron() {
     Icon(
         Icons.AutoMirrored.Filled.KeyboardArrowRight,
         contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (LocalPrefEnabled.current) 1f else 0.38f)
     )
 }
 
@@ -1704,15 +1753,17 @@ private fun SliderRow(
             .hl(title)
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
+        val en = LocalPrefEnabled.current
+        val dim = if (en) 1f else 0.38f
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            Text(valueLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = dim))
+            Text(valueLabel, color = MaterialTheme.colorScheme.primary.copy(alpha = dim), fontWeight = FontWeight.SemiBold)
             if (preview != null) {
                 Spacer(Modifier.width(12.dp))
-                preview()
+                Box(Modifier.alpha(dim)) { preview() }
             }
         }
-        Slider(value = value, onValueChange = onChange, valueRange = range, steps = steps)
+        Slider(value = value, onValueChange = onChange, valueRange = range, steps = steps, enabled = en)
     }
 }
 
@@ -1728,7 +1779,9 @@ private fun ChoiceRow(
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(options.firstOrNull { it.first == current }?.second ?: "") },
-        trailingContent = if (preview != null) ({ preview(current) }) else null,
+        trailingContent = if (preview != null) ({
+            Box(Modifier.alpha(if (LocalPrefEnabled.current) 1f else 0.38f)) { preview(current) }
+        }) else null,
         colors = prefColors(),
         modifier = Modifier.hl(title).clickable { open = true }
     )

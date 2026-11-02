@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -39,6 +40,9 @@ val SWITCH_STYLES = listOf(
     "ios" to "iOS",
     "hyperos" to "HyperOS"
 )
+
+/** false = la voce dipende da un'altra impostazione spenta: si vede in grigio e non si tocca. */
+val LocalPrefEnabled = androidx.compose.runtime.compositionLocalOf { true }
 
 /** Stile scelto, letto da tutti gli interruttori dell'app. */
 object SwitchLook {
@@ -56,6 +60,18 @@ fun MLSwitch(
     modifier: Modifier = Modifier,
     style: String = SwitchLook.style
 ) {
+    val cs = MaterialTheme.colorScheme
+    val en = LocalPrefEnabled.current
+    if (!en) {
+        // disattivato: stesso disegno, in grigio e senza tocco
+        Box(modifier.alpha(0.38f)) { MLSwitchInner(checked, null, Modifier, style) }
+        return
+    }
+    MLSwitchInner(checked, onCheckedChange, modifier, style)
+}
+
+@Composable
+private fun MLSwitchInner(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier, style: String) {
     val cs = MaterialTheme.colorScheme
     when (style) {
         "material" -> Switch(checked = checked, onCheckedChange = onCheckedChange, modifier = modifier)
