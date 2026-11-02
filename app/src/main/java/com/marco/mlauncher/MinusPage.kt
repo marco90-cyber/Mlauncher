@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -316,7 +317,7 @@ private fun MinusWidgetCard(
                             var startX = 1
                             var startY = 1
                             var acc = Offset.Zero
-                            androidx.compose.foundation.gestures.detectDragGestures(
+                            detectDragGestures(
                                 onDragStart = { startX = liveSx; startY = liveSy; acc = Offset.Zero },
                                 onDrag = { c, d ->
                                     c.consume()
