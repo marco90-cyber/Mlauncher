@@ -13,6 +13,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -546,7 +548,7 @@ private fun PickWallpaper(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val dark = isDarkPreview(s.theme)
-    Headline("Il tuo sfondo", "Scegli una tua foto e ritagliala, oppure uno degli sfondi inclusi. I colori del Launcher si prendono dall'immagine.")
+    Headline("Il tuo sfondo", "Una tua foto da ritagliare e ritoccare con filtri ed effetti, uno sfondo incluso oppure uno creato da te.")
     Box(Modifier.fillMaxWidth(0.5f).aspectRatio(0.52f).clip(RoundedCornerShape(26.dp)).border(1.dp, cs.outlineVariant, RoundedCornerShape(26.dp)).padding(6.dp)) {
         MiniPhone(mini(vm, dark))
     }
@@ -555,21 +557,49 @@ private fun PickWallpaper(vm: LauncherViewModel, host: Host) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton(onClick = { host.pickWallpaperImage() }, modifier = Modifier.weight(1f)) { Text("Galleria") }
             OutlinedButton(onClick = { vm.importSystemWallpaper() }, modifier = Modifier.weight(1f)) { Text("Importa") }
-            OutlinedButton(onClick = { vm.editCurrentWallpaper() }, modifier = Modifier.weight(1f)) { Text("Modifica") }
+            OutlinedButton(onClick = { vm.editCurrentWallpaper() }, modifier = Modifier.weight(1f)) { Text("Effetti") }
         }
         Spacer(Modifier.height(12.dp))
         Row(
             Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // crea il tuo
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { vm.newMyWall() }) {
+                Box(
+                    Modifier.size(52.dp, 104.dp).clip(RoundedCornerShape(12.dp)).background(cs.secondaryContainer),
+                    contentAlignment = Alignment.Center
+                ) { Text("+", color = cs.onSecondaryContainer, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+                Text("Crea", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+            }
+            vm.myWalls.forEach { g ->
+                val thumb = remember(g) { genWall(g, 90, 180).asImageBitmap() }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(52.dp).clickable { vm.applyMyWall(g) }) {
+                    androidx.compose.foundation.Image(
+                        thumb, contentDescription = g.name,
+                        modifier = Modifier.size(52.dp, 104.dp).clip(RoundedCornerShape(12.dp)).border(2.dp, cs.primary, RoundedCornerShape(12.dp))
+                    )
+                    Text(g.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
             BUILTIN_WALLS.forEach { (k, l) ->
                 val thumb = remember(k) { builtinWall(k, 90, 180).asImageBitmap() }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { vm.builtinWallpaper(k) }) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.pointerInput(k) {
+                        detectTapGestures(onTap = { vm.builtinWallpaper(k) }, onLongPress = { vm.genEdit = builtinGen(k, l) })
+                    }
+                ) {
                     androidx.compose.foundation.Image(thumb, contentDescription = l, modifier = Modifier.size(52.dp, 104.dp).clip(RoundedCornerShape(12.dp)))
                     Text(l, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
+        Text(
+            "Tieni premuto uno sfondo incluso per cambiarne colori e stile",
+            color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp)
+        )
         if (vm.wallBusy) Text("Preparo lo sfondo…", color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
     }
 }
