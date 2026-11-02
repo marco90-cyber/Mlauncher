@@ -140,6 +140,7 @@ private fun rotated(b: Bitmap, deg: Float, flip: Boolean): Bitmap {
 }
 
 /** Editor dello sfondo: ritaglio con dita (sposta e pizzica), rotazione, specchio, regolazioni, filtri ed effetti. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
     val cs = MaterialTheme.colorScheme
