@@ -523,25 +523,36 @@ private fun GenLabel(t: String) {
 @Composable
 private fun GenSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float> = 0f..1f, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(86.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(96.dp))
         Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.weight(1f).height(30.dp))
     }
 }
 
-/** Editor di "Crea il tuo sfondo". */
+/** Editor di "Crea il tuo sfondo": anteprima in alto, schede con i comandi sotto. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun WallGenerator(vm: LauncherViewModel, start: GenWall) {
     val cs = MaterialTheme.colorScheme
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var g by remember(start.id) { mutableStateOf(start) }
     var pickIdx by remember { mutableStateOf(-1) }
+    var tab by remember { mutableStateOf(0) }
     BackHandler { vm.genEdit = null }
     val (tw, th) = vm.wallTarget()
+    val ratio = tw.toFloat() / th
     val pw = 320
-    val ph = (pw * th.toFloat() / tw).toInt().coerceAtLeast(320)
+    val ph = (pw / ratio).toInt().coerceAtLeast(320)
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(g) {
         preview = withContext(Dispatchers.Default) { genWall(g, pw, ph).asImageBitmap() }
+    }
+    // miniature degli stili con i colori scelti
+    var thumbs by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
+    val thumbKey = g.copy(id = "", name = "", style = "", soft = 0.5f, grain = 0f, vignette = 0f, blur = 0f)
+    LaunchedEffect(thumbKey) {
+        thumbs = withContext(Dispatchers.Default) {
+            GEN_STYLES.associate { (k, _) -> k to genWall(thumbKey.copy(style = k), 64, 128).asImageBitmap() }
+        }
     }
     // colori dal sistema, dal tema o dallo sfondo attuale
     val sys = remember {
@@ -571,13 +582,17 @@ fun WallGenerator(vm: LauncherViewModel, start: GenWall) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { vm.genEdit = null }) { Text("Annulla") }
                 Text("Crea il tuo sfondo", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                TextButton(onClick = { g = randomGen(g.id, g.name) }) { Text("A caso") }
+                TextButton(onClick = {}) { Text(" ", color = Color.Transparent) }
             }
-            Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                // anteprima
-                Column(Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // anteprima con le proporzioni dello sfondo, e accanto Varia / A caso
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                val boxW = minOf(maxWidth * 0.62f, maxHeight * ratio)
+                val boxH = boxW / ratio
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.weight(1f).aspectRatio(tw.toFloat() / th).clip(RoundedCornerShape(22.dp))
+                        Modifier.size(boxW, boxH).clip(RoundedCornerShape(22.dp))
                             .border(1.dp, cs.outlineVariant, RoundedCornerShape(22.dp))
                             .background(cs.surfaceContainer)
                     ) {
@@ -589,86 +604,109 @@ fun WallGenerator(vm: LauncherViewModel, start: GenWall) {
                             )
                         }
                     }
-                    OutlinedButton(onClick = { g = g.copy(seed = (1..1_000_000).random()) }, modifier = Modifier.padding(top = 8.dp)) { Text("Varia") }
-                }
-                Spacer(Modifier.width(12.dp))
-                // comandi
-                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
-                    GenLabel("Stile")
-                    GEN_STYLES.chunked(2).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { (k, l) ->
-                                FilterChip(selected = g.style == k, onClick = { g = g.copy(style = k) }, label = { Text(l, maxLines = 1) }, modifier = Modifier.weight(1f))
-                            }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
-                        }
+                    Spacer(Modifier.width(14.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = { g = g.copy(seed = (1..1_000_000).random()) }) { Text("Varia") }
+                        OutlinedButton(onClick = { g = randomGen(g.id, g.name) }) { Text("A caso") }
                     }
-                    GenLabel("Quanti colori")
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        (1..4).forEach { n ->
-                            FilterChip(
-                                selected = g.colors.size == n,
-                                onClick = { g = g.copy(colors = withCount(n, g.colors)) },
-                                label = { Text("$n") },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        g.colors.forEachIndexed { i, col ->
-                            Box(
-                                Modifier.size(38.dp).clip(CircleShape).background(Color(col))
-                                    .border(1.dp, cs.outline, CircleShape)
-                                    .clickable { pickIdx = i }
-                            )
-                        }
-                    }
-                    Text("Tocca un colore per cambiarlo", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-                    GenLabel("Colori da")
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(selected = g.source == "mine", onClick = { g = g.copy(source = "mine") }, label = { Text("Miei") })
-                        FilterChip(selected = g.source == "system", onClick = { setSource("system", sys) }, label = { Text("Sistema") })
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(selected = g.source == "theme", onClick = { setSource("theme", theme) }, label = { Text("Tema") })
-                        if (wallCols != null) FilterChip(selected = g.source == "wall", onClick = { setSource("wall", wallCols) }, label = { Text("Sfondo") })
-                    }
-                    GenLabel("Tavolozze pronte")
-                    GEN_PALETTES.chunked(3).forEach { row ->
-                        Row(Modifier.padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { (n, pal) ->
-                                Row(
-                                    Modifier.weight(1f).height(26.dp).clip(RoundedCornerShape(13.dp))
-                                        .clickable { g = g.copy(source = "mine", colors = withCount(max(g.colors.size, 2), pal)) }
-                                ) {
-                                    pal.forEach { pc -> Box(Modifier.weight(1f).fillMaxHeight().background(Color(pc))) }
-                                }
-                            }
-                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                    }
-                    GenLabel("Forma")
-                    GenSlider("Morbidezza", g.soft) { g = g.copy(soft = it) }
-                    GenSlider("Quantità", g.density) { g = g.copy(density = it) }
-                    GenSlider("Direzione", g.angle) { g = g.copy(angle = it) }
-                    GenLabel("Luce e colore")
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(selected = !g.dark, onClick = { g = g.copy(dark = false) }, label = { Text("Chiaro") })
-                        FilterChip(selected = g.dark, onClick = { g = g.copy(dark = true) }, label = { Text("Scuro") })
-                    }
-                    GenSlider("Luminosità", g.bright, -1f..1f) { g = g.copy(bright = it) }
-                    GenSlider("Saturazione", g.sat, -1f..1f) { g = g.copy(sat = it) }
-                    GenLabel("Effetti")
-                    GenSlider("Grana", g.grain) { g = g.copy(grain = it) }
-                    GenSlider("Vignettatura", g.vignette) { g = g.copy(vignette = it) }
-                    GenSlider("Sfocatura", g.blur) { g = g.copy(blur = it) }
-                    OutlinedTextField(
-                        value = g.name, onValueChange = { g = g.copy(name = it) },
-                        singleLine = true, label = { Text("Nome") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                    )
                 }
             }
+            androidx.compose.material3.PrimaryTabRow(selectedTabIndex = tab, containerColor = cs.surface) {
+                listOf("Stile", "Colori", "Forma", "Luce", "Effetti").forEachIndexed { i, l ->
+                    androidx.compose.material3.Tab(selected = tab == i, onClick = { tab = i }, text = { Text(l, maxLines = 1) })
+                }
+            }
+            Column(
+                Modifier.fillMaxWidth().height(232.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                when (tab) {
+                    0 -> Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        GEN_STYLES.forEach { (k, l) ->
+                            val on = g.style == k
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { g = g.copy(style = k) }) {
+                                Box(
+                                    Modifier.size(64.dp, 128.dp).clip(RoundedCornerShape(14.dp))
+                                        .border(if (on) 3.dp else 1.dp, if (on) cs.primary else cs.outlineVariant, RoundedCornerShape(14.dp))
+                                        .background(cs.surfaceContainer)
+                                ) {
+                                    thumbs[k]?.let { androidx.compose.foundation.Image(it, contentDescription = l, modifier = Modifier.fillMaxSize()) }
+                                }
+                                Text(l, style = MaterialTheme.typography.labelMedium, color = if (on) cs.primary else cs.onSurface, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                    }
+                    1 -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Quanti", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(64.dp))
+                            (1..4).forEach { n ->
+                                FilterChip(
+                                    selected = g.colors.size == n,
+                                    onClick = { g = g.copy(colors = withCount(n, g.colors)) },
+                                    label = { Text("$n") },
+                                    modifier = Modifier.padding(end = 6.dp)
+                                )
+                            }
+                        }
+                        Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            g.colors.forEachIndexed { i, col ->
+                                Box(
+                                    Modifier.size(42.dp).clip(CircleShape).background(Color(col))
+                                        .border(1.dp, cs.outline, CircleShape)
+                                        .clickable { pickIdx = i }
+                                )
+                            }
+                            Text("Tocca per cambiarlo", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                        }
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(selected = g.source == "mine", onClick = { g = g.copy(source = "mine") }, label = { Text("Miei") })
+                            FilterChip(selected = g.source == "system", onClick = { setSource("system", sys) }, label = { Text("Sistema") })
+                            FilterChip(selected = g.source == "theme", onClick = { setSource("theme", theme) }, label = { Text("Tema") })
+                            if (wallCols != null) FilterChip(selected = g.source == "wall", onClick = { setSource("wall", wallCols) }, label = { Text("Dallo sfondo") })
+                        }
+                        Text("Tavolozze pronte", style = MaterialTheme.typography.labelLarge, color = cs.primary, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        GEN_PALETTES.chunked(4).forEach { row ->
+                            Row(Modifier.padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { (n, pal) ->
+                                    Column(Modifier.weight(1f).clickable { g = g.copy(source = "mine", colors = withCount(max(g.colors.size, 2), pal)) }) {
+                                        Row(Modifier.fillMaxWidth().height(24.dp).clip(RoundedCornerShape(12.dp))) {
+                                            pal.forEach { pc -> Box(Modifier.weight(1f).fillMaxHeight().background(Color(pc))) }
+                                        }
+                                        Text(n, style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant, maxLines = 1)
+                                    }
+                                }
+                                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        }
+                    }
+                    2 -> {
+                        GenSlider("Morbidezza", g.soft) { g = g.copy(soft = it) }
+                        GenSlider("Quantità", g.density) { g = g.copy(density = it) }
+                        GenSlider("Direzione", g.angle) { g = g.copy(angle = it) }
+                        Text(
+                            "Quantità: quante bolle, onde, cerchi, raggi, poligoni, colline o strisce. Direzione: gradiente, strisce e raggi.",
+                            style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+                    3 -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 4.dp)) {
+                            FilterChip(selected = !g.dark, onClick = { g = g.copy(dark = false) }, label = { Text("Chiaro") })
+                            FilterChip(selected = g.dark, onClick = { g = g.copy(dark = true) }, label = { Text("Scuro") })
+                        }
+                        GenSlider("Luminosità", g.bright, -1f..1f) { g = g.copy(bright = it) }
+                        GenSlider("Saturazione", g.sat, -1f..1f) { g = g.copy(sat = it) }
+                    }
+                    else -> {
+                        GenSlider("Grana", g.grain) { g = g.copy(grain = it) }
+                        GenSlider("Vignettatura", g.vignette) { g = g.copy(vignette = it) }
+                        GenSlider("Sfocatura", g.blur) { g = g.copy(blur = it) }
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = g.name, onValueChange = { g = g.copy(name = it) },
+                singleLine = true, label = { Text("Nome") },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onClick = { vm.saveMyWall(g, apply = false) }, modifier = Modifier.weight(1f)) { Text("Salva") }
                 Button(onClick = { vm.saveMyWall(g, apply = true) }, modifier = Modifier.weight(1f)) { Text("Salva e applica") }
