@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -513,14 +514,56 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
             )
             Column(Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(12.dp)) {
                 Text("Sfondi inclusi", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+                Text(
+                    "Tocca per usarlo, tieni premuto per personalizzarlo",
+                    style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant.copy(alpha = 0.8f)
+                )
                 Spacer(Modifier.height(8.dp))
+                var menuFor by remember { mutableStateOf<GenWall?>(null) }
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // crea
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { vm.newMyWall() }) {
+                        Box(
+                            Modifier.size(60.dp, 120.dp).clip(RoundedCornerShape(14.dp)).background(cs.secondaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) { Icon(Icons.Default.Add, contentDescription = null, tint = cs.onSecondaryContainer) }
+                        Text("Crea", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    // i tuoi
+                    vm.myWalls.forEach { g ->
+                        val thumb = remember(g) { genWall(g, 90, 180).asImageBitmap() }
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.width(60.dp).pointerInput(g.id) {
+                                detectTapGestures(
+                                    onTap = { vm.applyMyWall(g) },
+                                    onLongPress = { menuFor = g }
+                                )
+                            }
+                        ) {
+                            androidx.compose.foundation.Image(
+                                thumb, contentDescription = g.name,
+                                modifier = Modifier.size(60.dp, 120.dp).clip(RoundedCornerShape(14.dp))
+                                    .border(2.dp, cs.primary, RoundedCornerShape(14.dp))
+                            )
+                            Text(g.name, style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
                     BUILTIN_WALLS.forEach { (k, l) ->
                         val thumb = remember(k) { builtinWall(k, 90, 180).asImageBitmap() }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { vm.builtinWallpaper(k) }) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.pointerInput(k) {
+                                detectTapGestures(
+                                    onTap = { vm.builtinWallpaper(k) },
+                                    onLongPress = { vm.genEdit = builtinGen(k, l) }
+                                )
+                            }
+                        ) {
                             androidx.compose.foundation.Image(
                                 thumb, contentDescription = l,
                                 modifier = Modifier.size(60.dp, 120.dp).clip(RoundedCornerShape(14.dp))
@@ -529,19 +572,30 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
                         }
                     }
                 }
+                menuFor?.let { g ->
+                    AlertDialog(
+                        onDismissRequest = { menuFor = null },
+                        title = { Text(g.name) },
+                        text = { Text("Vuoi modificarlo o eliminarlo?") },
+                        confirmButton = { TextButton(onClick = { menuFor = null; vm.genEdit = g }) { Text("Modifica") } },
+                        dismissButton = {
+                            TextButton(onClick = { menuFor = null; vm.deleteMyWall(g.id) }) {
+                                Text("Elimina", color = cs.error)
+                            }
+                        }
+                    )
+                }
             }
         }
         run {
-            Group("Effetti") { Dependent(bm != null) {
-                SliderRow("Scurisci", if (s.wallDim == 0) "No" else "${s.wallDim}%", s.wallDim.toFloat(), 0f..60f, 11) {
-                    val v = (it / 5f).roundToInt() * 5
-                    if (v != s.wallDim) vm.setSetting("wallDim", v)
-                }
-                SliderRow("Sfoca", if (s.wallBlur == 0) "No" else "${s.wallBlur} dp", s.wallBlur.toFloat(), 0f..24f, 11) {
-                    val v = (it / 2f).roundToInt() * 2
-                    if (v != s.wallBlur) vm.setSetting("wallBlur", v)
-                }
+            Group("Movimento") { Dependent(bm != null) {
                 SwitchRow("Parallasse", "Lo sfondo scorre piano quando cambi pagina", s.wallParallax) { vm.setSetting("wallParallax", it) }
+                Text(
+                    "Sfoca, scurisci e gli altri effetti sono in \u201cModifica lo sfondo attuale\u201d \u2192 Effetti.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+                )
             } }
             Group("Schermata di blocco") { Dependent(bm != null) {
                 ListItem(

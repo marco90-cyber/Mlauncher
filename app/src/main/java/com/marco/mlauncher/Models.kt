@@ -217,6 +217,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var minusBlur by mutableStateOf(sp.getInt("minusBlur", 24))
     var minusDim by mutableStateOf(sp.getInt("minusDim", 30))
     var minusWidgets by mutableStateOf(sp.getString("minusWidgets", "[]") ?: "[]")
+    /** sfondi creati con "Crea il tuo sfondo" (regole in JSON) */
+    var myWalls by mutableStateOf(sp.getString("myWalls", "[]") ?: "[]")
     /** stile degli interruttori: android16 (predefinito), material, ios, hyperos */
     var switchStyle by mutableStateOf((sp.getString("switchStyle", "android16") ?: "android16").also { SwitchLook.style = it })
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
@@ -377,6 +379,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "minusBlur" -> minusBlur = value as Int
             "minusDim" -> minusDim = value as Int
             "minusWidgets" -> minusWidgets = value as String
+            "myWalls" -> myWalls = value as String
             "switchStyle" -> { switchStyle = value as String; SwitchLook.style = switchStyle }
             "lockHome" -> lockHome = value as Boolean
             "folderPos" -> folderPos = value as String

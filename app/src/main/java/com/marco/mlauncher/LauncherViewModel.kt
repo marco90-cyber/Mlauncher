@@ -273,7 +273,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Salva il risultato dell'editor: ritaglio [crop] (in pixel dell'immagine) e regolazioni colore [matrix]. */
-    fun applyWallEdit(src: Bitmap, crop: android.graphics.RectF, matrix: FloatArray?) {
+    fun applyWallEdit(src: Bitmap, crop: android.graphics.RectF, matrix: FloatArray?, fx: WallFx = WallFx()) {
         wallEditSrc = null
         setWallpaperFrom(keepSource = false) {
             val (w, h) = wallTarget()
@@ -291,8 +291,38 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             try {
                 java.io.FileOutputStream(wallSrcFile(ctx)).use { src.compress(Bitmap.CompressFormat.JPEG, 92, it) }
             } catch (e: Throwable) { }
-            out
+            // effetti (sfoca, scurisci, vignettatura, grana, sfumatura, mosaico) dentro l'immagine
+            applyWallFx(out, fx)
         }
+    }
+
+    // ---------- "Crea il tuo sfondo" ----------
+
+    /** sfondo creato in modifica (null = editor chiuso) */
+    var genEdit by mutableStateOf<GenWall?>(null)
+    val myWalls: List<GenWall> get() = GenWall.listFrom(settings.myWalls)
+
+    fun newMyWall() {
+        genEdit = GenWall(UUID.randomUUID().toString(), "Il mio sfondo ${myWalls.size + 1}", seed = (1..1_000_000).random())
+    }
+
+    fun saveMyWall(g: GenWall, apply: Boolean) {
+        val list = myWalls.toMutableList()
+        val i = list.indexOfFirst { it.id == g.id }
+        val named = g.copy(name = g.name.trim().ifEmpty { "Il mio sfondo" })
+        if (i >= 0) list[i] = named else list.add(0, named)
+        settings.set("myWalls", GenWall.listTo(list))
+        genEdit = null
+        if (apply) applyMyWall(named)
+    }
+
+    fun deleteMyWall(id: String) {
+        settings.set("myWalls", GenWall.listTo(myWalls.filter { it.id != id }))
+    }
+
+    fun applyMyWall(g: GenWall) = setWallpaperFrom {
+        val (w, h) = wallTarget()
+        genWall(g, w, h)
     }
 
     /** Mette l'immagine attuale anche sulla schermata di blocco di Android. */

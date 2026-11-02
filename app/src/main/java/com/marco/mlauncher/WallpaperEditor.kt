@@ -24,6 +24,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -131,7 +139,7 @@ private fun rotated(b: Bitmap, deg: Float, flip: Boolean): Bitmap {
     return Bitmap.createBitmap(b, 0, 0, b.width, b.height, mx, true)
 }
 
-/** Editor dello sfondo: ritaglio con dita (sposta e pizzica), rotazione, specchio, regolazioni e filtri. */
+/** Editor dello sfondo: ritaglio con dita (sposta e pizzica), rotazione, specchio, regolazioni, filtri ed effetti. */
 @Composable
 fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
     val cs = MaterialTheme.colorScheme
@@ -144,22 +152,29 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
     var sat by remember { mutableFloatStateOf(0f) }
     var warm by remember { mutableFloatStateOf(0f) }
     var filter by remember { mutableStateOf("none") }
+    var fx by remember { mutableStateOf(WallFx()) }
     var tab by remember { mutableIntStateOf(0) }
     val matrix = wallColorMatrix(bright, contrast, sat, warm, filter)
     val (tw, th) = vm.wallTarget()
     val ratio = tw.toFloat() / th
+    val noise = remember { noiseTile().asImageBitmap() }
     BackHandler { vm.closeWallEditor() }
 
-    Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
+    Surface(color = cs.surface, contentColor = cs.onSurface, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { vm.closeWallEditor() }) { Text("Annulla", color = Color.White) }
-                Text("Modifica sfondo", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                TextButton(onClick = { vm.closeWallEditor() }) { Text("Annulla") }
+                Text("Modifica sfondo", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 TextButton(onClick = {}) { Text(" ", color = Color.Transparent) }
             }
             // area di ritaglio
             // clipToBounds: l'immagine ingrandita non deve coprire schede e pulsanti sotto
-            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            BoxWithConstraints(
+                Modifier.weight(1f).fillMaxWidth().clipToBounds()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(cs.surfaceContainerLowest)
+            ) {
                 val aw = constraints.maxWidth.toFloat()
                 val ah = constraints.maxHeight.toFloat()
                 // cornice con la proporzione dello sfondo (un po' più larga dello schermo per la parallasse)
@@ -183,27 +198,66 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                 val p = clampPan(pan)
                 val il = fl + (fw - iw) / 2f + p.x
                 val itop = ft + (fh - ih) / 2f + p.y
+                // mosaico in anteprima: la stessa immagine rimpicciolita e ingrandita senza filtro
+                val mosaicStep = (fx.mosaic * 20).roundToInt()
+                val mosaicImg = remember(bmp, mosaicStep, (zoom * 4).roundToInt()) {
+                    if (mosaicStep == 0) null else {
+                        val cropW = bmp.width / zoom
+                        val block = max(2f, (mosaicStep / 20f) * cropW / 24f)
+                        Bitmap.createScaledBitmap(bmp, max(1, (bmp.width / block).toInt()), max(1, (bmp.height / block).toInt()), true).asImageBitmap()
+                    }
+                }
+                val density = LocalDensity.current
+                // immagine (con sfocatura in anteprima)
                 Canvas(
-                    Modifier.fillMaxSize().clipToBounds().pointerInput(bmp) {
+                    Modifier.fillMaxSize()
+                        .then(if (fx.blur > 0f) Modifier.blur((fx.blur * 16).dp * (fw / with(density) { 360.dp.toPx() }).coerceIn(0.4f, 1.5f)) else Modifier)
+                ) {
+                    drawImage(
+                        mosaicImg ?: img,
+                        srcOffset = IntOffset.Zero,
+                        srcSize = IntSize((mosaicImg ?: img).width, (mosaicImg ?: img).height),
+                        dstOffset = IntOffset(il.roundToInt(), itop.roundToInt()),
+                        dstSize = IntSize(iw.roundToInt(), ih.roundToInt()),
+                        colorFilter = matrix?.let { ColorFilter.colorMatrix(ColorMatrix(it)) },
+                        filterQuality = if (mosaicImg != null) androidx.compose.ui.graphics.FilterQuality.None else androidx.compose.ui.graphics.FilterQuality.Low
+                    )
+                }
+                // effetti, cornice e gesti
+                Canvas(
+                    Modifier.fillMaxSize().pointerInput(bmp) {
                         detectTransformGestures { _, panChange, zoomChange, _ ->
                             zoom = (zoom * zoomChange).coerceIn(1f, 5f)
                             pan = clampNow.value(pan + panChange)
                         }
                     }
                 ) {
-                    drawImage(
-                        img,
-                        dstOffset = IntOffset(il.roundToInt(), itop.roundToInt()),
-                        dstSize = IntSize(iw.roundToInt(), ih.roundToInt()),
-                        colorFilter = matrix?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
-                    )
-                    // fuori dalla cornice: scuro
+                    val fr = androidx.compose.ui.geometry.Rect(fl, ft, fl + fw, ft + fh)
+                    clipRect(fr.left, fr.top, fr.right, fr.bottom) {
+                        if (fx.vignette > 0f) drawRect(
+                            Brush.radialGradient(
+                                0f to Color.Transparent, 0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = fx.vignette * 0.8f),
+                                center = fr.center, radius = kotlin.math.hypot(fw, fh) / 2f
+                            ),
+                            fr.topLeft, fr.size
+                        )
+                        if (fx.fade > 0f) drawRect(
+                            Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = fx.fade * 0.75f), startY = ft + fh * 0.5f, endY = ft + fh),
+                            Offset(fl, ft + fh * 0.5f), Size(fw, fh * 0.5f)
+                        )
+                        if (fx.dim > 0f) drawRect(Color.Black.copy(alpha = fx.dim * 0.7f), fr.topLeft, fr.size)
+                        if (fx.grain > 0f) drawRect(
+                            ShaderBrush(ImageShader(noise, TileMode.Repeated, TileMode.Repeated)),
+                            fr.topLeft, fr.size, alpha = fx.grain * 0.22f, blendMode = BlendMode.Overlay
+                        )
+                    }
+                    // fuori dalla cornice: scuro (si vede bene cosa si taglia anche con il tema chiaro)
                     val outside = Path().apply {
                         fillType = PathFillType.EvenOdd
                         addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
-                        addRect(androidx.compose.ui.geometry.Rect(fl, ft, fl + fw, ft + fh))
+                        addRect(fr)
                     }
-                    drawPath(outside, Color.Black.copy(alpha = 0.6f))
+                    drawPath(outside, Color.Black.copy(alpha = 0.55f))
                     // cornice e griglia dei terzi
                     drawRect(Color.White, Offset(fl, ft), Size(fw, fh), style = Stroke(2.dp.toPx()))
                     for (i in 1..2) {
@@ -214,11 +268,12 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                     val sw = fw / WALL_WIDE
                     drawRect(Color.White.copy(alpha = 0.5f), Offset(fl + (fw - sw) / 2f, ft), Size(sw, fh), style = Stroke(1.dp.toPx()))
                 }
-                Text(
+                if (tab == 0) Text(
                     "Sposta e pizzica per ritagliare",
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = Color.White,
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
+                        .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 12.dp, vertical = 4.dp)
                 )
                 // per il salvataggio: rettangolo della cornice in pixel dell'immagine
                 SaveSlot.crop = RectF(
@@ -228,18 +283,20 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                     ((ft + fh - itop) / sc).coerceIn(0f, bmp.height.toFloat())
                 )
             }
-            // schede
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Ritaglia", "Regola", "Filtri").forEachIndexed { i, l ->
-                    FilterChip(selected = tab == i, onClick = { tab = i }, label = { Text(l) }, modifier = Modifier.weight(1f))
+            // schede, come nelle impostazioni
+            androidx.compose.material3.PrimaryTabRow(selectedTabIndex = tab, containerColor = cs.surface) {
+                listOf("Ritaglia", "Regola", "Filtri", "Effetti").forEachIndexed { i, l ->
+                    androidx.compose.material3.Tab(selected = tab == i, onClick = { tab = i }, text = { Text(l) })
                 }
             }
-            Column(Modifier.fillMaxWidth().height(168.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Column(
+                Modifier.fillMaxWidth().height(196.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
                 when (tab) {
-                    0 -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { bmp = rotated(bmp, -90f, false) }, modifier = Modifier.weight(1f)) { Text("↺ Ruota", color = Color.White) }
-                        OutlinedButton(onClick = { bmp = rotated(bmp, 90f, false) }, modifier = Modifier.weight(1f)) { Text("Ruota ↻", color = Color.White) }
-                        OutlinedButton(onClick = { bmp = rotated(bmp, 0f, true) }, modifier = Modifier.weight(1f)) { Text("Specchia", color = Color.White) }
+                    0 -> Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { bmp = rotated(bmp, -90f, false) }, modifier = Modifier.weight(1f)) { Text("\u21ba Ruota") }
+                        OutlinedButton(onClick = { bmp = rotated(bmp, 90f, false) }, modifier = Modifier.weight(1f)) { Text("Ruota \u21bb") }
+                        OutlinedButton(onClick = { bmp = rotated(bmp, 0f, true) }, modifier = Modifier.weight(1f)) { Text("Specchia") }
                     }
                     1 -> {
                         EditSlider("Luminosità", bright) { bright = it }
@@ -247,7 +304,7 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                         EditSlider("Saturazione", sat) { sat = it }
                         EditSlider("Calore", warm) { warm = it }
                     }
-                    else -> Row(
+                    2 -> Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -264,19 +321,37 @@ fun WallpaperEditor(vm: LauncherViewModel, source: Bitmap) {
                                     modifier = Modifier.size(64.dp, 88.dp).clip(RoundedCornerShape(12.dp))
                                         .border(if (filter == k) 3.dp else 0.dp, if (filter == k) cs.primary else Color.Transparent, RoundedCornerShape(12.dp))
                                 )
-                                Text(l, color = Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                Text(l, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
                             }
                         }
+                    }
+                    else -> {
+                        FxSlider("Sfoca", fx.blur) { fx = fx.copy(blur = it) }
+                        FxSlider("Scurisci", fx.dim) { fx = fx.copy(dim = it) }
+                        FxSlider("Vignettatura", fx.vignette) { fx = fx.copy(vignette = it) }
+                        FxSlider("Sfumatura in basso", fx.fade) { fx = fx.copy(fade = it) }
+                        FxSlider("Grana", fx.grain) { fx = fx.copy(grain = it) }
+                        FxSlider("Mosaico", fx.mosaic) { fx = fx.copy(mosaic = it) }
                     }
                 }
             }
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onClick = {
-                    zoom = 1f; pan = Offset.Zero; bright = 0f; contrast = 0f; sat = 0f; warm = 0f; filter = "none"
-                }, modifier = Modifier.weight(1f)) { Text("Ripristina", color = Color.White) }
-                Button(onClick = { vm.applyWallEdit(bmp, SaveSlot.crop, matrix) }, modifier = Modifier.weight(1f)) { Text("Applica") }
+                    zoom = 1f; pan = Offset.Zero; bright = 0f; contrast = 0f; sat = 0f; warm = 0f; filter = "none"; fx = WallFx()
+                }, modifier = Modifier.weight(1f)) { Text("Ripristina") }
+                Button(onClick = { vm.applyWallEdit(bmp, SaveSlot.crop, matrix, fx) }, modifier = Modifier.weight(1f)) { Text("Applica") }
             }
         }
+    }
+}
+
+@Composable
+private fun FxSlider(label: String, value: Float, onChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(112.dp))
+        Slider(value = value, onValueChange = onChange, valueRange = 0f..1f, modifier = Modifier.weight(1f).height(32.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(if (value == 0f) "No" else "${(value * 100).roundToInt()}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(30.dp))
     }
 }
 
@@ -288,9 +363,9 @@ private object SaveSlot {
 @Composable
 private fun EditSlider(label: String, value: Float, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Color.White, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(92.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(92.dp))
         Slider(value = value, onValueChange = onChange, valueRange = -1f..1f, modifier = Modifier.weight(1f).height(32.dp))
         Spacer(Modifier.width(6.dp))
-        Text(if (value == 0f) "0" else "${(value * 100).roundToInt()}", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(30.dp))
+        Text(if (value == 0f) "0" else "${(value * 100).roundToInt()}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(30.dp))
     }
 }

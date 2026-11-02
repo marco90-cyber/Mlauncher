@@ -87,7 +87,8 @@ fun Root(vm: LauncherViewModel, host: Host) {
                 Box(Modifier.fillMaxSize().blur(maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp))) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
                     if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm)) {
-                        WallpaperLayer(wall, vm.settings.wallDim / 100f, vm.settings.wallBlur.dp)
+                        // sfoca e scurisci ora sono effetti dell'editor, dentro l'immagine
+                        WallpaperLayer(wall, 0f, 0.dp)
                     }
                     if (vm.loaded) HomeScreen(vm, host)
                 }
@@ -103,17 +104,18 @@ fun Root(vm: LauncherViewModel, host: Host) {
     vm.lastCrash?.let { CrashDialog(it, vm) }
     if (vm.showWelcome) WelcomeScreen(vm, host)
     vm.wallEditSrc?.let { WallpaperEditor(vm, it) }
+    vm.genEdit?.let { WallGenerator(vm, it) }
 
     // l'ordine conta: l'ultimo registrato ha la precedenza
     // gesto indietro sulla Home senza nulla di aperto: come Launcher3 non chiude il Launcher
     // (prima l'attività si chiudeva e si ricaricava); riporta alla prima pagina
-    BackHandler(enabled = !vm.showWelcome && vm.wallEditSrc == null) { vm.backOnHome() }
+    BackHandler(enabled = !vm.showWelcome && vm.wallEditSrc == null && vm.genEdit == null) { vm.backOnHome() }
     BackHandler(enabled = vm.minusP > 0f) { if (vm.minusEdit) vm.minusEdit = false else vm.closeMinus() }
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }
     BackHandler(enabled = vm.openFolderId != null) { vm.openFolderId = null }
     BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }
     BackHandler(enabled = vm.overlay == Overlay.WIDGETS) { vm.overlay = Overlay.NONE }
-    BackHandler(enabled = vm.overlay == Overlay.SETTINGS) {
+    BackHandler(enabled = vm.overlay == Overlay.SETTINGS && vm.genEdit == null && vm.wallEditSrc == null) {
         if (vm.settingsPage != null) vm.settingsPage = null else vm.overlay = Overlay.NONE
     }
 }
