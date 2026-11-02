@@ -80,6 +80,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Tema Liquid Glass", "look", "Liquid Glass", "Dock, cartelle, indicatore e widget in vetro liquido che piega e sfoca lo sfondo"),
     SettingEntry("Tema", "look", "Tema", ""),
     SettingEntry("Colori", "look", "Tema", ""),
+    SettingEntry("Stile degli interruttori", "look", "Tema", ""),
     SettingEntry("Animazione", "look", "Ritorno alla Home", ""),
     SettingEntry("Quando torni da un'app", "look", "Ritorno alla Home", ""),
     SettingEntry("Quando sblocchi il telefono", "look", "Ritorno alla Home", ""),

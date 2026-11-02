@@ -200,6 +200,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "system") ?: "system")
+    /** stile degli interruttori: android16 (predefinito), material, ios, hyperos */
+    var switchStyle by mutableStateOf((sp.getString("switchStyle", "android16") ?: "android16").also { SwitchLook.style = it })
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
     /** cartella aperta: "center" (al centro dello schermo) o "icon" (vicino all'icona) */
     var folderPos by mutableStateOf(sp.getString("folderPos", "center") ?: "center")
@@ -350,6 +352,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapPage" -> hapPage = value as Boolean
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
+            "switchStyle" -> { switchStyle = value as String; SwitchLook.style = switchStyle }
             "lockHome" -> lockHome = value as Boolean
             "folderPos" -> folderPos = value as String
             "folderSize" -> folderSize = value as String

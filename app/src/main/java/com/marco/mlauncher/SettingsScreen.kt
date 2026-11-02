@@ -1137,6 +1137,12 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
             s.accent,
             preview = { AccentPreview(it) }
         ) { vm.setSetting("accent", it) }
+        ChoiceRow(
+            "Stile degli interruttori",
+            SWITCH_STYLES,
+            s.switchStyle,
+            preview = { SwitchStylePreview(it) }
+        ) { vm.setSetting("switchStyle", it) }
     }
     Group("Ritorno alla Home") {
         ChoiceRow("Animazione", RETURN_ANIMS, s.returnAnim) { vm.setSetting("returnAnim", it) }
@@ -1632,7 +1638,7 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = if (subtitle != null) ({ Text(subtitle) }) else null,
-        trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
+        trailingContent = { MLSwitch(checked = checked, onCheckedChange = onChange) },
         colors = prefColors(),
         modifier = Modifier.hl(title).clickable { onChange(!checked) }
     )

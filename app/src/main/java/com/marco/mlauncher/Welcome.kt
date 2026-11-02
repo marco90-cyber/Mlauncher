@@ -402,7 +402,7 @@ private fun PickIcons(vm: LauncherViewModel) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("Mostra i nomi delle app", Modifier.weight(1f))
-        androidx.compose.material3.Switch(checked = s.showLabels, onCheckedChange = { vm.setSetting("showLabels", it) })
+        MLSwitch(checked = s.showLabels, onCheckedChange = { vm.setSetting("showLabels", it) })
     }
 }
 
@@ -441,7 +441,7 @@ private fun PickDock(vm: LauncherViewModel) {
             Text("Effetto glass")
             Text("Riflesso e bordo luminoso come il vetro", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
-        androidx.compose.material3.Switch(checked = s.dockGlass, onCheckedChange = { vm.setSetting("dockGlass", it) })
+        MLSwitch(checked = s.dockGlass, onCheckedChange = { vm.setSetting("dockGlass", it) })
     }
     Label("Indicatore di pagina")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -812,7 +812,7 @@ private fun PickAnim(vm: LauncherViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(l, Modifier.weight(1f))
-            androidx.compose.material3.Switch(checked = v, onCheckedChange = { vm.setSetting(k, it) })
+            MLSwitch(checked = v, onCheckedChange = { vm.setSetting(k, it) })
         }
     }
 }
