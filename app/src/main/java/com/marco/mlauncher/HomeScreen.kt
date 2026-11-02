@@ -1033,17 +1033,22 @@ private fun HomePage(
                 key(item.id) {
                     // posizione animata: segue l'anteprima dello spostamento (150 ms, come Launcher3)
                     val rp = vm.reorderPreview[item.id]
-                    val tx by animateFloatAsState(
-                        if (rp != null && rp.first == page) rp.second.toFloat() else item.x.toFloat(),
-                        tween(Motion.REORDER, easing = Motion.Standard), label = "rx"
-                    )
-                    val ty by animateFloatAsState(
-                        if (rp != null && rp.first == page) rp.third.toFloat() else item.y.toFloat(),
-                        tween(Motion.REORDER, easing = Motion.Standard), label = "ry"
-                    )
-                    val leaving = rp != null && rp.first != page
-                    val mod = Modifier.offset(cw * tx, ch * ty).alpha(if (leaving) 0.35f else 1f)
                     val hidden = item.id in dragId
+                    // l'elemento appena lasciato compare subito nel posto nuovo (niente viaggio dalla cella di partenza)
+                    val wasHidden = remember { booleanArrayOf(false) }
+                    val justDropped = wasHidden[0] && !hidden
+                    androidx.compose.runtime.SideEffect { wasHidden[0] = hidden }
+                    val goX = if (rp != null && rp.first == page) rp.second.toFloat() else item.x.toFloat()
+                    val goY = if (rp != null && rp.first == page) rp.third.toFloat() else item.y.toFloat()
+                    val moveSpec: androidx.compose.animation.core.AnimationSpec<Float> =
+                        if (justDropped || hidden) androidx.compose.animation.core.snap()
+                        else tween(Motion.REORDER, easing = Motion.Standard)
+                    val tx by animateFloatAsState(goX, moveSpec, label = "rx")
+                    val ty by animateFloatAsState(goY, moveSpec, label = "ry")
+                    val leaving = rp != null && rp.first != page
+                    // per il solo fotogramma prima dello scatto resta invisibile
+                    val waiting = justDropped && (tx != goX || ty != goY)
+                    val mod = Modifier.offset(cw * tx, ch * ty).alpha(if (waiting) 0f else if (leaving) 0.35f else 1f)
                     when (item) {
                         is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
                         is FolderItem ->
