@@ -199,7 +199,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
-    var accent by mutableStateOf(sp.getString("accent", "auto") ?: "auto")
+    var accent by mutableStateOf(sp.getString("accent", "system") ?: "system")
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
     /** cartella aperta: "center" (al centro dello schermo) o "icon" (vicino all'icona) */
     var folderPos by mutableStateOf(sp.getString("folderPos", "center") ?: "center")

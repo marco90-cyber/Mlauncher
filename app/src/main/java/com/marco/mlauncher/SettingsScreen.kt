@@ -1514,6 +1514,14 @@ private fun EffectPreview(key: String) {
 
 @Composable
 internal fun AccentPreview(key: String) {
+    if (key == "system") {
+        // i colori veri della tavolozza di sistema in questo momento
+        val a1 = androidx.compose.ui.res.colorResource(android.R.color.system_accent1_500)
+        val a2 = androidx.compose.ui.res.colorResource(android.R.color.system_accent2_500)
+        val a3 = androidx.compose.ui.res.colorResource(android.R.color.system_accent3_500)
+        Box(Modifier.size(30.dp).clip(CircleShape).background(Brush.sweepGradient(listOf(a1, a1, a2, a2, a3, a3, a1))))
+        return
+    }
     val c = accentSwatch(key)
     Box(
         Modifier.size(30.dp).clip(CircleShape).background(

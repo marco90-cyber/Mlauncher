@@ -11,8 +11,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.ColorUtils
 
-/** Colori del Launcher: "auto" = dallo sfondo (Material You), altrimenti un colore fisso. */
+/**
+ * Colori del Launcher: "system" = la tavolozza Material You di Android (Sfondo e stile),
+ * "auto" = dallo sfondo di MLauncher, altrimenti un colore fisso.
+ */
 val ACCENTS = listOf(
+    "system" to "Dal sistema",
     "auto" to "Dallo sfondo",
     "blue" to "Blu",
     "green" to "Verde",
@@ -85,14 +89,19 @@ private fun accentScheme(base: ColorScheme, h: Float, s: Float, dark: Boolean): 
 }
 
 @Composable
-fun MLauncherTheme(mode: String, accent: String = "auto", seed: Int? = null, content: @Composable () -> Unit) {
+fun MLauncherTheme(mode: String, accent: String = "system", seed: Int? = null, content: @Composable () -> Unit) {
     val dark = when (mode) {
         "light" -> false
         "dark" -> true
         else -> isSystemInDarkTheme()
     }
     val ctx = LocalContext.current
+    // tavolozza di sistema: se la cambi in Android, l'attività viene ricreata e i colori si aggiornano da soli
     val dyn = if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
+    if (accent == "system") {
+        MaterialTheme(colorScheme = dyn, typography = Typography(), content = content)
+        return
+    }
     // "Dallo sfondo" con uno sfondo di MLauncher: i colori vengono dalla sua immagine
     val fromSeed = if (accent == "auto" && seed != null) {
         val hsl = FloatArray(3)

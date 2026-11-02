@@ -281,7 +281,7 @@ private fun PickTheme(vm: LauncherViewModel) {
 private fun PickColors(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
-    Headline("I tuoi colori", "Dallo sfondo, come Material You, oppure un colore fisso.")
+    Headline("I tuoi colori", "Gli stessi colori di Android, quelli del tuo sfondo oppure un colore fisso.")
     Box(Modifier.fillMaxWidth(0.5f).aspectRatio(0.52f).clip(RoundedCornerShape(26.dp)).border(1.dp, cs.outlineVariant, RoundedCornerShape(26.dp)).padding(6.dp)) {
         MiniPhone(mini(vm, isDarkPreview(s.theme)))
     }
