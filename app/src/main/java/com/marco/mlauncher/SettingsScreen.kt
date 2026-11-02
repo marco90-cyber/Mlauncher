@@ -1555,35 +1555,10 @@ private fun EffectPreview(key: String) {
 }
 
 @Composable
-internal fun AccentPreview(key: String) {
-    if (key == "system") {
-        // i colori veri della tavolozza di sistema in questo momento
-        val a1 = androidx.compose.ui.res.colorResource(android.R.color.system_accent1_500)
-        val a2 = androidx.compose.ui.res.colorResource(android.R.color.system_accent2_500)
-        val a3 = androidx.compose.ui.res.colorResource(android.R.color.system_accent3_500)
-        Box(Modifier.size(30.dp).clip(CircleShape).background(Brush.sweepGradient(listOf(a1, a1, a2, a2, a3, a3, a1))))
-        return
-    }
-    val c = accentSwatch(key)
-    Box(
-        Modifier.size(30.dp).clip(CircleShape).background(
-            if (c != null) Brush.linearGradient(listOf(c, c)) else Brush.sweepGradient(
-                listOf(Color(0xFFEA4335), Color(0xFFFBBC05), Color(0xFF34A853), Color(0xFF4285F4), Color(0xFFEA4335))
-            )
-        )
-    )
-}
+internal fun AccentPreview(key: String) = com.marco.mltheme.AccentPreview(key)
 
 @Composable
-internal fun ThemePreview(key: String) {
-    val shape = CircleShape
-    Row(Modifier.size(34.dp).clip(shape)) {
-        val light = Color(0xFFF5F5F5)
-        val dark = Color(0xFF222222)
-        Box(Modifier.weight(1f).fillMaxSize().background(if (key == "dark") dark else light))
-        Box(Modifier.weight(1f).fillMaxSize().background(if (key == "light") light else dark))
-    }
-}
+internal fun ThemePreview(key: String) = com.marco.mltheme.ThemePreview(key)
 
 @Composable
 internal fun IndicatorPreview(key: String) {
@@ -1646,95 +1621,33 @@ private fun BadgePreview(key: String) {
 //  Componenti
 // ---------------------------------------------------------------------
 
+// Componenti: arrivano dalla libreria MLTheme, condivisa da tutte le MLapps
+
 @Composable
-private fun prefColors(): androidx.compose.material3.ListItemColors {
-    val cs = MaterialTheme.colorScheme
-    return if (LocalPrefEnabled.current) ListItemDefaults.colors(containerColor = cs.surfaceContainer)
-    else ListItemDefaults.colors(
-        containerColor = cs.surfaceContainer,
-        headlineColor = cs.onSurface.copy(alpha = 0.38f),
-        supportingColor = cs.onSurfaceVariant.copy(alpha = 0.38f),
-        leadingIconColor = cs.onSurfaceVariant.copy(alpha = 0.38f),
-        trailingIconColor = cs.onSurfaceVariant.copy(alpha = 0.38f)
-    )
-}
+private fun prefColors(): androidx.compose.material3.ListItemColors = com.marco.mltheme.mlPrefColors()
 
 /**
  * Voci che dipendono da un'altra impostazione: con [enabled] false restano visibili ma in grigio
  * e non si possono toccare (il loro valore resta quello di prima).
  */
 @Composable
-private fun Dependent(enabled: Boolean, content: @Composable () -> Unit) {
-    Box {
-        androidx.compose.runtime.CompositionLocalProvider(LocalPrefEnabled provides enabled) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { content() }
-        }
-        if (!enabled) {
-            Box(
-                Modifier.matchParentSize().pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
-                            .changes.forEach { it.consume() }
-                    }
-                }
-            )
-        }
-    }
-}
+private fun Dependent(enabled: Boolean, content: @Composable () -> Unit) = com.marco.mltheme.MLDependent(enabled, content)
 
 /** Gruppo a elementi separati da un filo di spazio, con gli angoli esterni molto arrotondati. */
 @Composable
-private fun Group(title: String?, content: @Composable () -> Unit) {
-    Column {
-        if (title != null) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 32.dp, top = 6.dp, bottom = 8.dp)
-            )
-        }
-        Column(
-            Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(28.dp)),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) { content() }
-    }
-}
+private fun Group(title: String?, content: @Composable () -> Unit) = com.marco.mltheme.MLGroup(title, content = content)
 
 /** Freccia che indica un sottomenu (stile Android 16). */
 @Composable
-internal fun Chevron() {
-    Icon(
-        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (LocalPrefEnabled.current) 1f else 0.38f)
-    )
-}
+internal fun Chevron() = com.marco.mltheme.MLChevron()
 
 /** Riga che apre un sottomenu e ha anche un interruttore: freccia | separatore | interruttore. */
 @Composable
-internal fun NavSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Chevron()
-        Box(
-            Modifier.padding(horizontal = 12.dp).width(1.dp).height(32.dp)
-                .background(MaterialTheme.colorScheme.outline)
-        )
-        MLSwitch(checked = checked, onCheckedChange = onChange)
-    }
-}
+internal fun NavSwitch(checked: Boolean, onChange: (Boolean) -> Unit) = com.marco.mltheme.MLNavSwitch(checked, onChange)
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = if (subtitle != null) ({ Text(subtitle) }) else null,
-        trailingContent = { MLSwitch(checked = checked, onCheckedChange = onChange) },
-        colors = prefColors(),
-        modifier = Modifier.hl(title).clickable { onChange(!checked) }
-    )
-}
+private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) =
+    com.marco.mltheme.MLSwitchRow(title, subtitle, checked, modifier = Modifier.hl(title), onChange = onChange)
 
 @Composable
 private fun SliderRow(
@@ -1745,27 +1658,7 @@ private fun SliderRow(
     steps: Int,
     preview: (@Composable () -> Unit)? = null,
     onChange: (Float) -> Unit
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .hl(title)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-    ) {
-        val en = LocalPrefEnabled.current
-        val dim = if (en) 1f else 0.38f
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = dim))
-            Text(valueLabel, color = MaterialTheme.colorScheme.primary.copy(alpha = dim), fontWeight = FontWeight.SemiBold)
-            if (preview != null) {
-                Spacer(Modifier.width(12.dp))
-                Box(Modifier.alpha(dim)) { preview() }
-            }
-        }
-        Slider(value = value, onValueChange = onChange, valueRange = range, steps = steps, enabled = en)
-    }
-}
+) = com.marco.mltheme.MLSliderRow(title, valueLabel, value, range, steps, modifier = Modifier.hl(title), preview = preview, onChange = onChange)
 
 @Composable
 private fun ChoiceRow(
@@ -1774,47 +1667,4 @@ private fun ChoiceRow(
     current: String,
     preview: (@Composable (String) -> Unit)? = null,
     onSelect: (String) -> Unit
-) {
-    var open by remember { mutableStateOf(false) }
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(options.firstOrNull { it.first == current }?.second ?: "") },
-        trailingContent = if (preview != null) ({
-            Box(Modifier.alpha(if (LocalPrefEnabled.current) 1f else 0.38f)) { preview(current) }
-        }) else null,
-        colors = prefColors(),
-        modifier = Modifier.hl(title).clickable { open = true }
-    )
-    if (open) {
-        AlertDialog(
-            onDismissRequest = { open = false },
-            title = { Text(title) },
-            text = {
-                Column {
-                    options.forEach { (k, l) ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onSelect(k)
-                                    open = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = k == current, onClick = null)
-                            Spacer(Modifier.width(12.dp))
-                            if (preview != null) {
-                                preview(k)
-                                Spacer(Modifier.width(12.dp))
-                            }
-                            Text(l)
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { open = false }) { Text("Annulla") } }
-        )
-    }
-}
+) = com.marco.mltheme.MLChoiceRow(title, options, current, modifier = Modifier.hl(title), preview = preview, onSelect = onSelect)
