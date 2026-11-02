@@ -325,6 +325,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         genWall(g, w, h)
     }
 
+    /**
+     * Mette lo sfondo di MLauncher anche in Android: [which] "home" (schermata Home di sistema),
+     * "lock" (schermata di blocco) o "both".
+     */
+    fun wallpaperToAndroid(which: String): Boolean = try {
+        val bm = BitmapFactory.decodeFile(wallFile(ctx).path)
+        val flags = when (which) {
+            "home" -> android.app.WallpaperManager.FLAG_SYSTEM
+            "lock" -> android.app.WallpaperManager.FLAG_LOCK
+            else -> android.app.WallpaperManager.FLAG_SYSTEM or android.app.WallpaperManager.FLAG_LOCK
+        }
+        android.app.WallpaperManager.getInstance(ctx).setBitmap(bm, null, true, flags)
+        AppLog.i("Sfondo messo anche in Android ($which)")
+        true
+    } catch (e: Throwable) {
+        AppLog.e("Sfondo di Android non impostato", e)
+        false
+    }
+
     /** Mette l'immagine attuale anche sulla schermata di blocco di Android. */
     fun wallpaperToLockScreen(): Boolean = try {
         val f = wallFile(ctx)

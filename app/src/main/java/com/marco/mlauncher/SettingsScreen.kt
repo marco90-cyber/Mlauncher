@@ -597,16 +597,46 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
                     modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             } }
-            Group("Schermata di blocco") { Dependent(bm != null) {
+            Group("Android") { Dependent(bm != null) {
+                var askAndroid by remember { mutableStateOf(false) }
                 ListItem(
-                    headlineContent = { Text("Usa anche sulla schermata di blocco") },
-                    supportingContent = { Text("Imposta questa immagine come sfondo di blocco di Android. Per uno diverso, scegli lì un'altra immagine") },
+                    headlineContent = { Text("Imposta come sfondo di Android") },
+                    supportingContent = { Text("Usa questa immagine anche fuori da MLauncher: schermata di blocco, Home di sistema o entrambe") },
+                    trailingContent = { Chevron() },
                     colors = prefColors(),
-                    modifier = Modifier.clickable {
-                        val ok = vm.wallpaperToLockScreen()
-                        android.widget.Toast.makeText(ctx, if (ok) "Sfondo di blocco impostato" else "Non riuscito", android.widget.Toast.LENGTH_SHORT).show()
-                    }
+                    modifier = Modifier.hl("Imposta come sfondo di Android").clickable { askAndroid = true }
                 )
+                if (askAndroid) {
+                    AlertDialog(
+                        onDismissRequest = { askAndroid = false },
+                        title = { Text("Dove vuoi usarlo?") },
+                        text = {
+                            Column {
+                                listOf(
+                                    "lock" to "Schermata di blocco",
+                                    "home" to "Home di Android (dietro le altre app e launcher)",
+                                    "both" to "Entrambe"
+                                ).forEach { (k, l) ->
+                                    Row(
+                                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
+                                            askAndroid = false
+                                            val ok = vm.wallpaperToAndroid(k)
+                                            android.widget.Toast.makeText(ctx, if (ok) "Sfondo di Android impostato" else "Non riuscito", android.widget.Toast.LENGTH_SHORT).show()
+                                        }.padding(vertical = 12.dp, horizontal = 4.dp)
+                                    ) { Text(l) }
+                                }
+                                Text(
+                                    "Con i colori \u201cDal sistema\u201d anche la tavolozza di Android si adeguer\u00e0 alla nuova immagine.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = cs.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = { TextButton(onClick = { askAndroid = false }) { Text("Annulla") } }
+                    )
+                }
             } }
         }
     }

@@ -7,10 +7,8 @@ class SettingEntry(val title: String, val page: String, val group: String, val h
 val SETTINGS_INDEX = listOf(
     SettingEntry("Modifica lo sfondo attuale", "wallpaper", "Scegli l'immagine", ""),
     SettingEntry("Importa lo sfondo di Android", "wallpaper", "Scegli l'immagine", ""),
-    SettingEntry("Scurisci", "wallpaper", "Effetti", ""),
-    SettingEntry("Sfoca", "wallpaper", "Effetti", ""),
-    SettingEntry("Parallasse", "wallpaper", "Effetti", "Lo sfondo scorre piano quando cambi pagina"),
-    SettingEntry("Usa anche sulla schermata di blocco", "wallpaper", "Schermata di blocco", ""),
+    SettingEntry("Parallasse", "wallpaper", "Movimento", "Lo sfondo scorre piano quando cambi pagina"),
+    SettingEntry("Imposta come sfondo di Android", "wallpaper", "Android", ""),
     SettingEntry("Blocca la Home", "home", "Disposizione delle app", "Icone, cartelle e widget non si possono spostare né togliere. Si sblocca anche dal menu della Home"),
     SettingEntry("Modalità Home", "home", "Disposizione delle app", ""),
     SettingEntry("Cartelle intelligenti", "home", "Disposizione delle app", "Raggruppa le app in cartelle. Le app che non rientrano in nessun gruppo restano in Home, senza cartelle generiche"),
