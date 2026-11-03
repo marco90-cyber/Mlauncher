@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.Arrangement
@@ -131,7 +132,7 @@ fun WidgetContent(
     sample: Boolean = false
 ) {
     when (ref.kind) {
-        "clock" -> ClockWidget(host, onLongPress, modifier)
+        "clock" -> ClockWidget(vm, host, onLongPress, modifier)
         "analog" -> AnalogClockWidget(host, onLongPress, modifier)
         "battery" -> BatteryWidget(host, onLongPress, modifier)
         "search" -> SearchWidget(vm, onLongPress, modifier, sample)
@@ -200,16 +201,27 @@ private fun Dp.asSp(): TextUnit = with(LocalDensity.current) { this@asSp.toSp() 
 //  Orologio
 // ---------------------------------------------------------------------
 
+/** Stili del widget orologio. */
+val CLOCK_STYLES = listOf(
+    "tonal" to "Tonale",
+    "glass" to "Vetro",
+    "text" to "Solo testo",
+    "filled" to "Pieno"
+)
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
+fun ClockWidget(vm: LauncherViewModel, host: Host, onLongPress: () -> Unit, modifier: Modifier, styleOverride: String? = null) {
     val ctx = LocalContext.current
     val cs = MaterialTheme.colorScheme
+    val st = vm.settings
+    val style = styleOverride ?: st.clockStyle
+    val seconds = st.clockSeconds
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(seconds) {
         while (true) {
             now = System.currentTimeMillis()
-            delay(60_000L - (now % 60_000L) + 30L)
+            delay(if (seconds) 1000L - (now % 1000L) + 5L else 60_000L - (now % 60_000L) + 30L)
         }
     }
     val is24 = DateFormat.is24HourFormat(ctx)
@@ -217,60 +229,87 @@ fun ClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
     val loc = Locale.getDefault()
     val hh = SimpleDateFormat(if (is24) "HH" else "hh", loc).format(date)
     val mm = SimpleDateFormat("mm", loc).format(date)
-    val day = SimpleDateFormat("EEEE d MMMM", loc).format(date).replaceFirstChar { it.uppercase() }
+    val ss = SimpleDateFormat("ss", loc).format(date)
+    val weight = when (st.clockWeight) {
+        "thin" -> FontWeight.Light
+        "normal" -> FontWeight.Medium
+        else -> FontWeight.Bold
+    }
+    // colori dello stile: testo, accento (minuti) e fondo, sempre leggibili
+    val onLight = vm.labelDark
+    val glassFg = if (onLight) Color(0xFF15171C) else Color.White
+    val bg: Color
+    val fg: Color
+    when (style) {
+        "glass" -> { bg = if (onLight) Color.White.copy(alpha = 0.38f) else Color.Black.copy(alpha = 0.26f); fg = glassFg }
+        "text" -> { bg = Color.Transparent; fg = glassFg }
+        "filled" -> { bg = cs.primary; fg = cs.onPrimary }
+        else -> { bg = cs.primaryContainer; fg = cs.onPrimaryContainer }
+    }
+    // per il contrasto, sotto a vetro e solo testo immagino lo sfondo chiaro o scuro
+    val solidBg = when (style) {
+        "glass", "text" -> if (onLight) Color(0xFFE8E8EC) else Color(0xFF1A1C22)
+        else -> bg
+    }
+    val accentBase = when (style) {
+        "filled" -> cs.primaryContainer
+        "glass", "text" -> if (onLight) cs.primary else cs.inversePrimary
+        else -> cs.primary
+    }
+    val accent = readableOn(accentBase, solidBg, 3.0)
+    val minC = if (st.clockMinutes == "same") fg else accent
+    val dateMode = st.clockDate
+    val shadow = if (style == "text") androidx.compose.ui.graphics.Shadow(
+        if (onLight) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.55f), Offset(0f, 2f), 8f
+    ) else null
+    val tStyle = androidx.compose.ui.text.TextStyle(shadow = shadow)
 
     BoxWithConstraints(
         modifier
             .clip(RoundedCornerShape(28.dp))
-            .background(cs.primaryContainer)
+            .background(bg)
+            .then(if (style == "glass") Modifier.border(1.dp, Color.White.copy(alpha = if (onLight) 0.6f else 0.22f), RoundedCornerShape(28.dp)) else Modifier)
             .combinedClickable(onClick = { host.openClockApp() }, onLongClick = onLongPress)
     ) {
         val w = maxWidth
         val h = maxHeight
         if (w >= h * 1.5f) {
-            // spazio disponibile: 62% all'ora, il resto alla data; con poco spazio uso giorno e mese abbreviati
+            // spazio disponibile: l'ora a sinistra, la data a destra (o sotto); con poco spazio giorno e mese abbreviati
             val availW = w - 36.dp
-            val short = availW < 300.dp
+            val dateRight = dateMode == "right"
+            val short = availW < 300.dp || !dateRight
             val dayName = SimpleDateFormat(if (short) "EEE" else "EEEE", loc).format(date)
                 .replaceFirstChar { it.uppercase() }
             val dayDate = SimpleDateFormat(if (short) "d MMM" else "d MMMM", loc).format(date)
-            val fsDp = minOf(h * 0.50f, availW * 0.60f / 2.75f)
+            val timeShare = if (dateRight) 0.60f else 0.92f
+            val chars = if (seconds) 3.5f else 2.75f
+            val fsDp = minOf(h * (if (dateMode == "below") 0.44f else 0.50f), availW * timeShare / chars)
             val dateDp = minOf(h * 0.16f, availW * 0.34f / (if (short) 3.6f else 5.6f)).coerceAtLeast(11.dp)
-            Row(
-                Modifier.fillMaxSize().padding(horizontal = 18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    buildAnnotatedString {
-                        withStyle(SpanStyle(color = cs.onPrimaryContainer)) { append(hh) }
-                        withStyle(SpanStyle(color = cs.primary)) { append(":$mm") }
-                    },
-                    fontSize = fsDp.asSp(),
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Spacer(Modifier.weight(1f))
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        dayName,
-                        color = cs.onPrimaryContainer,
-                        fontSize = dateDp.asSp(),
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    Text(
-                        dayDate,
-                        color = cs.onPrimaryContainer.copy(alpha = 0.8f),
-                        fontSize = dateDp.asSp(),
-                        maxLines = 1,
-                        softWrap = false
+            val time = buildAnnotatedString {
+                withStyle(SpanStyle(color = fg)) { append(hh) }
+                withStyle(SpanStyle(color = minC)) { append(":$mm") }
+                if (seconds) withStyle(SpanStyle(color = minC.copy(alpha = 0.75f), fontSize = (fsDp * 0.45f).asSp())) { append(" $ss") }
+            }
+            if (dateRight) {
+                Row(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(time, fontSize = fsDp.asSp(), fontWeight = weight, maxLines = 1, softWrap = false, style = tStyle)
+                    Spacer(Modifier.weight(1f))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(dayName, color = fg, fontSize = dateDp.asSp(), fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false, style = tStyle)
+                        Text(dayDate, color = fg.copy(alpha = 0.8f), fontSize = dateDp.asSp(), maxLines = 1, softWrap = false, style = tStyle)
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalArrangement = Arrangement.Center) {
+                    Text(time, fontSize = fsDp.asSp(), fontWeight = weight, maxLines = 1, softWrap = false, style = tStyle)
+                    if (dateMode == "below") Text(
+                        "$dayName $dayDate", color = fg.copy(alpha = 0.85f), fontSize = dateDp.asSp(),
+                        fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false, style = tStyle
                     )
                 }
             }
         } else {
-            val showDate = h >= 120.dp
+            val showDate = h >= 120.dp && dateMode != "none"
             val fsDp = if (showDate) minOf(w * 0.34f, h * 0.30f) else minOf(w * 0.40f, h * 0.38f)
             val fs = fsDp.asSp()
             val dayShort = SimpleDateFormat("EEE d MMM", loc).format(date).replaceFirstChar { it.uppercase() }
@@ -278,32 +317,23 @@ fun ClockWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
                 Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    hh,
-                    color = cs.onPrimaryContainer,
-                    fontSize = fs,
-                    lineHeight = fs * 0.92f,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Text(
-                    mm,
-                    color = cs.primary,
-                    fontSize = fs,
-                    lineHeight = fs * 0.92f,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false
-                )
+                Text(hh, color = fg, fontSize = fs, lineHeight = fs * 0.92f, fontWeight = weight, maxLines = 1, softWrap = false, style = tStyle)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(mm, color = minC, fontSize = fs, lineHeight = fs * 0.92f, fontWeight = weight, maxLines = 1, softWrap = false, style = tStyle)
+                    if (seconds) Text(
+                        ss, color = minC.copy(alpha = 0.75f), fontSize = (fsDp * 0.4f).asSp(), fontWeight = weight,
+                        maxLines = 1, softWrap = false, style = tStyle, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                    )
+                }
                 if (showDate) {
                     Text(
                         dayShort,
-                        color = cs.onPrimaryContainer,
+                        color = fg,
                         fontSize = minOf(h * 0.085f, w * 0.085f).coerceAtLeast(11.dp).asSp(),
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Clip,
+                        style = tStyle,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }

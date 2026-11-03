@@ -217,6 +217,16 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var minusBlur by mutableStateOf(sp.getInt("minusBlur", 24))
     var minusDim by mutableStateOf(sp.getInt("minusDim", 30))
     var minusWidgets by mutableStateOf(sp.getString("minusWidgets", "[]") ?: "[]")
+    // widget orologio
+    /** "tonal", "glass", "text", "filled" */
+    var clockStyle by mutableStateOf(sp.getString("clockStyle", "tonal") ?: "tonal")
+    /** "thin", "normal", "bold" */
+    var clockWeight by mutableStateOf(sp.getString("clockWeight", "bold") ?: "bold")
+    /** minuti: "accent" (colore d'accento) o "same" (come le ore) */
+    var clockMinutes by mutableStateOf(sp.getString("clockMinutes", "accent") ?: "accent")
+    /** data: "right", "below", "none" */
+    var clockDate by mutableStateOf(sp.getString("clockDate", "right") ?: "right")
+    var clockSeconds by mutableStateOf(sp.getBoolean("clockSeconds", false))
     /** sfondi creati con "Crea il tuo sfondo" (regole in JSON) */
     var myWalls by mutableStateOf(sp.getString("myWalls", "[]") ?: "[]")
     /** stile degli interruttori: android16 (predefinito), material, ios, hyperos */
@@ -380,6 +390,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "minusDim" -> minusDim = value as Int
             "minusWidgets" -> minusWidgets = value as String
             "myWalls" -> myWalls = value as String
+            "clockStyle" -> clockStyle = value as String
+            "clockWeight" -> clockWeight = value as String
+            "clockMinutes" -> clockMinutes = value as String
+            "clockDate" -> clockDate = value as String
+            "clockSeconds" -> clockSeconds = value as Boolean
             "switchStyle" -> { switchStyle = value as String; SwitchLook.style = switchStyle }
             "lockHome" -> lockHome = value as Boolean
             "folderPos" -> folderPos = value as String

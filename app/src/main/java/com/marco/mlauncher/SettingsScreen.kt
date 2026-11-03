@@ -1132,6 +1132,40 @@ private fun PageWidgets(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.clickable { cityDlg = true }
         )
     }
+    Group("Orologio") {
+        // anteprima dal vivo del widget orologio
+        Box(
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val wb = vm.wallBitmap
+            Box(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(24.dp))) {
+                if (wb != null) androidx.compose.foundation.Image(
+                    wb, contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                ClockWidget(vm, host, {}, Modifier.fillMaxSize().padding(10.dp))
+            }
+        }
+        ChoiceRow("Stile", CLOCK_STYLES, s.clockStyle) { vm.setSetting("clockStyle", it) }
+        ChoiceRow(
+            "Spessore delle cifre",
+            listOf("thin" to "Sottile", "normal" to "Normale", "bold" to "Grassetto"),
+            s.clockWeight
+        ) { vm.setSetting("clockWeight", it) }
+        ChoiceRow(
+            "Colore dei minuti",
+            listOf("accent" to "Colore d'accento", "same" to "Come le ore"),
+            s.clockMinutes
+        ) { vm.setSetting("clockMinutes", it) }
+        ChoiceRow(
+            "Data",
+            listOf("right" to "A destra dell'ora", "below" to "Sotto l'ora", "none" to "Nascosta"),
+            s.clockDate
+        ) { vm.setSetting("clockDate", it) }
+        SwitchRow("Secondi", "Mostra anche i secondi accanto ai minuti", s.clockSeconds) { vm.setSetting("clockSeconds", it) }
+    }
     Group("Ricerca") {
         Text(
             "La barra di ricerca è un widget: tieni premuto sulla Home → Widget → Barra di ricerca. Puoi spostarla e ridimensionarla come gli altri.",

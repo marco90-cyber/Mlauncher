@@ -19,7 +19,9 @@ fun accentSwatch(key: String): Color? = com.marco.mltheme.accentSwatch(key)
 
 @Composable
 fun MLauncherTheme(mode: String, accent: String = "system", seed: Int? = null, content: @Composable () -> Unit) {
-    val scheme = mlColorScheme(mode, accent, seed)
+    // ogni testo deve leggersi sul suo fondo, qualunque tavolozza dia il sistema
+    val raw = mlColorScheme(mode, accent, seed)
+    val scheme = androidx.compose.runtime.remember(raw) { guardScheme(raw) }
     CompositionLocalProvider(LocalSwitchStyle provides SwitchLook.style) {
         MaterialTheme(colorScheme = scheme, typography = Typography(), content = content)
     }
