@@ -258,6 +258,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
         "indicator" -> indFollowDock
         "widgets" -> liquid
         "panels" -> minusStyle == "dock"
+        // pulsanti della modifica, "Crea cartella" e menu: insieme al tema scelto
+        "menus" -> true
         else -> false
     }
 
