@@ -141,6 +141,34 @@ class DrawerDrag(
     var pos by mutableStateOf(start)
 }
 
+/** Aspetto di un elemento: materiale, trasparenza (opacità 0-100), riflesso glass e arrotondamento. */
+data class Mat(val style: String, val opacity: Int, val glass: Boolean, val corner: Int) {
+    /** "standard" = l'aspetto proprio dell'elemento; "none" = niente fondo */
+    val plain get() = style == "standard" || style == "none"
+}
+
+/** Materiali che si possono scegliere. */
+val MATERIALS = listOf(
+    "liquid" to "Liquid Glass",
+    "glass" to "Vetro",
+    "tinted" to "Vetro colorato",
+    "dark" to "Vetro scuro",
+    "pill" to "Tonale",
+    "solid" to "Pieno",
+    "none" to "Nessuno"
+)
+
+/** Elementi della Home che prendono il materiale. */
+val MAT_ELEMENTS = listOf(
+    "dock" to "Dock",
+    "folder" to "Cartelle",
+    "indicator" to "Indicatore di pagina",
+    "widgets" to "Widget di MLauncher",
+    "panels" to "Pagina \u22121 e ricerca",
+    "menus" to "Menu rapidi",
+    "drawer" to "Cassetto app"
+)
+
 class LauncherSettings(private val sp: SharedPreferences) {
     /** orientazione reale del telefono (aggiornata da Root) */
     var actualLand by mutableStateOf(false)
@@ -207,6 +235,48 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hapPage by mutableStateOf(sp.getBoolean("hapPage", true))
     var shakeTidy by mutableStateOf(sp.getBoolean("shakeTidy", true))
     var accent by mutableStateOf(sp.getString("accent", "system") ?: "system")
+
+    // ---------- materiale degli elementi (Stile) ----------
+    // le vecchie dock "barra" e "tessere" diventano una forma della dock + un materiale
+    private fun legacyMat(st: String) = when (st) { "bar" -> "pill"; "tiles" -> "glass"; else -> st }
+    /** materiale generale: liquid, glass, tinted, dark, pill (tonale), solid (pieno), none */
+    var matStyle by mutableStateOf(sp.getString("matStyle", null) ?: legacyMat(dockStyleP))
+    var matOpacity by mutableStateOf(sp.getInt("matOpacity", dockOpacityP))
+    var matGlass by mutableStateOf(sp.getBoolean("matGlass", dockGlassP))
+    var matCorner by mutableStateOf(sp.getInt("matCorner", dockCornerP))
+    /** forma della dock: "float" (fluttuante), "bar" (a tutta larghezza), "tiles" (tessere) */
+    var dockForm by mutableStateOf(sp.getString("dockForm", null) ?: when (dockStyleP) { "bar" -> "bar"; "tiles" -> "tiles"; else -> "float" })
+    /** scelte dei singoli elementi: el_<elemento>_follow / _style / _opacity / _glass / _corner */
+    private val el = androidx.compose.runtime.mutableStateMapOf<String, Any>().apply {
+        sp.all.forEach { (k, v) -> if (k.startsWith("el_") && v != null) put(k, v) }
+    }
+
+    /** come si comportava prima di questa versione (così l'aggiornamento non cambia l'aspetto) */
+    private fun elFollowDefault(e: String) = when (e) {
+        "dock" -> true
+        "folder" -> folderFollowDock
+        "indicator" -> indFollowDock
+        "widgets" -> liquid
+        "panels" -> minusStyle == "dock"
+        else -> false
+    }
+
+    private fun elStyleDefault(e: String) = when (e) {
+        "dock" -> legacyMat(dockStyleP)
+        "panels" -> if (minusStyle == "glass") "glass" else "standard"
+        else -> "standard"
+    }
+
+    fun elFollow(e: String): Boolean = (el["el_${e}_follow"] as? Boolean) ?: elFollowDefault(e)
+    fun elStyle(e: String): String = (el["el_${e}_style"] as? String) ?: elStyleDefault(e)
+    fun elOpacity(e: String): Int = (el["el_${e}_opacity"] as? Int) ?: (if (e == "dock") dockOpacityP else matOpacity)
+    fun elGlass(e: String): Boolean = (el["el_${e}_glass"] as? Boolean) ?: (if (e == "dock") dockGlassP else matGlass)
+    fun elCorner(e: String): Int = (el["el_${e}_corner"] as? Int) ?: (if (e == "dock") dockCornerP else matCorner)
+
+    /** Materiale da usare per un elemento della Home: quello generale o il suo. */
+    fun matOf(e: String): Mat =
+        if (elFollow(e)) Mat(matStyle, matOpacity, matGlass, matCorner)
+        else Mat(elStyle(e), elOpacity(e), elGlass(e), elCorner(e))
     // pagina −1 (widget a sinistra della prima pagina)
     var minusOn by mutableStateOf(sp.getBoolean("minusOn", true))
     var minusGreet by mutableStateOf(sp.getBoolean("minusGreet", true))
@@ -355,6 +425,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
         }
 
     fun set(key: String, value: Any) {
+        if (key.startsWith("el_")) el[key] = value
         val e = sp.edit()
         val wk = if (key in oriented && landscape) key + "_l" else key
         when (value) {
@@ -390,6 +461,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "hapPage" -> hapPage = value as Boolean
             "shakeTidy" -> shakeTidy = value as Boolean
             "accent" -> accent = value as String
+            "matStyle" -> matStyle = value as String
+            "matOpacity" -> matOpacity = value as Int
+            "matGlass" -> matGlass = value as Boolean
+            "matCorner" -> matCorner = value as Int
+            "dockForm" -> dockForm = value as String
             "minusOn" -> minusOn = value as Boolean
             "minusGreet" -> minusGreet = value as Boolean
             "minusWeather" -> minusWeather = value as Boolean

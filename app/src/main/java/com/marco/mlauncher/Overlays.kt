@@ -693,9 +693,31 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         else -> cs.surface
     }
     val minusLook = searchOnly && vm.searchMinusLook
-    val fg = if (minusLook) cs.onSurface else if (s.drBg == "dark") Color.White else if (s.drBg == "tonal") cs.onPrimaryContainer else cs.onSurface
+    // cassetto con il materiale scelto in Stile (sopra la Home sfocata)
+    val dm = s.matOf("drawer")
+    val matDrawer = !minusLook && !dm.plain
+    val fg = when {
+        minusLook -> cs.onSurface
+        matDrawer -> matContentColor(dm)
+        s.drBg == "dark" -> Color.White
+        s.drBg == "tonal" -> cs.onPrimaryContainer
+        else -> cs.onSurface
+    }
     // come la pagina −1: velo del colore del tema sopra la Home sfocata
-    val surfaceColor = if (minusLook) cs.surface.copy(alpha = vm.searchDimEff / 100f) else bgColor.copy(alpha = s.drOpacity / 100f)
+    val surfaceColor = when {
+        minusLook -> cs.surface.copy(alpha = vm.searchDimEff / 100f)
+        matDrawer -> {
+            val (base, a0) = when (dm.style) {
+                "tinted" -> cs.primary to 0.50f
+                "dark" -> Color.Black to 0.45f
+                "pill" -> cs.surfaceContainer to 0.85f
+                "solid" -> cs.surfaceContainerHigh to 0.97f
+                else -> Color.White to 0.22f
+            }
+            base.copy(alpha = (a0 * dm.opacity / 60f).coerceIn(0.12f, 1f))
+        }
+        else -> bgColor.copy(alpha = s.drOpacity / 100f)
+    }
     Surface(Modifier.fillMaxSize(), color = surfaceColor, contentColor = fg) {
         Column(
             Modifier
@@ -1250,7 +1272,6 @@ private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: Strin
 @Composable
 private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: String, vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
-    val style = vm.searchStyleEff
     @Composable
     fun label(t: String) = Text(
         t, style = MaterialTheme.typography.labelLarge, color = cs.primary,
@@ -1263,7 +1284,7 @@ private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: 
     ) {
         if (list.isNotEmpty()) {
             item(key = "best") {
-                GlassContainer(vm, style) {
+                GlassContainer(vm) {
                     Column {
                         label("Migliore corrispondenza")
                         ResultCard(list.first(), query, vm, host, true)
@@ -1271,7 +1292,7 @@ private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: 
                 }
             }
             if (list.size > 1) item(key = "more") {
-                GlassContainer(vm, style) {
+                GlassContainer(vm) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         label("Altre app")
                         list.drop(1).take(40).forEach { app -> androidx.compose.runtime.key(app.id) { ResultCard(app, query, vm, host, false) } }
@@ -1280,7 +1301,7 @@ private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: 
             }
         } else {
             item(key = "none") {
-                GlassContainer(vm, style) {
+                GlassContainer(vm) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Nessuna app trovata", style = MaterialTheme.typography.titleMedium, color = cs.onSurface)
                         Text("Prova con un altro nome", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
@@ -1289,7 +1310,7 @@ private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: 
             }
         }
         item(key = "web") {
-            GlassContainer(vm, style, pad = 4.dp) {
+            GlassContainer(vm, pad = 4.dp) {
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
                         .clickable { vm.overlay = Overlay.NONE; host.webSearch(query.trim()) }
@@ -1344,7 +1365,7 @@ private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: H
                             }
                         }
                         // come la pagina −1: lo stesso contenitore dei widget
-                        if (minusLook) GlassContainer(vm, vm.searchStyleEff, pad = 8.dp, content = grid)
+                        if (minusLook) GlassContainer(vm, pad = 8.dp, content = grid)
                         else Surface(shape = RoundedCornerShape(24.dp), color = cs.surfaceContainerHigh.copy(alpha = 0.7f)) {
                             Box(Modifier.padding(8.dp)) { grid() }
                         }

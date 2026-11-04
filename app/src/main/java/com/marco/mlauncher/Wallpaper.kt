@@ -73,6 +73,9 @@ val LocalWall = staticCompositionLocalOf<WallRender?> { null }
 /** Tema Liquid Glass attivo. */
 val LocalLiquid = staticCompositionLocalOf { false }
 
+/** Materiale dei widget di MLauncher (Stile → Materiale degli elementi). */
+val LocalWidgetMat = staticCompositionLocalOf { Mat("standard", 60, true, 28) }
+
 /** Testo scuro sopra il vetro (sfondo chiaro). */
 val LocalGlassDarkText = staticCompositionLocalOf { false }
 
@@ -290,11 +293,13 @@ fun Modifier.liquidGlass(corner: Dp, shape: Shape? = null, tint: Color = Color.U
  */
 @Composable
 fun GlassWidgetFrame(kind: String, content: @Composable () -> Unit) {
-    if (!LocalLiquid.current || kind == "ext" || kind == "notes") {
+    val m = LocalWidgetMat.current
+    if (m.plain || kind == "ext" || kind == "notes") {
         content()
         return
     }
-    val fg = if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White
+    val liquid = m.style == "liquid"
+    val fg = if (liquid) (if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White) else matContentColor(m)
     val cs = androidx.compose.material3.MaterialTheme.colorScheme
     val glass = cs.copy(
         primaryContainer = Color.Transparent, onPrimaryContainer = fg,
@@ -303,7 +308,13 @@ fun GlassWidgetFrame(kind: String, content: @Composable () -> Unit) {
         surfaceContainerHigh = Color.Transparent, onSurface = fg, onSurfaceVariant = fg.copy(alpha = 0.8f)
     )
     androidx.compose.foundation.layout.Box(
-        Modifier.fillMaxSize().then(if (kind == "search") Modifier else Modifier.liquidGlass(28.dp))
+        Modifier.fillMaxSize().then(
+            when {
+                kind == "search" -> Modifier
+                liquid -> Modifier.liquidGlass(28.dp)
+                else -> Modifier.matLook(m, minOf(m.corner, 32).dp, minOpacity = 40)
+            }
+        )
     ) {
         androidx.compose.material3.MaterialTheme(colorScheme = glass) { content() }
     }

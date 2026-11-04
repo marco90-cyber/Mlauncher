@@ -897,12 +897,12 @@ private fun PageDots(count: Int, state: PagerState, style: String, st: LauncherS
     ) {
         if (style == "none" || (count <= 1 && !ios)) return@Box
         // l'indicatore può prendere l'aspetto della dock (stile, trasparenza, vetro)
-        val follow = st.indFollowDock && st.dockStyle != "none"
+        val im = st.matOf("indicator")
+        val follow = !im.plain
         val capsule = ios || scrubbing || follow
-        val fg = if (follow) dockContentColor(st.dockStyle, st.dockOpacity) else if (darkText) Color(0xFF15171C) else Color.White
+        val fg = if (follow) matContentColor(im) else if (darkText) Color(0xFF15171C) else Color.White
         val look = when {
-            follow && st.dockStyle == "tiles" -> Modifier.dockTile(st.dockOpacity, st.dockGlass, 50.dp)
-            follow -> Modifier.dockLook(if (st.dockStyle == "bar") "pill" else st.dockStyle, st.dockOpacity, st.dockGlass, 50.dp)
+            follow -> Modifier.matLook(im, 50.dp)
             else -> Modifier
                 .clip(CircleShape)
                 .background((if (darkText) Color.Black else Color.White).copy(alpha = if (capsule) (if (darkText) 0.10f else 0.22f) else 0f))
@@ -1128,7 +1128,9 @@ private fun Dock(
 ) {
     val cs = MaterialTheme.colorScheme
     val st = vm.settings
-    val style = if (vertical && st.dockStyle == "bar") "pill" else st.dockStyle
+    // materiale (generale o della dock) e forma della dock
+    val m = st.matOf("dock")
+    val tiles = st.dockForm == "tiles"
     if (vertical) {
         val navB = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         Box(
@@ -1137,15 +1139,15 @@ private fun Dock(
                 .padding(horizontal = 6.dp, vertical = 8.dp)
                 .padding(bottom = navB)
                 .width(84.dp * st.dockSize)
-                .dockLook(style, st.dockOpacity, st.dockGlass, st.dockCorner.dp)
+                .then(if (tiles) Modifier else Modifier.matLook(m, m.corner.dp))
                 .onGloballyPositioned { onRect(it.boundsInRoot()) }
         ) {
-            if (style == "tiles") {
+            if (tiles) {
                 Column(Modifier.fillMaxSize()) {
                     repeat(vm.dockCount) {
                         Box(
                             Modifier.weight(1f).fillMaxSize().padding(horizontal = 2.dp, vertical = 3.dp)
-                                .dockTile(st.dockOpacity, st.dockGlass, minOf(st.dockCorner.dp, 26.dp))
+                                .matLook(m, minOf(m.corner.dp, 26.dp))
                         )
                     }
                 }
@@ -1169,9 +1171,9 @@ private fun Dock(
         }
         return
     }
-    val bar = style == "bar"
+    val bar = st.dockForm == "bar"
     val margin = if (bar) 0.dp else 16.dp
-    val corner = st.dockCorner.dp
+    val corner = m.corner.dp
     // la barra a tutta larghezza arriva fino al bordo: sotto le icone c'è lo spazio dei gesti di sistema
     val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(
@@ -1179,15 +1181,18 @@ private fun Dock(
             .fillMaxWidth()
             .padding(start = margin, end = margin, top = 6.dp, bottom = if (bar) 0.dp else 6.dp + nav)
             .height(92.dp * st.dockSize + (if (bar) nav else 0.dp))
-            .dockLook(style, st.dockOpacity, st.dockGlass, corner)
+            .then(
+                if (tiles) Modifier
+                else Modifier.matLook(m, corner, if (bar) RoundedCornerShape(topStart = corner, topEnd = corner) else null)
+            )
             .onGloballyPositioned { onRect(it.boundsInRoot()) }
     ) {
-        if (style == "tiles") {
+        if (tiles) {
             Row(Modifier.fillMaxSize()) {
                 repeat(vm.dockCount) {
                     Box(
                         Modifier.weight(1f).fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
-                            .dockTile(st.dockOpacity, st.dockGlass, minOf(corner, 26.dp))
+                            .matLook(m, minOf(corner, 26.dp))
                     )
                 }
             }
@@ -1710,10 +1715,8 @@ internal fun QuickMenu(
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true)
     ) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = cs.surfaceContainerHigh,
-            shadowElevation = 8.dp,
+        MenuSurface(
+            vm, 24.dp,
             modifier = Modifier.width(menuW).graphicsLayer {
                 alpha = appear.value
                 val sc = 0.92f + 0.08f * appear.value
@@ -1794,12 +1797,7 @@ private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: (
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true)
     ) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = cs.surfaceContainerHigh,
-            shadowElevation = 8.dp,
-            modifier = Modifier.width(menuW)
-        ) {
+        MenuSurface(vm, 28.dp, modifier = Modifier.width(menuW)) {
             Column(Modifier.padding(vertical = 8.dp)) {
                 HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); vm.overlay = Overlay.SETTINGS; vm.settingsPage = "wallpaper" }
                 HomeMenuRow(Icons.Default.Add, "Widget") { onDismiss(); if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
@@ -1809,6 +1807,32 @@ private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: (
                     vm.setSetting("lockHome", !vm.settings.lockHome)
                 }
                 HomeMenuRow(Icons.Default.Settings, "Impostazioni Home") { onDismiss(); vm.overlay = Overlay.SETTINGS }
+            }
+        }
+    }
+}
+
+/** Fondo dei menu rapidi con il loro materiale (generale o proprio). */
+@Composable
+internal fun MenuSurface(vm: LauncherViewModel, corner: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val m0 = vm.settings.matOf("menus")
+    // dentro un menu a comparsa il vetro liquido non vede lo sfondo: diventa vetro
+    val m = if (m0.style == "liquid") m0.copy(style = "glass") else m0
+    val shape = RoundedCornerShape(corner)
+    if (m.plain) {
+        Surface(shape = shape, color = cs.surfaceContainerHigh, shadowElevation = 8.dp, modifier = modifier) { content() }
+        return
+    }
+    // base sotto il vetro: il menu resta leggibile anche sopra icone colorate
+    val fg = when (m.style) {
+        "pill", "solid" -> cs.onSurface
+        else -> folderTextColor(m.style, m.opacity, if (m.style == "tinted") cs.primary else cs.surfaceContainer, cs.surfaceContainerHigh, cs.onSurface)
+    }
+    Surface(shape = shape, color = cs.surfaceContainerHigh.copy(alpha = 0.72f), shadowElevation = 8.dp, modifier = modifier) {
+        Box(Modifier.matLook(m, corner, shape, minOpacity = 40)) {
+            MaterialTheme(colorScheme = cs.copy(onSurface = fg, onSurfaceVariant = fg.copy(alpha = 0.75f))) {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides fg) { content() }
             }
         }
     }

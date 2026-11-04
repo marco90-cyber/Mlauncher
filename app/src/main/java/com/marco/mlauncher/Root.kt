@@ -64,12 +64,11 @@ fun Root(vm: LauncherViewModel, host: Host) {
         LocalIconShape provides vm.settings.iconShape,
         LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg),
         LocalFolderShape provides vm.settings.folderShape,
-        LocalFolderDock provides (
-            if (vm.settings.folderFollowDock) with(vm.settings) { DockLookSpec(dockStyle, dockOpacity, dockGlass, dockCorner) }
-            else null
-        ),
+        // cartelle, widget: il materiale scelto in Stile (generale o proprio dell'elemento)
+        LocalFolderDock provides vm.settings.matOf("folder").let { m -> if (m.plain) null else DockLookSpec(m.style, m.opacity, m.glass, m.corner) },
         LocalGlassDarkText provides vm.labelDark,
-        LocalLiquid provides vm.settings.liquid
+        LocalLiquid provides (vm.settings.matOf("widgets").style == "liquid"),
+        LocalWidgetMat provides vm.settings.matOf("widgets")
     ) {
         // la Home dietro la cartella aperta si sfoca (vetro smerigliato)
         val blurRadius by androidx.compose.animation.core.animateDpAsState(
@@ -86,7 +85,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
             androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
                 // ricerca come la pagina −1: la Home dietro si sfoca
                 val searchBlur by androidx.compose.animation.core.animateDpAsState(
-                    if (vm.overlay == Overlay.DRAWER && vm.searchMinusLook) vm.searchBlurEff.dp else 0.dp,
+                    if (vm.overlay == Overlay.DRAWER && vm.searchMinusLook) vm.searchBlurEff.dp
+                    else if (vm.overlay == Overlay.DRAWER && !vm.settings.matOf("drawer").plain) vm.settings.minusBlur.dp
+                    else 0.dp,
                     androidx.compose.animation.core.tween(Motion.ALL_APPS_OPEN, easing = Motion.Standard),
                     label = "searchBlur"
                 )
@@ -122,7 +123,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
     BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }
     BackHandler(enabled = vm.overlay == Overlay.WIDGETS) { vm.overlay = Overlay.NONE }
     BackHandler(enabled = vm.overlay == Overlay.SETTINGS && vm.genEdit == null && vm.wallEditSrc == null) {
-        if (vm.settingsPage != null) vm.settingsPage = null else vm.overlay = Overlay.NONE
+        if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
     }
 }
 

@@ -444,21 +444,20 @@ private fun PickDock(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val dark = isDarkPreview(s.theme)
-    Headline("La dock", "La barra delle app in basso e l'indicatore delle pagine.")
+    Headline("La dock", "Il materiale della dock (e degli altri elementi della Home) e l'indicatore delle pagine.")
+    // il materiale scelto qui è quello generale: la dock lo segue
     fun pickDock(k: String) {
-        vm.setSetting("liquid", k == "liquid")
-        vm.setSetting("dockStyle", k)
-        if (k == "liquid") {
-            vm.setSetting("folderFollowDock", true)
-            vm.setSetting("indFollowDock", true)
-        }
+        vm.setSetting("matStyle", k)
+        vm.setElFollow("dock", true)
+        if (k == "liquid") listOf("folder", "indicator", "widgets", "panels").forEach { vm.setElFollow(it, true) }
     }
+    val cur = s.matOf("dock")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf("liquid" to "Liquid\nGlass", "glass" to "Trasparente", "pill" to "Pillola\npiena").forEach { (k, l) ->
-            PickCard(s.dockStyle == k, l, Modifier.weight(1f), { pickDock(k) }) { MiniPhone(mini(vm, dark).copy(dock = k)) }
+        listOf("liquid" to "Liquid\nGlass", "glass" to "Vetro", "pill" to "Tonale").forEach { (k, l) ->
+            PickCard(cur.style == k, l, Modifier.weight(1f), { pickDock(k) }) { MiniPhone(mini(vm, dark).copy(dock = k)) }
         }
     }
-    if (s.dockStyle == "liquid") Text(
+    if (cur.style == "liquid") Text(
         "Tema Liquid Glass: anche cartelle, indicatore e widget diventano di vetro liquido.",
         color = cs.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
@@ -467,14 +466,14 @@ private fun PickDock(vm: LauncherViewModel) {
     )
     Row(
         Modifier.fillMaxWidth().padding(top = 16.dp).clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh)
-            .clickable { vm.setSetting("dockGlass", !s.dockGlass) }.padding(horizontal = 16.dp, vertical = 12.dp),
+            .clickable { vm.setSetting("matGlass", !s.matGlass) }.padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
             Text("Effetto glass")
             Text("Riflesso e bordo luminoso come il vetro", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
-        MLSwitch(checked = s.dockGlass, onCheckedChange = { vm.setSetting("dockGlass", it) })
+        MLSwitch(checked = s.matGlass, onCheckedChange = { vm.setSetting("matGlass", it) })
     }
     Label("Indicatore di pagina")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -498,7 +497,7 @@ private fun PickDock(vm: LauncherViewModel) {
             }
     }
     Text(
-        "Altri stili della dock (scuro, colorato, barra, tessere…) in Impostazioni → Dock",
+        "Altri materiali (scuro, colorato, pieno…), la forma della dock e i singoli elementi in Impostazioni → Stile → Materiale",
         color = cs.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
         textAlign = TextAlign.Center,
@@ -655,8 +654,17 @@ private fun PickMinus(vm: LauncherViewModel, host: Host) {
         }
         Label("Contenitore dei widget")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val pk = if (s.elFollow("panels")) "dock" else if (s.elStyle("panels") == "glass") "glass" else "tonal"
             listOf("dock" to "Come la dock", "tonal" to "Tonale", "glass" to "Vetro").forEach { (k, l) ->
-                FilterChip(selected = s.minusStyle == k, onClick = { vm.setSetting("minusStyle", k) }, label = { Text(l) })
+                FilterChip(selected = pk == k, onClick = {
+                    when (k) {
+                        "dock" -> vm.setElFollow("panels", true)
+                        else -> {
+                            vm.setSetting("el_panels_follow", false)
+                            vm.setSetting("el_panels_style", if (k == "glass") "glass" else "standard")
+                        }
+                    }
+                }, label = { Text(l) })
             }
         }
     }
@@ -760,8 +768,8 @@ private data class Mini(
 private fun mini(s: LauncherSettings, dark: Boolean) = Mini(
     dark = dark,
     allApps = s.homeMode == "all",
-    dock = s.dockStyle,
-    glass = s.dockGlass,
+    dock = s.matOf("dock").style,
+    glass = s.matOf("dock").glass,
     folders = s.autoFolders && s.homeMode == "all",
     cols = s.colsOf(false),
     rows = s.rowsOf(false),
@@ -911,7 +919,7 @@ private fun Summary(vm: LauncherViewModel) {
         "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
         "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
         "Interruttori" to (SWITCH_STYLES.firstOrNull { it.first == s.switchStyle }?.second?.substringBefore(" (") ?: ""),
-        "Dock" to (DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""),
+        "Materiale" to (MATERIALS.firstOrNull { it.first == s.matStyle }?.second ?: ""),
         "Pagina \u22121" to (if (s.minusOn) "Attiva" else "Spenta"),
         "Ritorno alla Home" to (RETURN_ANIMS.firstOrNull { it.first == s.returnAnim }?.second?.substringBefore(" (") ?: "")
     )

@@ -160,6 +160,7 @@ fun SearchWidget(vm: LauncherViewModel, onLongPress: () -> Unit, modifier: Modif
                 .clip(CircleShape)
                 .then(
                     if (LocalLiquid.current && !sample) Modifier.liquidGlass(50.dp, CircleShape)
+                    else if (!LocalWidgetMat.current.plain && !sample) Modifier.matLook(LocalWidgetMat.current, 50.dp, CircleShape, minOpacity = 40)
                     else Modifier.background(cs.surfaceContainerHigh.copy(alpha = 0.9f))
                 )
                 .combinedClickable(

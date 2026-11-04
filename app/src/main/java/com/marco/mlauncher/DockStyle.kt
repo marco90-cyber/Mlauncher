@@ -30,7 +30,7 @@ fun dockShape(style: String, corner: Dp): Shape =
 /** Aspetto della dock: usato sia dalla Home sia dalle anteprime nelle impostazioni. */
 @Composable
 fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, shapeOverride: Shape? = null): Modifier {
-    if (style == "none" || style == "tiles") return this
+    if (style == "none" || style == "tiles" || style == "standard") return this
     if (style == "liquid") return this.liquidGlass(corner, shapeOverride ?: RoundedCornerShape(corner), opacity = opacity / 100f)
     val cs = MaterialTheme.colorScheme
     val (base, a) = when (style) {
@@ -38,6 +38,7 @@ fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, s
         "dark" -> Color.Black to 0.38f
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
+        "solid" -> cs.surfaceContainerHigh to 0.96f
         else -> Color.White to 0.28f
     }
     val alpha = (a * opacity / 60f).coerceIn(0f, 1f)
@@ -66,13 +67,14 @@ fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, s
 @Composable
 fun dockContentColor(style: String, opacity: Int): Color {
     val cs = MaterialTheme.colorScheme
-    if (style == "none") return Color.White
+    if (style == "none" || style == "standard") return Color.White
     if (style == "liquid") return if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White
     val (base, a0) = when (style) {
         "tinted" -> cs.primary to 0.50f
         "dark" -> Color.Black to 0.38f
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
+        "solid" -> cs.surfaceContainerHigh to 0.96f
         "tiles" -> cs.surfaceContainerHighest to 0.30f
         else -> Color.White to 0.28f
     }
@@ -152,10 +154,24 @@ fun folderTextColor(style: String, opacity: Int, base: Color, surface: Color, fa
         "dark" -> Color.Black to 0.38f
         "pill" -> base to 0.85f
         "bar" -> base to 0.70f
+        "solid" -> base to 0.96f
         else -> Color.White to 0.28f
     }
     val a = (tint.second * maxOf(opacity, 40) / 60f).coerceIn(0f, 1f)
     val c = over(tint.first, a, over(surface, 0.72f, backdrop))
     val lum = 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
     return if (lum > 0.5f) Color(0xFF1B1B1F) else Color.White
+}
+
+
+/** Aspetto di un elemento con il suo materiale (niente se "standard" o "nessuno"). */
+@Composable
+fun Modifier.matLook(m: Mat, corner: Dp, shape: Shape? = null, minOpacity: Int = 0): Modifier =
+    if (m.plain) this else this.dockLook(m.style, maxOf(m.opacity, minOpacity), m.glass, corner, shape)
+
+/** Colore del testo leggibile sopra un elemento con questo materiale. */
+@Composable
+fun matContentColor(m: Mat): Color = when (m.style) {
+    "pill", "solid" -> MaterialTheme.colorScheme.onSurface
+    else -> dockContentColor(m.style, m.opacity)
 }

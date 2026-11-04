@@ -99,6 +99,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var searchFocus by mutableStateOf(false)
     /** pagina aperta nelle impostazioni (null = elenco delle categorie) */
     var settingsPage by mutableStateOf<String?>(null)
+    /** scheda delle impostazioni: 0 Impostazioni, 1 Stile */
+    var settingsTab by mutableIntStateOf(0)
+
+    /** Indietro nelle impostazioni: dai sottomenu dei materiali si torna a "Materiale degli elementi". */
+    fun settingsBack() {
+        val p = settingsPage
+        settingsPage = if (p != null && p.startsWith("mat_")) "material" else null
+    }
+
+    /** Un elemento smette (o riprende) di seguire il materiale generale: la prima volta parte da quello generale. */
+    fun setElFollow(e: String, follow: Boolean) {
+        val s = settings
+        if (!follow && s.elStyle(e) == "standard" && e != "dock") {
+            setSetting("el_${e}_style", s.matStyle)
+            setSetting("el_${e}_opacity", s.matOpacity)
+            setSetting("el_${e}_glass", s.matGlass)
+            setSetting("el_${e}_corner", s.matCorner)
+        }
+        setSetting("el_${e}_follow", follow)
+    }
     /** schermate di benvenuto visibili */
     var showWelcome by mutableStateOf(false)
 

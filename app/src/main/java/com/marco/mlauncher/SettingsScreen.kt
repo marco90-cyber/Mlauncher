@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +28,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -115,19 +118,25 @@ private val dockNames = mapOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" 
 private fun pageTitle(key: String?) = when (key) {
     "home" -> "Schermata Home"
     "dock" -> "Dock"
-    "icons" -> "Icone e notifiche"
+    "icons" -> "Notifiche e app nascoste"
+    "theme" -> "Tema"
+    "material" -> "Materiale degli elementi"
+    "iconstyle" -> "Icone"
+    "clock" -> "Orologio"
+    "anim" -> "Animazioni"
     "folders" -> "Cartelle"
     "drawer" -> "Cassetto app"
     "widgets" -> "Widget e meteo"
     "minus" -> "Pagina \u22121"
     "search" -> "Ricerca"
     "gestures" -> "Gesti e vibrazione"
-    "look" -> "Tema e animazioni"
+    "look" -> "Tema"
     "backup" -> "Backup e manutenzione"
     "wallpaper" -> "Sfondo"
     "info" -> "Informazioni"
     "log" -> "Registro log"
-    else -> "Impostazioni"
+    null -> "Impostazioni"
+    else -> if (key.startsWith("mat_")) MAT_ELEMENTS.firstOrNull { it.first == key.removePrefix("mat_") }?.second ?: "Stile" else "Impostazioni"
 }
 
 /** Voce delle impostazioni da evidenziare (arrivando dalla ricerca). */
@@ -178,7 +187,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                 title = { Text(pageTitle(page), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (vm.settingsPage != null) vm.settingsPage = null else vm.overlay = Overlay.NONE
+                        if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
                     }
@@ -226,7 +235,18 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "minus" -> PageMinus(vm, host)
                     "search" -> PageSearch(vm)
                     "gestures" -> PageGestures(vm, host)
-                    "look" -> PageLook(vm, host)
+                    "look", "theme" -> PageTheme(vm)
+                    "material" -> PageMaterial(vm)
+                    "mat_dock" -> PageMatDock(vm)
+                    "mat_folder" -> PageMatFolder(vm)
+                    "mat_indicator" -> PageMatIndicator(vm)
+                    "mat_widgets" -> PageMatWidgets(vm)
+                    "mat_panels" -> PageMatPanels(vm)
+                    "mat_menus" -> PageMatMenus(vm)
+                    "mat_drawer" -> PageMatDrawer(vm)
+                    "iconstyle" -> PageIconStyle(vm)
+                    "clock" -> PageClock(vm, host)
+                    "anim" -> PageAnim(vm)
                     "wallpaper" -> PageWallpaper(vm, host)
                     "backup" -> PageBackup(vm, host)
                     "log" -> PageLog(vm)
@@ -302,25 +322,38 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.clickable { host.requestHomeRole() }
         )
     }
-    val sections = listOf(
-        "Personalizza" to listOf(
-            Cat("wallpaper", "Sfondo", "Immagine, ritaglio, colori, parallasse" + (if (s.liquid) " \u00b7 Liquid Glass" else ""), Icons.Default.Create),
-            Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home") + " \u00b7 indicatore di pagina", Icons.Default.Home),
-            Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 ${DOCK_STYLES.firstOrNull { it.first == s.dockStyle }?.second ?: ""}", Icons.Default.Menu),
-            Cat("folders", "Cartelle", "Forma, anteprima, sfocatura", Icons.Default.List),
+    // due schede, come Nova: come funziona e come appare
+    androidx.compose.material3.PrimaryTabRow(selectedTabIndex = vm.settingsTab, containerColor = cs.surface) {
+        listOf("Impostazioni", "Stile").forEachIndexed { i, l ->
+            androidx.compose.material3.Tab(selected = vm.settingsTab == i, onClick = { vm.settingsTab = i }, text = { Text(l) })
+        }
+    }
+    val matName = { st: String -> MATERIALS.firstOrNull { it.first == st }?.second ?: "" }
+    val sections = if (vm.settingsTab == 1) listOf(
+        "Aspetto" to listOf(
+            Cat("theme", "Tema", "${themeNames[s.theme] ?: ""} \u00b7 colori ${(ACCENTS.firstOrNull { it.first == s.accent }?.second ?: "").lowercase()} \u00b7 interruttori", Icons.Default.Create),
+            Cat("wallpaper", "Sfondo", "Immagine, Crea il tuo sfondo, effetti, Android", Icons.Default.Create),
+            Cat("material", "Materiale degli elementi", "${matName(s.matStyle)} \u00b7 dock, cartelle, widget, menu e altro", Icons.Default.Star),
+            Cat("iconstyle", "Icone", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 nomi" + (if (s.themedIcons) " \u00b7 Material You" else ""), Icons.Default.Star),
+            Cat("clock", "Orologio", "Widget orologio: " + (CLOCK_STYLES.firstOrNull { it.first == s.clockStyle }?.second ?: ""), Icons.Default.DateRange),
+            Cat("anim", "Animazioni", "Ritorno alla Home, cambio pagina, velocità", Icons.Default.Refresh)
+        )
+    ) else listOf(
+        "Home" to listOf(
+            Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home"), Icons.Default.Home),
+            Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 grandezza ${(s.dockSize * 100).toInt()}%", Icons.Default.Menu),
+            Cat("folders", "Cartelle", "Posizione, grandezza, colonne", Icons.Default.List),
             *(if (s.homeMode == "drawer") arrayOf(
                 Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
-            ) else emptyArray()),
-            Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 badge \u00b7 app nascoste", Icons.Default.Star),
-            Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Search),
-            *(if (s.homeMode == "all") arrayOf(
+            ) else arrayOf(
                 Cat("search", "Ricerca", if (s.searchLook == "minus") "Come la pagina \u22121" else "Classica", Icons.Default.Search)
-            ) else emptyArray()),
-            Cat("minus", "Pagina \u22121", if (s.minusOn) "Saluto, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.DateRange)
+            )),
+            Cat("minus", "Pagina \u22121", if (s.minusOn) "Saluto, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.DateRange),
+            Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Search)
         ),
         "Comportamento" to listOf(
             Cat("gestures", "Gesti e vibrazione", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
-            Cat("look", "Tema e animazioni", "Tema ${(themeNames[s.theme] ?: "").lowercase()}", Icons.Default.Create)
+            Cat("icons", "Notifiche e app nascoste", "Badge \u00b7 ${vm.hidden.size} app nascoste", Icons.Default.Notifications)
         ),
         "Sistema" to listOf(
             Cat("backup", "Backup e manutenzione", (if (s.autoBackup) "Backup automatico attivo" else "Backup automatico spento") + " \u00b7 esporta, ripristina", Icons.Default.Build),
@@ -371,7 +404,10 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
     val cs = MaterialTheme.colorScheme
     val words = q.lowercase().split(' ').filter { it.isNotBlank() }
     val drawerOn = vm.settings.homeMode == "drawer"
-    val pages = listOf("wallpaper", "home", "dock", "icons", "folders", "drawer", "widgets", "gestures", "look", "backup", "log", "info")
+    val pages = listOf(
+        "home", "dock", "folders", "drawer", "search", "minus", "widgets", "gestures", "icons", "backup", "log", "info",
+        "theme", "wallpaper", "material", "iconstyle", "clock", "anim"
+    ) + MAT_ELEMENTS.map { "mat_" + it.first }
     val results = remember(q, drawerOn) {
         val pageHits = pages.filter { p -> words.all { pageTitle(p).lowercase().contains(it) } }
             .map { SettingEntry(pageTitle(it), it, "", "Apri la sezione") }
@@ -379,7 +415,7 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
             val hay = (e.title + " " + e.group + " " + e.hint + " " + pageTitle(e.page)).lowercase()
             words.all { hay.contains(it) }
         }.sortedBy { if (it.title.lowercase().startsWith(words.first())) 0 else 1 }
-        (pageHits + hits).filter { drawerOn || it.page != "drawer" }
+        (pageHits + hits).filter { (drawerOn || it.page != "drawer") && (!drawerOn || it.page != "search") }
     }
     if (results.isEmpty()) {
         Text(
@@ -402,6 +438,7 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
                 colors = prefColors(),
                 modifier = Modifier.clickable {
                     vm.settingsHighlight = if (e.hint == "Apri la sezione") null else e.title
+                    vm.settingsTab = if (isStylePage(e.page)) 1 else 0
                     vm.settingsPage = e.page
                 }
             )
@@ -760,92 +797,21 @@ private fun PageHome(vm: LauncherViewModel) {
             vm.setSetting("iconScale", (it * 20).roundToInt() / 20f)
         }
     }
-    Group("Aspetto") {
-        SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
-        Dependent(s.showLabels) {
-            ChoiceRow(
-                "Colore dei nomi",
-                listOf("auto" to "Automatico (in base allo sfondo)", "white" to "Sempre bianchi", "dark" to "Sempre scuri"),
-                s.labelColor
-            ) { vm.setSetting("labelColor", it) }
-        }
+    Group("Schermo") {
         SwitchRow(
             "Rotazione della Home",
             "In orizzontale la dock passa a lato. Spento: la Home resta in verticale",
             s.allowRotation
         ) { vm.setSetting("allowRotation", it) }
-    }
-    Group("Pagine") {
-        ChoiceRow(
-            "Indicatore di pagina",
-            listOf(
-                "ios" to "iOS 27 (diventa \"Cerca\")",
-                "pill" to "Puntini (attivo allungato)",
-                "dots" to "Puntini semplici",
-                "lines" to "Linee",
-                "worm" to "Puntini con ovale scorrevole",
-                "progress" to "Barra di avanzamento",
-                "number" to "Numero (2 / 5)",
-                "none" to "Nessuno"
-            ),
-            s.pageIndicator,
-            preview = { IndicatorPreview(it) }
-        ) { vm.setSetting("pageIndicator", it) }
-        Dependent(s.pageIndicator != "none") {
-            SwitchRow(
-                "Indicatore come la dock",
-                "Prende stile, trasparenza ed effetto vetro della dock",
-                s.indFollowDock
-            ) { vm.setSetting("indFollowDock", it) }
-        }
-        ChoiceRow(
-            "Effetto cambio pagina",
-            listOf(
-                "slide" to "Scorrimento",
-                "fade" to "Dissolvenza",
-                "cube" to "Cubo",
-                "rotate" to "Rotazione",
-                "cascade" to "Cascata"
-            ),
-            s.pageEffect,
-            preview = { EffectPreview(it) }
-        ) { vm.setSetting("pageEffect", it) }
-        Text(
-            "Con qualsiasi indicatore: tieni premuto sopra e scorri per cambiare pagina al volo.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
-        )
+        StyleLink(vm, "Nomi delle app, forma delle icone", "iconstyle")
+        StyleLink(vm, "Indicatore di pagina", "mat_indicator")
     }
 }
 
 @Composable
 private fun PageDock(vm: LauncherViewModel) {
     val s = vm.settings
-    DockLivePreview(s)
-    Group("Stile") {
-        ChoiceRow(
-            "Stile della dock",
-            DOCK_STYLES,
-            s.dockStyle,
-            preview = { DockPreview(it, s.dockSlots, s.dockOpacity, s.dockGlass, s.dockCorner) }
-        ) { vm.setSetting("dockStyle", it) }
-        Dependent(s.dockStyle != "none") {
-        SwitchRow(
-            "Effetto glass",
-            "Riflesso e bordo luminoso come il vetro",
-            s.dockGlass
-        ) { vm.setSetting("dockGlass", it) }
-        SliderRow("Trasparenza", "${100 - s.dockOpacity}%", s.dockOpacity.toFloat(), 0f..100f, 19) {
-            val v = (it / 5f).roundToInt() * 5
-            if (v != s.dockOpacity) vm.setSetting("dockOpacity", v)
-        }
-        SliderRow("Arrotondamento", "${s.dockCorner} dp", s.dockCorner.toFloat(), 0f..40f, 0) {
-            val v = it.roundToInt()
-            if (v != s.dockCorner) vm.setSetting("dockCorner", v)
-        }
-        }
-    }
+    Group(null) { StyleLink(vm, "Aspetto della dock", "mat_dock") }
     OrientedGroup("Dimensioni", s) {
         SliderRow("Grandezza", "${(s.dockSize * 100).roundToInt()}%", s.dockSize, 0.8f..1.2f, 7) {
             vm.setSetting("dockSize", (it * 20).roundToInt() / 20f)
@@ -860,29 +826,6 @@ private fun PageDock(vm: LauncherViewModel) {
 @Composable
 private fun PageIcons(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
-    Group("Icone") {
-        ChoiceRow(
-            "Forma",
-            listOf(
-                "original" to "Predefinita (come sono sempre state)",
-                "ios" to "iOS (squircola)",
-                "circle" to "Cerchio",
-                "square" to "Quadrato arrotondato"
-            ),
-            s.iconShape,
-            preview = { ShapePreview(it, 34.dp) }
-        ) { vm.setSetting("iconShape", it) }
-        ChoiceRow(
-            "Pacchetto icone",
-            listOf("" to "Predefinito") + vm.iconPacks.map { it.first to it.second },
-            s.iconPack
-        ) { vm.setSetting("iconPack", it) }
-        SwitchRow(
-            "Icone Material You",
-            "Icone monocromatiche con i colori dello sfondo, dove l'app le supporta",
-            s.themedIcons
-        ) { vm.setSetting("themedIcons", it) }
-    }
     Group("Notifiche") {
         ChoiceRow(
             "Badge delle notifiche",
@@ -970,17 +913,7 @@ private fun PageDrawer(vm: LauncherViewModel) {
             s.newAppDot
         ) { vm.setSetting("newAppDot", it) }
     }
-    Group("Sfondo") {
-        ChoiceRow(
-            "Colore di sfondo",
-            listOf("surface" to "Superficie", "tonal" to "Tonale (colore principale)", "neutral" to "Neutro", "dark" to "Nero"),
-            s.drBg
-        ) { vm.setSetting("drBg", it) }
-        SliderRow("Opacità dello sfondo", "${s.drOpacity}%", s.drOpacity.toFloat(), 0f..100f, 19) {
-            val v = (it / 5f).roundToInt() * 5
-            if (v != s.drOpacity) vm.setSetting("drOpacity", v)
-        }
-    }
+    Group("Sfondo") { StyleLink(vm, "Aspetto del cassetto", "mat_drawer") }
     OrientedGroup("Griglia e spaziatura", s) {
         Dependent(s.drLayout == "grid") {
             SliderRow("Colonne", "${s.drCols}", s.drCols.toFloat(), 3f..6f, 2) {
@@ -1008,33 +941,7 @@ private fun PageDrawer(vm: LauncherViewModel) {
 @Composable
 private fun PageFolders(vm: LauncherViewModel) {
     val s = vm.settings
-    Group("Aspetto") {
-        SwitchRow(
-            "Segui l'aspetto della dock",
-            "Le cartelle usano stile, vetro e trasparenza della dock",
-            s.folderFollowDock
-        ) { vm.setSetting("folderFollowDock", it) }
-        ChoiceRow(
-            "Forma della cartella",
-            FOLDER_SHAPES,
-            s.folderShape,
-            preview = { FolderShapePreview(it) }
-        ) { vm.setSetting("folderShape", it) }
-        ChoiceRow(
-            "Anteprima della cartella",
-            listOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72 (icone grandi)", "stack" to "Ventaglio"),
-            s.folderPreview,
-            preview = { FolderPreview(it, s.folderBg, s.folderShape) }
-        ) { vm.setSetting("folderPreview", it) }
-        Dependent(!s.folderFollowDock) {
-            ChoiceRow(
-                "Sfondo della cartella",
-                listOf("tonal" to "Tonale", "primary" to "Colore principale", "dark" to "Scuro trasparente", "glass" to "Vetro chiaro"),
-                s.folderBg,
-                preview = { FolderPreview(s.folderPreview, it, s.folderShape) }
-            ) { vm.setSetting("folderBg", it) }
-        }
-    }
+    Group(null) { StyleLink(vm, "Aspetto delle cartelle", "mat_folder") }
     Group("Cartella aperta") {
         ChoiceRow(
             "Posizione",
@@ -1046,10 +953,6 @@ private fun PageFolders(vm: LauncherViewModel) {
             listOf("compact" to "Compatta", "large" to "Grande (quasi tutto lo schermo)"),
             s.folderSize
         ) { vm.setSetting("folderSize", it) }
-        SliderRow("Sfocatura dello sfondo", if (s.folderBlur == 0) "Nessuna" else "${s.folderBlur} dp", s.folderBlur.toFloat(), 0f..40f, 0) {
-            val v = (it / 2f).roundToInt() * 2
-            if (v != s.folderBlur) vm.setSetting("folderBlur", v)
-        }
         SliderRow("Colonne", "${s.folderCols}", s.folderCols.toFloat(), 3f..5f, 1) {
             val v = it.roundToInt()
             if (v != s.folderCols) vm.setSetting("folderCols", v)
@@ -1137,40 +1040,7 @@ private fun PageWidgets(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.clickable { cityDlg = true }
         )
     }
-    Group("Orologio") {
-        // anteprima dal vivo del widget orologio
-        Box(
-            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            val wb = vm.wallBitmap
-            Box(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(24.dp))) {
-                if (wb != null) androidx.compose.foundation.Image(
-                    wb, contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-                ClockWidget(vm, host, {}, Modifier.fillMaxSize().padding(10.dp))
-            }
-        }
-        ChoiceRow("Stile", CLOCK_STYLES, s.clockStyle) { vm.setSetting("clockStyle", it) }
-        ChoiceRow(
-            "Spessore delle cifre",
-            listOf("thin" to "Sottile", "normal" to "Normale", "bold" to "Grassetto"),
-            s.clockWeight
-        ) { vm.setSetting("clockWeight", it) }
-        ChoiceRow(
-            "Colore dei minuti",
-            listOf("accent" to "Colore d'accento", "same" to "Come le ore"),
-            s.clockMinutes
-        ) { vm.setSetting("clockMinutes", it) }
-        ChoiceRow(
-            "Data",
-            listOf("right" to "A destra dell'ora", "below" to "Sotto l'ora", "none" to "Nascosta"),
-            s.clockDate
-        ) { vm.setSetting("clockDate", it) }
-        SwitchRow("Secondi", "Mostra anche i secondi accanto ai minuti", s.clockSeconds) { vm.setSetting("clockSeconds", it) }
-    }
+    Group("Orologio") { StyleLink(vm, "Stile del widget orologio", "clock") }
     Group("Ricerca") {
         Text(
             "La barra di ricerca è un widget: tieni premuto sulla Home → Widget → Barra di ricerca. Puoi spostarla e ridimensionarla come gli altri.",
@@ -1264,24 +1134,8 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
 }
 
 @Composable
-private fun PageLook(vm: LauncherViewModel, host: Host) {
+private fun PageTheme(vm: LauncherViewModel) {
     val s = vm.settings
-    Group("Liquid Glass") {
-        SwitchRow(
-            "Tema Liquid Glass",
-            "Dock, cartelle, indicatore e widget in vetro liquido che piega e sfoca lo sfondo",
-            s.liquid
-        ) {
-            vm.setSetting("liquid", it)
-            if (it) {
-                vm.setSetting("dockStyle", "liquid")
-                vm.setSetting("folderFollowDock", true)
-                vm.setSetting("indFollowDock", true)
-            } else if (s.dockStyle == "liquid") {
-                vm.setSetting("dockStyle", "glass")
-            }
-        }
-    }
     Group("Tema") {
         ChoiceRow(
             "Tema",
@@ -1302,6 +1156,14 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
             preview = { SwitchStylePreview(it) }
         ) { vm.setSetting("switchStyle", it) }
     }
+    Group("Altro") {
+        StyleLink(vm, "Materiale degli elementi (vetro, Liquid Glass\u2026)", "material")
+    }
+}
+
+@Composable
+private fun PageAnim(vm: LauncherViewModel) {
+    val s = vm.settings
     Group("Ritorno alla Home") {
         ChoiceRow("Animazione", RETURN_ANIMS, s.returnAnim) { vm.setSetting("returnAnim", it) }
         Dependent(s.returnAnim != "none") {
@@ -1319,6 +1181,20 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
             }
         )
         }
+    }
+    Group("Pagine") {
+        ChoiceRow(
+            "Effetto cambio pagina",
+            listOf(
+                "slide" to "Scorrimento",
+                "fade" to "Dissolvenza",
+                "cube" to "Cubo",
+                "rotate" to "Rotazione",
+                "cascade" to "Cascata"
+            ),
+            s.pageEffect,
+            preview = { EffectPreview(it) }
+        ) { vm.setSetting("pageEffect", it) }
     }
     Group("Animazioni") {
         ChoiceRow(
@@ -1343,24 +1219,7 @@ private fun PageSearch(vm: LauncherViewModel) {
             listOf("minus" to "Come la pagina \u22121 (Home sfocata e contenitori)", "classic" to "Classico (sfondo pieno)"),
             s.searchLook
         ) { vm.setSetting("searchLook", it) }
-        Dependent(s.searchLook == "minus") {
-            SwitchRow("Uguale alla pagina \u22121", "Stesso contenitore, sfocatura e velo della pagina \u22121", s.searchSame) { vm.setSetting("searchSame", it) }
-            Dependent(!s.searchSame) {
-                ChoiceRow(
-                    "Contenitore dei risultati",
-                    listOf("dock" to "Come la dock", "tonal" to "Tonale", "glass" to "Vetro trasparente"),
-                    s.searchStyle
-                ) { vm.setSetting("searchStyle", it) }
-                SliderRow("Sfocatura della Home", if (s.searchBlur == 0) "No" else "${s.searchBlur} dp", s.searchBlur.toFloat(), 0f..40f, 0) {
-                    val v = it.roundToInt()
-                    if (v != s.searchBlur) vm.setSetting("searchBlur", v)
-                }
-                SliderRow("Velo del tema", "${s.searchDim}%", s.searchDim.toFloat(), 0f..70f, 13) {
-                    val v = (it / 5f).roundToInt() * 5
-                    if (v != s.searchDim) vm.setSetting("searchDim", v)
-                }
-            }
-        }
+        StyleLink(vm, "Materiale, sfocatura e velo", "mat_panels")
     }
     Group("Suggerimenti") {
         SwitchRow("App cercate e più usate", "Prima di scrivere, mostra le app che cerchi e usi di più", s.searchSuggest) { vm.setSetting("searchSuggest", it) }
@@ -1427,23 +1286,7 @@ private fun PageMinus(vm: LauncherViewModel, host: Host) {
             SwitchRow("Meteo accanto alla data", null, s.minusWeather) { vm.setSetting("minusWeather", it) }
         }
     }
-    Group("Aspetto") {
-        Dependent(s.minusOn) {
-            ChoiceRow(
-                "Contenitore dei widget",
-                listOf("dock" to "Come la dock", "tonal" to "Tonale", "glass" to "Vetro trasparente"),
-                s.minusStyle
-            ) { vm.setSetting("minusStyle", it) }
-            SliderRow("Sfocatura della Home", if (s.minusBlur == 0) "No" else "${s.minusBlur} dp", s.minusBlur.toFloat(), 0f..40f, 0) {
-                val v = it.roundToInt()
-                if (v != s.minusBlur) vm.setSetting("minusBlur", v)
-            }
-            SliderRow("Velo del tema", "${s.minusDim}%", s.minusDim.toFloat(), 0f..70f, 13) {
-                val v = (it / 5f).roundToInt() * 5
-                if (v != s.minusDim) vm.setSetting("minusDim", v)
-            }
-        }
-    }
+    Group("Aspetto") { StyleLink(vm, "Materiale, sfocatura e velo", "mat_panels") }
     Group("Widget") {
         Dependent(s.minusOn) {
             ListItem(
@@ -1960,3 +1803,464 @@ private fun ChoiceRow(
     preview: (@Composable (String) -> Unit)? = null,
     onSelect: (String) -> Unit
 ) = com.marco.mltheme.MLChoiceRow(title, options, current, modifier = Modifier.hl(title), preview = preview, onSelect = onSelect)
+
+// =====================================================================
+//  Stile: tema, materiale degli elementi, icone, orologio, animazioni
+// =====================================================================
+
+private val STYLE_PAGES = setOf("theme", "look", "wallpaper", "material", "iconstyle", "clock", "anim")
+
+/** Pagina della scheda "Stile" (serve per tornare alla scheda giusta). */
+internal fun isStylePage(page: String?) = page != null && (page in STYLE_PAGES || page.startsWith("mat_"))
+
+/** Collegamento a una pagina di un'altra scheda (es. dall'Impostazione al suo aspetto in Stile). */
+@Composable
+private fun StyleLink(vm: LauncherViewModel, title: String, page: String) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(if (isStylePage(page)) "In Stile" else "In Impostazioni") },
+        trailingContent = { Chevron() },
+        colors = prefColors(),
+        modifier = Modifier.clickable {
+            vm.settingsTab = if (isStylePage(page)) 1 else 0
+            vm.settingsPage = page
+        }
+    )
+}
+
+private fun matName(st: String) = when (st) {
+    "standard" -> "Aspetto originale"
+    else -> MATERIALS.firstOrNull { it.first == st }?.second ?: st
+}
+
+/** Sfondo vivace per le miniature: così vetro, scuro, tonale e pieno si distinguono a colpo d'occhio. */
+private val thumbWall = Brush.linearGradient(
+    listOf(Color(0xFFFF8A3D), Color(0xFFE0357A), Color(0xFF3B2BD6), Color(0xFF0A1440))
+)
+
+/** Miniatura di un materiale: capsula con tre icone su uno sfondo colorato. */
+@Composable
+internal fun MaterialPreview(style: String) {
+    val cs = MaterialTheme.colorScheme
+    Box(
+        Modifier.size(width = 66.dp, height = 42.dp).clip(RoundedCornerShape(10.dp)).background(thumbWall),
+        contentAlignment = Alignment.Center
+    ) {
+        // una macchia chiara: la trasparenza si vede dove passa sopra
+        Box(Modifier.align(Alignment.TopStart).offset(6.dp, 4.dp).size(26.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.75f)))
+        val m = Mat(style, 60, true, 10)
+        val look = when {
+            style == "standard" -> Modifier.clip(RoundedCornerShape(9.dp)).background(cs.surfaceContainerHigh)
+            m.plain -> Modifier
+            else -> Modifier.matLook(m, 9.dp)
+        }
+        Row(
+            Modifier.size(52.dp, 20.dp).then(look),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(3) { Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(Color.White)) }
+        }
+    }
+}
+
+/** Anteprima della Home con tutti gli elementi e il loro materiale; [focus] mette in risalto un elemento. */
+@Composable
+private fun MaterialLivePreview(vm: LauncherViewModel, focus: String?) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    fun a(e: String) = if (focus == null || focus == e) 1f else 0.35f
+    Box(
+        Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(250.dp)
+            .clip(RoundedCornerShape(28.dp)).background(previewWallpaper)
+    ) {
+        vm.wallBitmap?.let {
+            androidx.compose.foundation.Image(it, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // widget orologio
+            val wm = s.matOf("widgets")
+            Row(
+                Modifier.fillMaxWidth().height(50.dp).alpha(a("widgets"))
+                    .then(if (wm.plain) Modifier.clip(RoundedCornerShape(18.dp)).background(cs.primaryContainer) else Modifier.matLook(wm, 18.dp, minOpacity = 40))
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val fg = if (wm.plain) cs.onPrimaryContainer else matContentColor(wm)
+                Text("12:30", color = fg, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.weight(1f))
+                Text("Lunedì", color = fg, style = MaterialTheme.typography.labelMedium)
+            }
+            // icone, cartella e menu
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                repeat(2) { Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(Color.White.copy(alpha = 0.9f))) }
+                val fm = s.matOf("folder")
+                Box(
+                    Modifier.size(38.dp).alpha(a("folder"))
+                        .then(
+                            if (fm.plain) Modifier.clip(folderShapeOf(s.folderShape)).background(cs.surfaceContainerHighest.copy(alpha = 0.6f))
+                            else Modifier.matLook(fm, 11.dp, folderShapeOf(s.folderShape), minOpacity = 50)
+                        )
+                        .padding(7.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
+                        repeat(2) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                repeat(2) { Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(Color.White.copy(alpha = 0.95f))) }
+                            }
+                        }
+                    }
+                }
+                // menu rapido
+                val mm = s.matOf("menus").let { if (it.style == "liquid") it.copy(style = "glass") else it }
+                Column(
+                    Modifier.width(92.dp).alpha(a("menus"))
+                        .then(
+                            if (mm.plain) Modifier.clip(RoundedCornerShape(14.dp)).background(cs.surfaceContainerHigh)
+                            else Modifier.clip(RoundedCornerShape(14.dp)).background(cs.surfaceContainerHigh.copy(alpha = 0.72f)).matLook(mm, 14.dp, minOpacity = 40)
+                        )
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val fg = if (mm.plain) cs.onSurface else matContentColor(mm)
+                    Box(Modifier.fillMaxWidth(0.8f).height(5.dp).clip(CircleShape).background(fg.copy(alpha = 0.8f)))
+                    Box(Modifier.fillMaxWidth(0.6f).height(5.dp).clip(CircleShape).background(fg.copy(alpha = 0.6f)))
+                    Box(Modifier.fillMaxWidth(0.7f).height(5.dp).clip(CircleShape).background(fg.copy(alpha = 0.6f)))
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            // indicatore di pagina
+            val im = s.matOf("indicator")
+            Row(
+                Modifier.align(Alignment.CenterHorizontally).alpha(a("indicator"))
+                    .then(if (im.plain) Modifier else Modifier.matLook(im, 50.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                val fg = if (im.plain) Color.White else matContentColor(im)
+                repeat(4) { i -> Box(Modifier.size(if (i == 0) 14.dp else 6.dp, 6.dp).clip(CircleShape).background(fg.copy(alpha = if (i == 0) 1f else 0.5f))) }
+            }
+            // dock (con la sua forma)
+            val dm = s.matOf("dock")
+            val bar = s.dockForm == "bar"
+            val tiles = s.dockForm == "tiles"
+            Row(
+                Modifier.fillMaxWidth().height(54.dp).alpha(a("dock"))
+                    .padding(horizontal = if (bar) 0.dp else 4.dp)
+                    .then(if (tiles) Modifier else Modifier.matLook(dm, (dm.corner * 0.7f).dp, if (bar) RoundedCornerShape(topStart = (dm.corner * 0.7f).dp, topEnd = (dm.corner * 0.7f).dp) else null)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(4) {
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().padding(horizontal = 3.dp, vertical = 3.dp)
+                            .then(if (tiles) Modifier.matLook(dm, 12.dp) else Modifier),
+                        contentAlignment = Alignment.Center
+                    ) { Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.92f))) }
+                }
+            }
+        }
+    }
+}
+
+/** Materiale di un elemento: segue quello generale oppure ne ha uno suo. */
+@Composable
+private fun MatEditor(vm: LauncherViewModel, el: String, standard: String?, showCorner: Boolean = true) {
+    val s = vm.settings
+    val follow = s.elFollow(el)
+    Group("Materiale") {
+        SwitchRow("Segue il materiale generale", "Generale: ${matName(s.matStyle)}", follow) { vm.setElFollow(el, it) }
+        Dependent(!follow) {
+            val st = s.elStyle(el)
+            ChoiceRow(
+                "Materiale di questo elemento",
+                (if (standard != null) listOf("standard" to standard) else emptyList()) + MATERIALS,
+                st,
+                preview = { MaterialPreview(it) }
+            ) { vm.setSetting("el_${el}_style", it) }
+            Dependent(st != "standard" && st != "none") {
+                SwitchRow("Effetto glass", "Riflesso e bordo luminoso come il vetro", s.elGlass(el)) { vm.setSetting("el_${el}_glass", it) }
+                val op = s.elOpacity(el)
+                SliderRow("Trasparenza", "${100 - op}%", op.toFloat(), 0f..100f, 19) {
+                    val v = (it / 5f).roundToInt() * 5
+                    if (v != op) vm.setSetting("el_${el}_opacity", v)
+                }
+                if (showCorner) {
+                    val c = s.elCorner(el)
+                    SliderRow("Arrotondamento", "$c dp", c.toFloat(), 0f..40f, 0) {
+                        val v = it.roundToInt()
+                        if (v != c) vm.setSetting("el_${el}_corner", v)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageMaterial(vm: LauncherViewModel) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    MaterialLivePreview(vm, null)
+    Group("Materiale generale") {
+        ChoiceRow("Materiale", MATERIALS, s.matStyle, preview = { MaterialPreview(it) }) { vm.setSetting("matStyle", it) }
+        Dependent(s.matStyle != "none") {
+            SwitchRow("Effetto glass", "Riflesso e bordo luminoso come il vetro", s.matGlass) { vm.setSetting("matGlass", it) }
+            SliderRow("Trasparenza", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
+                val v = (it / 5f).roundToInt() * 5
+                if (v != s.matOpacity) vm.setSetting("matOpacity", v)
+            }
+            SliderRow("Arrotondamento", "${s.matCorner} dp", s.matCorner.toFloat(), 0f..40f, 0) {
+                val v = it.roundToInt()
+                if (v != s.matCorner) vm.setSetting("matCorner", v)
+            }
+        }
+    }
+    Group("Elementi della Home") {
+        Text(
+            "Ognuno segue il materiale generale oppure ne ha uno suo: toccalo per cambiarlo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+        MAT_ELEMENTS.forEach { (k, l) ->
+            val m = s.matOf(k)
+            ListItem(
+                headlineContent = { Text(l) },
+                supportingContent = { Text(if (s.elFollow(k)) "Segue il generale" else "Proprio: " + matName(s.elStyle(k))) },
+                leadingContent = { MaterialPreview(m.style) },
+                trailingContent = { Chevron() },
+                colors = prefColors(),
+                modifier = Modifier.clickable { vm.settingsPage = "mat_$k" }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PageMatDock(vm: LauncherViewModel) {
+    val s = vm.settings
+    MaterialLivePreview(vm, "dock")
+    MatEditor(vm, "dock", null)
+    Group("Forma") {
+        ChoiceRow(
+            "Forma della dock",
+            listOf("float" to "Fluttuante (staccata dai bordi)", "bar" to "Barra a tutta larghezza", "tiles" to "Tessere singole (una per icona)"),
+            s.dockForm
+        ) { vm.setSetting("dockForm", it) }
+    }
+}
+
+@Composable
+private fun PageMatFolder(vm: LauncherViewModel) {
+    val s = vm.settings
+    MaterialLivePreview(vm, "folder")
+    MatEditor(vm, "folder", "Aspetto originale (sfondo qui sotto)")
+    Group("Icona della cartella") {
+        ChoiceRow(
+            "Forma della cartella",
+            FOLDER_SHAPES,
+            s.folderShape,
+            preview = { FolderShapePreview(it) }
+        ) { vm.setSetting("folderShape", it) }
+        ChoiceRow(
+            "Anteprima della cartella",
+            listOf("grid" to "Griglia 3×3", "grid2" to "Griglia 2×2 (icone grandi)", "stack" to "Ventaglio"),
+            s.folderPreview,
+            preview = { FolderPreview(it, s.folderBg, s.folderShape) }
+        ) { vm.setSetting("folderPreview", it) }
+        Dependent(s.matOf("folder").plain) {
+            ChoiceRow(
+                "Sfondo della cartella",
+                listOf("tonal" to "Tonale", "primary" to "Colore principale", "dark" to "Scuro trasparente", "glass" to "Vetro chiaro"),
+                s.folderBg,
+                preview = { FolderPreview(s.folderPreview, it, s.folderShape) }
+            ) { vm.setSetting("folderBg", it) }
+        }
+    }
+    Group("Cartella aperta") {
+        SliderRow("Sfocatura dello sfondo", if (s.folderBlur == 0) "Nessuna" else "${s.folderBlur} dp", s.folderBlur.toFloat(), 0f..40f, 0) {
+            val v = (it / 2f).roundToInt() * 2
+            if (v != s.folderBlur) vm.setSetting("folderBlur", v)
+        }
+    }
+}
+
+@Composable
+private fun PageMatIndicator(vm: LauncherViewModel) {
+    val s = vm.settings
+    MaterialLivePreview(vm, "indicator")
+    Group("Indicatore") {
+        ChoiceRow(
+            "Indicatore di pagina",
+            listOf(
+                "ios" to "iOS 27 (diventa \"Cerca\")",
+                "pill" to "Puntini (attivo allungato)",
+                "dots" to "Puntini semplici",
+                "lines" to "Linee",
+                "worm" to "Puntini con ovale scorrevole",
+                "progress" to "Barra di avanzamento",
+                "number" to "Numero (2 / 5)",
+                "none" to "Nessuno"
+            ),
+            s.pageIndicator,
+            preview = { IndicatorPreview(it) }
+        ) { vm.setSetting("pageIndicator", it) }
+        Text(
+            "Con qualsiasi indicatore: tieni premuto sopra e scorri per cambiare pagina al volo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+    MatEditor(vm, "indicator", "Senza fondo (solo puntini)", showCorner = false)
+}
+
+@Composable
+private fun PageMatWidgets(vm: LauncherViewModel) {
+    MaterialLivePreview(vm, "widgets")
+    MatEditor(vm, "widgets", "Aspetto originale dei widget")
+    Group("Note") {
+        Text(
+            "Vale per orologio, meteo e barra di ricerca di MLauncher. Le note e i widget delle altre app mantengono il loro aspetto.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+        StyleLink(vm, "Stile del widget orologio", "clock")
+    }
+}
+
+@Composable
+private fun PageMatPanels(vm: LauncherViewModel) {
+    val s = vm.settings
+    MatEditor(vm, "panels", "Tonale (aspetto originale)")
+    Group("Dietro la pagina") {
+        SliderRow("Sfocatura della Home", if (s.minusBlur == 0) "No" else "${s.minusBlur} dp", s.minusBlur.toFloat(), 0f..40f, 0) {
+            val v = it.roundToInt()
+            if (v != s.minusBlur) vm.setSetting("minusBlur", v)
+        }
+        SliderRow("Velo del tema", "${s.minusDim}%", s.minusDim.toFloat(), 0f..70f, 13) {
+            val v = (it / 5f).roundToInt() * 5
+            if (v != s.minusDim) vm.setSetting("minusDim", v)
+        }
+        Text(
+            "Valgono per la pagina −1, per la ricerca e per il cassetto quando ha un materiale.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+}
+
+@Composable
+private fun PageMatMenus(vm: LauncherViewModel) {
+    MaterialLivePreview(vm, "menus")
+    MatEditor(vm, "menus", "Aspetto originale")
+    Group("Note") {
+        Text(
+            "I menu compaiono sopra la Home: con Liquid Glass diventano di vetro, perché da lì non possono piegare lo sfondo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+}
+
+@Composable
+private fun PageMatDrawer(vm: LauncherViewModel) {
+    val s = vm.settings
+    MatEditor(vm, "drawer", "Colore pieno (scegli qui sotto)", showCorner = false)
+    Group("Colore pieno") {
+        Dependent(s.matOf("drawer").plain) {
+            ChoiceRow(
+                "Colore di sfondo",
+                listOf("surface" to "Superficie", "tonal" to "Tonale (colore principale)", "neutral" to "Neutro", "dark" to "Nero"),
+                s.drBg
+            ) { vm.setSetting("drBg", it) }
+            SliderRow("Opacità dello sfondo", "${s.drOpacity}%", s.drOpacity.toFloat(), 0f..100f, 19) {
+                val v = (it / 5f).roundToInt() * 5
+                if (v != s.drOpacity) vm.setSetting("drOpacity", v)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageIconStyle(vm: LauncherViewModel) {
+    val s = vm.settings
+    Group("Icone") {
+        ChoiceRow(
+            "Forma",
+            listOf(
+                "original" to "Predefinita (come sono sempre state)",
+                "ios" to "iOS (squircola)",
+                "circle" to "Cerchio",
+                "square" to "Quadrato arrotondato"
+            ),
+            s.iconShape,
+            preview = { ShapePreview(it, 34.dp) }
+        ) { vm.setSetting("iconShape", it) }
+        ChoiceRow(
+            "Pacchetto icone",
+            listOf("" to "Predefinito") + vm.iconPacks.map { it.first to it.second },
+            s.iconPack
+        ) { vm.setSetting("iconPack", it) }
+        SwitchRow(
+            "Icone Material You",
+            "Icone monocromatiche con i colori dello sfondo, dove l'app le supporta",
+            s.themedIcons
+        ) { vm.setSetting("themedIcons", it) }
+    }
+    Group("Nomi delle app") {
+        SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
+        Dependent(s.showLabels) {
+            ChoiceRow(
+                "Colore dei nomi",
+                listOf("auto" to "Automatico (in base allo sfondo)", "white" to "Sempre bianchi", "dark" to "Sempre scuri"),
+                s.labelColor
+            ) { vm.setSetting("labelColor", it) }
+        }
+    }
+    Group("Grandezza") {
+        StyleLink(vm, "Dimensione delle icone e griglia", "home")
+    }
+}
+
+@Composable
+private fun PageClock(vm: LauncherViewModel, host: Host) {
+    val s = vm.settings
+    Group("Orologio") {
+        // anteprima dal vivo del widget orologio
+        Box(
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val wb = vm.wallBitmap
+            Box(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(24.dp))) {
+                if (wb != null) androidx.compose.foundation.Image(
+                    wb, contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                ClockWidget(vm, host, {}, Modifier.fillMaxSize().padding(10.dp))
+            }
+        }
+        ChoiceRow("Stile", CLOCK_STYLES, s.clockStyle) { vm.setSetting("clockStyle", it) }
+        ChoiceRow(
+            "Spessore delle cifre",
+            listOf("thin" to "Sottile", "normal" to "Normale", "bold" to "Grassetto"),
+            s.clockWeight
+        ) { vm.setSetting("clockWeight", it) }
+        ChoiceRow(
+            "Colore dei minuti",
+            listOf("accent" to "Colore d'accento", "same" to "Come le ore"),
+            s.clockMinutes
+        ) { vm.setSetting("clockMinutes", it) }
+        ChoiceRow(
+            "Data",
+            listOf("right" to "A destra dell'ora", "below" to "Sotto l'ora", "none" to "Nascosta"),
+            s.clockDate
+        ) { vm.setSetting("clockDate", it) }
+        SwitchRow("Secondi", "Mostra anche i secondi accanto ai minuti", s.clockSeconds) { vm.setSetting("clockSeconds", it) }
+    }
+}
