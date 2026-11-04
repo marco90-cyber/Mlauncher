@@ -184,7 +184,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(pageTitle(page), fontWeight = FontWeight.SemiBold) },
+                title = { Text(if (page == null && vm.settingsTab == 1) "Stile" else pageTitle(page), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
@@ -259,6 +259,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Dashboard(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
@@ -1968,7 +1969,8 @@ private fun MatEditor(vm: LauncherViewModel, el: String, standard: String?, show
     val s = vm.settings
     val follow = s.elFollow(el)
     Group("Materiale") {
-        SwitchRow("Segue il materiale generale", "Generale: ${matName(s.matStyle)}", follow) { vm.setElFollow(el, it) }
+        val general = "Generale: " + matName(s.matStyle)
+        SwitchRow("Segue il materiale generale", general, follow) { vm.setElFollow(el, it) }
         Dependent(!follow) {
             val st = s.elStyle(el)
             ChoiceRow(

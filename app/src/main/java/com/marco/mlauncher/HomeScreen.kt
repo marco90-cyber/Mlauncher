@@ -672,7 +672,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                BarButton("Sfondo") { vm.overlay = Overlay.SETTINGS; vm.settingsPage = "wallpaper" }
+                BarButton("Sfondo") { vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
                 BarButton("Widget") { vm.overlay = Overlay.WIDGETS }
                 BarButton("+ Pagina") {
                     vm.addPage()
@@ -1799,7 +1799,7 @@ private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: (
     ) {
         MenuSurface(vm, 28.dp, modifier = Modifier.width(menuW)) {
             Column(Modifier.padding(vertical = 8.dp)) {
-                HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); vm.overlay = Overlay.SETTINGS; vm.settingsPage = "wallpaper" }
+                HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
                 HomeMenuRow(Icons.Default.Add, "Widget") { onDismiss(); if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
                 HomeMenuRow(Icons.Default.Edit, "Modifica Home") { onDismiss(); vm.editMode = true }
                 HomeMenuRow(Icons.Default.Lock, if (vm.settings.lockHome) "Sblocca la Home" else "Blocca la Home") {

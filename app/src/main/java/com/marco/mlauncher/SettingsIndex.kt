@@ -90,7 +90,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("MLauncher", "info", "", ""),
     SettingEntry("Rivedi il benvenuto", "info", "Guida", ""),
     SettingEntry("Controlla all'avvio", "info", "Aggiornamenti", "Al massimo una volta ogni 6 ore"),
-    SettingEntry("Segue il materiale generale", "info", "Materiale", "Generale: ${matName(s.matStyle)}"),
+    SettingEntry("Segue il materiale generale", "info", "Materiale", ""),
     SettingEntry("Materiale di questo elemento", "info", "Materiale", ""),
     SettingEntry("Effetto glass", "info", "Materiale", "Riflesso e bordo luminoso come il vetro"),
     SettingEntry("Trasparenza", "info", "Materiale", ""),
