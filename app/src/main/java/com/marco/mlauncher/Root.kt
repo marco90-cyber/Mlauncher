@@ -84,7 +84,13 @@ fun Root(vm: LauncherViewModel, host: Host) {
         } else null
         Box(Modifier.fillMaxSize().onSizeChanged { rootSize = it; vm.screenPx = it }) {
             androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
-                Box(Modifier.fillMaxSize().blur(maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp))) {
+                // ricerca come la pagina −1: la Home dietro si sfoca
+                val searchBlur by androidx.compose.animation.core.animateDpAsState(
+                    if (vm.overlay == Overlay.DRAWER && vm.searchMinusLook) vm.searchBlurEff.dp else 0.dp,
+                    androidx.compose.animation.core.tween(Motion.ALL_APPS_OPEN, easing = Motion.Standard),
+                    label = "searchBlur"
+                )
+                Box(Modifier.fillMaxSize().blur(maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur))) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
                     if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm)) {
                         // sfoca e scurisci ora sono effetti dell'editor, dentro l'immagine

@@ -238,21 +238,26 @@ private fun MinusContent(vm: LauncherViewModel, host: Host) {
 
 /** Il contenitore dei widget, con l'aspetto scelto nelle impostazioni. */
 @Composable
-private fun MinusContainer(vm: LauncherViewModel, content: @Composable () -> Unit) {
+private fun MinusContainer(vm: LauncherViewModel, content: @Composable () -> Unit) =
+    GlassContainer(vm, vm.settings.minusStyle, content = content)
+
+/** Contenitore della pagina −1 (e della ricerca): "dock" come la dock, "glass" vetro, altrimenti tonale. */
+@Composable
+internal fun GlassContainer(vm: LauncherViewModel, style: String, pad: androidx.compose.ui.unit.Dp = 12.dp, content: @Composable () -> Unit) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(32.dp)
     val dockOk = s.dockStyle != "none" && s.dockStyle != "tiles"
     val look = when {
-        s.minusStyle == "dock" && dockOk -> Modifier.clip(shape)
+        style == "dock" && dockOk -> Modifier.clip(shape)
             .background(if (s.dockStyle == "liquid") Color.Transparent else cs.surfaceContainerHigh.copy(alpha = 0.45f))
             .dockLook(if (s.dockStyle == "bar") "pill" else s.dockStyle, maxOf(s.dockOpacity, 40), s.dockGlass, 32.dp)
-        s.minusStyle == "glass" -> Modifier.clip(shape)
+        style == "glass" -> Modifier.clip(shape)
             .background(cs.surface.copy(alpha = 0.30f))
             .border(1.dp, Color.White.copy(alpha = 0.22f), shape)
         else -> Modifier.clip(shape).background(cs.surfaceContainer.copy(alpha = 0.94f))
     }
-    Box(Modifier.fillMaxWidth().then(look).animateContentSize().padding(12.dp)) { content() }
+    Box(Modifier.fillMaxWidth().then(look).animateContentSize().padding(pad)) { content() }
 }
 
 @Composable

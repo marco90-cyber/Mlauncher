@@ -217,6 +217,15 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var minusBlur by mutableStateOf(sp.getInt("minusBlur", 24))
     var minusDim by mutableStateOf(sp.getInt("minusDim", 30))
     var minusWidgets by mutableStateOf(sp.getString("minusWidgets", "[]") ?: "[]")
+    // schermata di ricerca
+    /** "minus" (come la pagina −1) o "classic" */
+    var searchLook by mutableStateOf(sp.getString("searchLook", "minus") ?: "minus")
+    /** usa contenitore, sfocatura e velo della pagina −1 */
+    var searchSame by mutableStateOf(sp.getBoolean("searchSame", true))
+    var searchStyle by mutableStateOf(sp.getString("searchStyle", "dock") ?: "dock")
+    var searchBlur by mutableStateOf(sp.getInt("searchBlur", 24))
+    var searchDim by mutableStateOf(sp.getInt("searchDim", 30))
+    var searchSuggest by mutableStateOf(sp.getBoolean("searchSuggest", true))
     // widget orologio
     /** "tonal", "glass", "text", "filled" */
     var clockStyle by mutableStateOf(sp.getString("clockStyle", "tonal") ?: "tonal")
@@ -391,6 +400,12 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "minusWidgets" -> minusWidgets = value as String
             "myWalls" -> myWalls = value as String
             "clockStyle" -> clockStyle = value as String
+            "searchLook" -> searchLook = value as String
+            "searchSame" -> searchSame = value as Boolean
+            "searchStyle" -> searchStyle = value as String
+            "searchBlur" -> searchBlur = value as Int
+            "searchDim" -> searchDim = value as Int
+            "searchSuggest" -> searchSuggest = value as Boolean
             "clockWeight" -> clockWeight = value as String
             "clockMinutes" -> clockMinutes = value as String
             "clockDate" -> clockDate = value as String

@@ -692,8 +692,11 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         "neutral" -> cs.surfaceContainerHighest
         else -> cs.surface
     }
-    val fg = if (s.drBg == "dark") Color.White else if (s.drBg == "tonal") cs.onPrimaryContainer else cs.onSurface
-    Surface(Modifier.fillMaxSize(), color = bgColor.copy(alpha = s.drOpacity / 100f), contentColor = fg) {
+    val minusLook = searchOnly && vm.searchMinusLook
+    val fg = if (minusLook) cs.onSurface else if (s.drBg == "dark") Color.White else if (s.drBg == "tonal") cs.onPrimaryContainer else cs.onSurface
+    // come la pagina −1: velo del colore del tema sopra la Home sfocata
+    val surfaceColor = if (minusLook) cs.surface.copy(alpha = vm.searchDimEff / 100f) else bgColor.copy(alpha = s.drOpacity / 100f)
+    Surface(Modifier.fillMaxSize(), color = surfaceColor, contentColor = fg) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -703,13 +706,21 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
             // Mentre il cassetto si chiude (es. app appena aperta) il campo di testo viene tolto subito:
             // un campo ancora collegato alla tastiera durante l'animazione di uscita fa crashare Compose
             // (NullPointerException in LegacyCursorAnchorInfoController).
+            if (minusLook) Text(
+                "Cerca",
+                color = cs.onSurface,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 2.dp)
+            )
+            val pillBg = minusLook || s.drSearchBg
             if ((s.drSearchBar || searchOnly) && !active) Box(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 10.dp)
                     .heightIn(min = 58.dp)
                     .clip(RoundedCornerShape(32.dp))
-                    .background(if (s.drSearchBg) cs.surfaceContainerHigh else Color.Transparent)
+                    .background(if (pillBg) cs.surfaceContainerHigh.copy(alpha = 0.92f) else Color.Transparent)
             ) {
                 Row(Modifier.align(Alignment.CenterStart).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Search, contentDescription = null, tint = cs.onSurfaceVariant)
@@ -732,8 +743,8 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
                 },
                 shape = RoundedCornerShape(32.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = if (s.drSearchBg) cs.surfaceContainerHigh else Color.Transparent,
-                    unfocusedContainerColor = if (s.drSearchBg) cs.surfaceContainerHigh else Color.Transparent,
+                    focusedContainerColor = if (pillBg) cs.surfaceContainerHigh.copy(alpha = 0.92f) else Color.Transparent,
+                    unfocusedContainerColor = if (pillBg) cs.surfaceContainerHigh.copy(alpha = 0.92f) else Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
@@ -752,9 +763,9 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
                     .focusRequester(focus)
             )
             if (query.isNotBlank()) {
-                SearchResults(Modifier.weight(1f), list, query, vm, host)
+                SearchResults(Modifier.weight(1f), list, query, vm, host, minusLook)
             } else if (searchOnly) {
-                SearchSuggestions(Modifier.weight(1f), vm, host)
+                if (s.searchSuggest) SearchSuggestions(Modifier.weight(1f), vm, host, minusLook) else EmptySearch(Modifier.weight(1f))
             }
             val showGrid = !searchOnly && query.isBlank()
             if (showGrid) {
@@ -1157,7 +1168,11 @@ private fun ResultCard(app: AppEntry, query: String, vm: LauncherViewModel, host
 }
 
 @Composable
-private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: String, vm: LauncherViewModel, host: Host) {
+private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: String, vm: LauncherViewModel, host: Host, minusLook: Boolean = false) {
+    if (minusLook) {
+        SearchResultsBoxed(modifier, list, query, vm, host)
+        return
+    }
     val cs = MaterialTheme.colorScheme
     LazyColumn(
         modifier.fillMaxWidth(),
@@ -1231,8 +1246,67 @@ private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: Strin
  * Ricerca vuota: le app che cerchi più spesso e quelle che usi di più,
  * così spesso non serve nemmeno scrivere.
  */
+/** Risultati nello stile della pagina −1: ogni gruppo nel suo contenitore. */
 @Composable
-private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: Host) {
+private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: String, vm: LauncherViewModel, host: Host) {
+    val cs = MaterialTheme.colorScheme
+    val style = vm.searchStyleEff
+    @Composable
+    fun label(t: String) = Text(
+        t, style = MaterialTheme.typography.labelLarge, color = cs.primary,
+        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+    )
+    LazyColumn(
+        modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (list.isNotEmpty()) {
+            item(key = "best") {
+                GlassContainer(vm, style) {
+                    Column {
+                        label("Migliore corrispondenza")
+                        ResultCard(list.first(), query, vm, host, true)
+                    }
+                }
+            }
+            if (list.size > 1) item(key = "more") {
+                GlassContainer(vm, style) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        label("Altre app")
+                        list.drop(1).take(40).forEach { app -> androidx.compose.runtime.key(app.id) { ResultCard(app, query, vm, host, false) } }
+                    }
+                }
+            }
+        } else {
+            item(key = "none") {
+                GlassContainer(vm, style) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Nessuna app trovata", style = MaterialTheme.typography.titleMedium, color = cs.onSurface)
+                        Text("Prova con un altro nome", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+        item(key = "web") {
+            GlassContainer(vm, style, pad = 4.dp) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
+                        .clickable { vm.overlay = Overlay.NONE; host.webSearch(query.trim()) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = cs.primary)
+                    Spacer(Modifier.width(14.dp))
+                    Text("Cerca \u201c${query.trim()}\u201d sul web", color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: Host, minusLook: Boolean = false) {
     val cs = MaterialTheme.colorScheme
     val (searched, used) = remember(vm.sortedApps, vm.hidden.toList(), vm.homeSignal) {
         val visible = vm.sortedApps.filter { it.id !in vm.hidden }
@@ -1259,8 +1333,8 @@ private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: H
                             color = cs.primary,
                             modifier = Modifier.padding(start = 8.dp, bottom = 6.dp)
                         )
-                        Surface(shape = RoundedCornerShape(24.dp), color = cs.surfaceContainerHigh.copy(alpha = 0.7f)) {
-                            Column(Modifier.fillMaxWidth().padding(8.dp)) {
+                        val grid: @Composable () -> Unit = {
+                            Column(Modifier.fillMaxWidth()) {
                                 apps.chunked(4).forEach { row ->
                                     Row(Modifier.fillMaxWidth()) {
                                         row.forEach { a -> Box(Modifier.weight(1f)) { DrawerApp(a, vm, host, forceGrid = true) } }
@@ -1268,6 +1342,11 @@ private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: H
                                     }
                                 }
                             }
+                        }
+                        // come la pagina −1: lo stesso contenitore dei widget
+                        if (minusLook) GlassContainer(vm, vm.searchStyleEff, pad = 8.dp, content = grid)
+                        else Surface(shape = RoundedCornerShape(24.dp), color = cs.surfaceContainerHigh.copy(alpha = 0.7f)) {
+                            Box(Modifier.padding(8.dp)) { grid() }
                         }
                     }
                 }

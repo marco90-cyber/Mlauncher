@@ -120,6 +120,7 @@ private fun pageTitle(key: String?) = when (key) {
     "drawer" -> "Cassetto app"
     "widgets" -> "Widget e meteo"
     "minus" -> "Pagina \u22121"
+    "search" -> "Ricerca"
     "gestures" -> "Gesti e vibrazione"
     "look" -> "Tema e animazioni"
     "backup" -> "Backup e manutenzione"
@@ -223,6 +224,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "drawer" -> PageDrawer(vm)
                     "widgets" -> PageWidgets(vm, host)
                     "minus" -> PageMinus(vm, host)
+                    "search" -> PageSearch(vm)
                     "gestures" -> PageGestures(vm, host)
                     "look" -> PageLook(vm, host)
                     "wallpaper" -> PageWallpaper(vm, host)
@@ -311,6 +313,9 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
             ) else emptyArray()),
             Cat("icons", "Icone e notifiche", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 badge \u00b7 app nascoste", Icons.Default.Star),
             Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Search),
+            *(if (s.homeMode == "all") arrayOf(
+                Cat("search", "Ricerca", if (s.searchLook == "minus") "Come la pagina \u22121" else "Classica", Icons.Default.Search)
+            ) else emptyArray()),
             Cat("minus", "Pagina \u22121", if (s.minusOn) "Saluto, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.DateRange)
         ),
         "Comportamento" to listOf(
@@ -1326,6 +1331,39 @@ private fun PageLook(vm: LauncherViewModel, host: Host) {
             listOf("boom" to "Esplosione", "fade" to "Dissolvenza", "none" to "Nessuna"),
             s.uninstallAnim
         ) { vm.setSetting("uninstallAnim", it) }
+    }
+}
+
+@Composable
+private fun PageSearch(vm: LauncherViewModel) {
+    val s = vm.settings
+    Group("Aspetto") {
+        ChoiceRow(
+            "Stile della ricerca",
+            listOf("minus" to "Come la pagina \u22121 (Home sfocata e contenitori)", "classic" to "Classico (sfondo pieno)"),
+            s.searchLook
+        ) { vm.setSetting("searchLook", it) }
+        Dependent(s.searchLook == "minus") {
+            SwitchRow("Uguale alla pagina \u22121", "Stesso contenitore, sfocatura e velo della pagina \u22121", s.searchSame) { vm.setSetting("searchSame", it) }
+            Dependent(!s.searchSame) {
+                ChoiceRow(
+                    "Contenitore dei risultati",
+                    listOf("dock" to "Come la dock", "tonal" to "Tonale", "glass" to "Vetro trasparente"),
+                    s.searchStyle
+                ) { vm.setSetting("searchStyle", it) }
+                SliderRow("Sfocatura della Home", if (s.searchBlur == 0) "No" else "${s.searchBlur} dp", s.searchBlur.toFloat(), 0f..40f, 0) {
+                    val v = it.roundToInt()
+                    if (v != s.searchBlur) vm.setSetting("searchBlur", v)
+                }
+                SliderRow("Velo del tema", "${s.searchDim}%", s.searchDim.toFloat(), 0f..70f, 13) {
+                    val v = (it / 5f).roundToInt() * 5
+                    if (v != s.searchDim) vm.setSetting("searchDim", v)
+                }
+            }
+        }
+    }
+    Group("Suggerimenti") {
+        SwitchRow("App cercate e più usate", "Prima di scrivere, mostra le app che cerchi e usi di più", s.searchSuggest) { vm.setSetting("searchSuggest", it) }
     }
 }
 

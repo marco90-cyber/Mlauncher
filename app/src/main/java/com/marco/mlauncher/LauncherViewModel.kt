@@ -1191,6 +1191,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return minOf(base * settings.iconScale, 96f)
     }
 
+    /** la schermata di ricerca (Home con tutte le app) ha l'aspetto della pagina −1 */
+    val searchMinusLook: Boolean get() = settings.homeMode == "all" && settings.searchLook == "minus"
+    val searchStyleEff: String get() = if (settings.searchSame) settings.minusStyle else settings.searchStyle
+    val searchBlurEff: Int get() = if (settings.searchSame) settings.minusBlur else settings.searchBlur
+    val searchDimEff: Int get() = if (settings.searchSame) settings.minusDim else settings.searchDim
+
     fun searchCount(appId: String) = sp.getInt("srch_$appId", 0)
 
     /** app aperta dai risultati della ricerca: finisce tra le "Cercate spesso" */
