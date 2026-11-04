@@ -165,7 +165,7 @@ val MAT_ELEMENTS = listOf(
     "indicator" to "Indicatore di pagina",
     "widgets" to "Widget di MLauncher",
     "panels" to "Pagina \u22121 e ricerca",
-    "menus" to "Menu rapidi",
+    "menus" to "Menu e pulsanti",
     "drawer" to "Cassetto app"
 )
 

@@ -205,6 +205,8 @@ fun Modifier.pageEffect(effect: String, state: PagerState, page: Int): Modifier 
 fun HomeScreen(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
+    // pulsanti della modifica e "Crea cartella": materiale di "Menu e pulsanti"
+    val barMat = s.matOf("menus")
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val view = androidx.compose.ui.platform.LocalView.current
@@ -672,17 +674,17 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                BarButton("Sfondo") { vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
-                BarButton("Widget") { vm.overlay = Overlay.WIDGETS }
-                BarButton("+ Pagina") {
+                BarButton(barMat, "Sfondo") { vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
+                BarButton(barMat, "Widget") { vm.overlay = Overlay.WIDGETS }
+                BarButton(barMat, "+ Pagina") {
                     vm.addPage()
                     scope.launch {
                         delay(80)
                         pagerState.animateScrollToPage(vm.pageCount - 1)
                     }
                 }
-                BarButton("Impostazioni") { vm.overlay = Overlay.SETTINGS }
-                BarButton("Fine") { vm.exitEdit() }
+                BarButton(barMat, "Impostazioni") { vm.overlay = Overlay.SETTINGS }
+                BarButton(barMat, "Fine") { vm.exitEdit() }
             }
         }
 
@@ -707,13 +709,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     .align(Alignment.TopCenter)
                     .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(top = 8.dp)
-                    .clip(CircleShape)
-                    .background(if (inZone) cs.primary else cs.secondaryContainer)
+                    .then(
+                        if (inZone || barMat.plain) Modifier.clip(CircleShape).background(if (inZone) cs.primary else cs.secondaryContainer)
+                        else Modifier.matLook(barMat, 50.dp, CircleShape, minOpacity = 40)
+                    )
                     .padding(horizontal = 22.dp, vertical = 12.dp)
             ) {
                 Text(
                     "Crea cartella (${d.collected.size + 1} app)",
-                    color = if (inZone) cs.onPrimary else cs.onSecondaryContainer,
+                    color = if (inZone) cs.onPrimary else if (barMat.plain) cs.onSecondaryContainer else matContentColor(barMat),
                     fontSize = 14.sp
                 )
             }
@@ -845,12 +849,21 @@ private fun SettingsButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun BarButton(text: String, onClick: () -> Unit) {
-    FilledTonalButton(
-        onClick = onClick,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-        modifier = Modifier.height(36.dp)
-    ) { Text(text, fontSize = 12.sp, maxLines = 1) }
+private fun BarButton(m: Mat, text: String, onClick: () -> Unit) {
+    if (m.plain) {
+        FilledTonalButton(
+            onClick = onClick,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+            modifier = Modifier.height(36.dp)
+        ) { Text(text, fontSize = 12.sp, maxLines = 1) }
+        return
+    }
+    // pulsanti della modifica con il materiale di "Menu e pulsanti"
+    Box(
+        Modifier.height(36.dp).matLook(m, 18.dp, CircleShape, minOpacity = 40)
+            .clip(CircleShape).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(text, color = matContentColor(m), fontSize = 12.sp, maxLines = 1) }
 }
 
 @Composable
