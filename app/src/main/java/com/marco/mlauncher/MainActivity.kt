@@ -227,6 +227,8 @@ class MainActivity : ComponentActivity(), Host {
             MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null) {
                 Root(vm, this@MainActivity)
                 AppUpdateHost()
+                val hideSb = vm.settings.hideStatusBar
+                androidx.compose.runtime.LaunchedEffect(hideSb) { applyStatusBar(hideSb) }
             }
         }
     }
@@ -278,6 +280,7 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun onResume() {
         super.onResume()
+        applyStatusBar(vm.settings.hideStatusBar)
         // configurazione aperta a parte: al ritorno il widget si aggiunge
         if (waitConfigReturn && android.os.SystemClock.uptimeMillis() - configOpenedAt > 1500L) {
             val info = pendingInfo
@@ -368,7 +371,47 @@ class MainActivity : ComponentActivity(), Host {
 
     // ---------- Host ----------
 
+    /** Esegue un'azione di MLauncher (icona "azione" in Home). */
+    private fun runAction(spec: String) {
+        AppLog.i("Azione $spec")
+        val key = spec.substringBefore(":")
+        when (key) {
+            "drawer" -> { vm.openFolderId = null; vm.overlay = Overlay.DRAWER }
+            "search" -> { vm.openFolderId = null; vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
+            "notif" -> expandNotifications()
+            "qs" -> try {
+                Class.forName("android.app.StatusBarManager").getMethod("expandSettingsPanel").invoke(getSystemService("statusbar"))
+            } catch (e: Exception) {
+                Toast.makeText(this, "Non posso aprire le impostazioni rapide da qui", Toast.LENGTH_SHORT).show()
+            }
+            "recents" -> {
+                val svc = MLAccessibilityService.instance
+                if (svc == null) Toast.makeText(this, "Attiva il servizio di accessibilità di MLauncher", Toast.LENGTH_SHORT).show()
+                else svc.recents()
+            }
+            "lock" -> lockScreen()
+            "statusbar" -> vm.setSetting("hideStatusBar", !vm.settings.hideStatusBar)
+            "dock" -> vm.setSetting("hideDock", !vm.settings.hideDock)
+            "home" -> vm.goToPage(0)
+            "page" -> vm.goToPage((spec.substringAfter(":").toIntOrNull() ?: 1) - 1)
+            "overview" -> vm.showOverview = true
+        }
+    }
+
+    /** Barra di stato nascosta con l'azione "Barra di stato" (si rivede scorrendo dall'alto). */
+    private fun applyStatusBar(hide: Boolean) {
+        val c = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        if (hide) {
+            c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            c.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+        } else c.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+    }
+
     override fun launch(app: AppEntry, bounds: Rect?) {
+        if (app.pkg == packageName && app.isAction) {
+            runAction(app.cls.removePrefix(ACTION_PREFIX))
+            return
+        }
         if (app.pkg == packageName && app.cls == SETTINGS_CLS) {
             vm.openFolderId = null
             vm.overlay = Overlay.SETTINGS

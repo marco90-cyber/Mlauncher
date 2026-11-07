@@ -450,6 +450,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** posizione della cartella toccata: la cartella aperta nasce da lì */
     var folderAnchor by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
     var homeSignal by mutableIntStateOf(0)
+    /** richiesta di andare a una pagina (azione "Pagina N") */
+    var pageReq by mutableIntStateOf(-1)
+    var pageReqN by mutableIntStateOf(0)
+    /** anteprima di tutte le pagine (azione "Anteprima pagine") */
+    var showOverview by mutableStateOf(false)
+
+    fun goToPage(p: Int) {
+        pageReq = p
+        pageReqN += 1
+    }
+
+    /** Aggiunge in Home l'icona di un'azione di MLauncher. */
+    fun addActionToHome(spec: String) {
+        if (blockedByLock()) return
+        val id = "${ctx.packageName}/$ACTION_PREFIX$spec"
+        if (id !in apps) return
+        addApp(id, maxOf(currentPage, 0))
+        saveLayout()
+        overlay = Overlay.NONE
+        AppLog.i("Azione $spec aggiunta in Home")
+    }
         private set
     var currentPage by mutableIntStateOf(0)
     var isDefaultHome by mutableStateOf(false)
@@ -649,6 +670,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 // senza icona dell'app
             }
+            // azioni di MLauncher (non compaiono nel cassetto: solo se le aggiungi tu)
+            val specs = MLA_ACTIONS.map { it.first to it.second } + (1..ACTION_MAX_PAGE).map { "page:$it" to "Pagina $it" }
+            for ((spec, label) in specs) {
+                try {
+                    val d = actionIcon(ctx, spec)
+                    val r = renderIcons(d)
+                    result.add(AppEntry(ctx.packageName, ACTION_PREFIX + spec, label, r.first, r.second, false, renderRaw(d)))
+                } catch (e: Exception) {
+                    AppLog.e("Icona dell'azione $spec non creata", e)
+                }
+            }
         }
         return result
     }
@@ -729,7 +761,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val list = loadAppCache(pack) ?: return@launch
             if (loaded || list.isEmpty()) return@launch
             apps = list.associateBy { it.id }
-            sortedApps = list.sortedBy { it.label.lowercase() }
+            sortedApps = list.filter { !it.isAction }.sortedBy { it.label.lowercase() }
             loaded = true
             AppLog.i("Home mostrata dalla cache: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
         }
@@ -760,7 +792,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
             fresh.forEach { map[it.id] = it }
             apps = map
-            sortedApps = map.values.sortedBy { it.label.lowercase() }
+            sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
             reconcile()
             loaded = true
             if (pkg == null) AppLog.i("App caricate: ${map.size} in ${System.currentTimeMillis() - t0} ms")
@@ -2536,7 +2568,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val map = HashMap(apps)
         map.remove(appId)
         apps = map
-        sortedApps = map.values.sortedBy { it.label.lowercase() }
+        sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
         pendingUninstall = null
         saveLayout()
     }

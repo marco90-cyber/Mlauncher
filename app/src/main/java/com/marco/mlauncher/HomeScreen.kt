@@ -55,6 +55,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -478,6 +480,14 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         menuItem = null
         if (vm.homeSignal > 0) pagerState.animateScrollToPage(0)
     }
+    // azione "Pagina N" / "Pagina principale"
+    LaunchedEffect(vm.pageReqN) {
+        val p = vm.pageReq
+        if (vm.pageReqN > 0 && p >= 0) pagerState.animateScrollToPage(p.coerceIn(0, maxOf(0, vm.pageCount - 1)))
+    }
+    if (vm.showOverview) {
+        androidx.activity.compose.BackHandler { vm.showOverview = false }
+    }
 
     // cambio pagina trascinando vicino al bordo
     val edgePx = with(density) { 36.dp.toPx() }
@@ -633,13 +643,13 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 )
             ) {
                 // con il telefono ruotato dall'altra parte la dock sta a sinistra, come in Launcher3
-                if (seascape) dockContent()
+                if (seascape && (!s.hideDock || edit)) dockContent()
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
                     Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
                     PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
                 }
-                if (!seascape) dockContent()
+                if (!seascape && (!s.hideDock || edit)) dockContent()
             }
         } else {
         Column(
@@ -651,16 +661,25 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
             PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
-            Dock(
+            if (!s.hideDock || edit) Dock(
                 vm = vm,
                 host = host,
                 dragId = hiddenIds,
                 cb = cb,
                 onMenu = onMenu,
                 onRect = { dockRect = it }
-            )
+            ) else {
+                dockRect = Rect.Zero
+                Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars).height(8.dp))
+            }
         }
 
+        }
+
+        // anteprima delle pagine (azione "Anteprima pagine")
+        if (vm.showOverview) PagesOverview(vm, pagerState.currentPage) { p ->
+            vm.showOverview = false
+            scope.launch { pagerState.animateScrollToPage(p) }
         }
 
         // barra modifica
@@ -1757,7 +1776,10 @@ internal fun QuickMenu(
                         first = false
                         MenuRow(text, icon, bmp, danger) { onDismiss(); click() }
                     }
-                    if (app != null) {
+                    if (app != null && app.isAction) {
+                        row("Rimuovi", Icons.Default.Close) { vm.removeWidgetItem(item) }
+                        row("Modifica", Icons.Default.Edit) { vm.editMode = true }
+                    } else if (app != null) {
                         shortcuts.forEach { sc -> row(sc.label, bmp = sc.icon) { vm.launchShortcut(sc) } }
                         if (vm.settings.homeMode == "drawer") row("Rimuovi", Icons.Default.Close) { vm.removeWidgetItem(item) }
                         row("Informazioni app", Icons.Default.Info) { host.appInfo(app) }
@@ -1930,5 +1952,63 @@ private fun MenuRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+
+/** Tutte le pagine in piccolo: tocchi quella dove vuoi andare. */
+@Composable
+private fun PagesOverview(vm: LauncherViewModel, current: Int, onPick: (Int) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.62f))
+            .pointerInput(Unit) { detectTapGestures { vm.showOverview = false } }
+            .windowInsetsPadding(WindowInsets.systemBars)
+    ) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Pagine", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+            (0 until vm.pageCount).chunked(2).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    row.forEach { p ->
+                        Column(
+                            Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).clickable { onPick(p) },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            PageThumb(vm, p, p == current)
+                            Text("Pagina ${p + 1}", color = Color.White, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+                        }
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageThumb(vm: LauncherViewModel, page: Int, current: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().aspectRatio(0.56f).clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = 0.12f))
+            .border(if (current) 3.dp else 1.dp, if (current) cs.primary else Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+            .padding(8.dp)
+    ) {
+        val cw = maxWidth / vm.gridCols
+        val ch = maxHeight / vm.gridRows
+        vm.items.filter { it.page == page }.forEach { it ->
+            Box(Modifier.offset(cw * it.x, ch * it.y).size(cw * it.spanX, ch * it.spanY).padding(3.dp)) {
+                when (it) {
+                    is AppItem -> vm.apps[it.appId]?.let { a ->
+                        androidx.compose.foundation.Image(a.icon, null, Modifier.fillMaxSize(0.82f).align(Alignment.Center))
+                    }
+                    is FolderItem -> Box(Modifier.fillMaxSize(0.82f).align(Alignment.Center).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.4f)))
+                    else -> Box(Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.25f)))
+                }
+            }
+        }
     }
 }

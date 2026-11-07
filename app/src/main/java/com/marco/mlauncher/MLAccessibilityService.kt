@@ -21,6 +21,8 @@ class MLAccessibilityService : AccessibilityService() {
 
     fun lock(): Boolean = performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
 
+    fun recents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
+
     companion object {
         var instance: MLAccessibilityService? = null
     }

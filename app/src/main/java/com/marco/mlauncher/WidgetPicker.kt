@@ -167,6 +167,47 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
                 }
                 Spacer(Modifier.height(12.dp))
             }
+            // azioni di MLauncher (come le Azioni Nova): icone in Home che fanno qualcosa
+            if (!vm.minusPick && vm.stackTarget == null) item {
+                SectionTitle("Azioni MLauncher")
+                var pickPage by remember { mutableStateOf(false) }
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    MLA_ACTIONS.forEach { (k, l) -> item { ActionCard(vm, k, l) { vm.addActionToHome(k) } } }
+                    item { ActionCard(vm, "page:1", "Vai a pagina\u2026") { pickPage = true } }
+                }
+                Text(
+                    "\u201cApp recenti\u201d e \u201cBlocca schermo\u201d usano il servizio di accessibilità di MLauncher.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                )
+                if (pickPage) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { pickPage = false },
+                        title = { Text("Vai a quale pagina?") },
+                        text = {
+                            Column {
+                                (1..ACTION_MAX_PAGE).chunked(3).forEach { row ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        row.forEach { n ->
+                                            androidx.compose.material3.FilledTonalButton(
+                                                onClick = { pickPage = false; vm.addActionToHome("page:$n") },
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("$n") }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { pickPage = false }) { Text("Annulla") } }
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+            }
             items(groups, key = { it.pkg }) { g ->
                 val open = expanded == g.pkg
                 Column {
@@ -356,5 +397,25 @@ private fun ExtCard(vm: LauncherViewModel, host: Host, info: AppWidgetProviderIn
         } else {
             Text("…", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+
+/** Un'azione di MLauncher nel selettore: tocca per metterla in Home. */
+@Composable
+private fun ActionCard(vm: LauncherViewModel, spec: String, label: String, onClick: () -> Unit) {
+    val entry = vm.apps.values.firstOrNull { it.isAction && it.cls == ACTION_PREFIX + spec }
+    Column(
+        Modifier.width(84.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (entry != null) Image(entry.icon, null, Modifier.size(52.dp)) else Spacer(Modifier.size(52.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 2,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)
+        )
     }
 }

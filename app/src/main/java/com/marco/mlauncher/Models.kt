@@ -289,6 +289,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var minusBlur by mutableStateOf(sp.getInt("minusBlur", 24))
     var minusDim by mutableStateOf(sp.getInt("minusDim", 30))
     var minusWidgets by mutableStateOf(sp.getString("minusWidgets", "[]") ?: "[]")
+    // azioni: barra di stato e dock nascoste
+    var hideStatusBar by mutableStateOf(sp.getBoolean("hideStatusBar", false))
+    var hideDock by mutableStateOf(sp.getBoolean("hideDock", false))
     // schermata di ricerca
     /** "minus" (come la pagina −1) o "classic" */
     var searchLook by mutableStateOf(sp.getString("searchLook", "minus") ?: "minus")
@@ -479,6 +482,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "myWalls" -> myWalls = value as String
             "clockStyle" -> clockStyle = value as String
             "searchLook" -> searchLook = value as String
+            "hideStatusBar" -> hideStatusBar = value as Boolean
+            "hideDock" -> hideDock = value as Boolean
             "searchSame" -> searchSame = value as Boolean
             "searchStyle" -> searchStyle = value as String
             "searchBlur" -> searchBlur = value as Int
