@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -1679,10 +1680,12 @@ private fun WidgetCell(
                         2 -> Alignment.CenterEnd
                         else -> Alignment.BottomCenter
                     }
+                    // zona di presa grande (48 dp) e, sul bordo dello schermo, niente gesto Indietro
                     Box(
                         Modifier
                             .align(al)
-                            .size(30.dp)
+                            .size(48.dp)
+                            .systemGestureExclusion()
                             .pointerInput(item.id, side) {
                                 var x0 = 0
                                 var y0 = 0
@@ -1715,7 +1718,8 @@ private fun WidgetCell(
                                     }
                                 )
                             },
-                        contentAlignment = Alignment.Center
+                        // il pallino si vede sul bordo del widget, la presa si estende verso l'interno
+                        contentAlignment = al
                     ) {
                         Box(
                             Modifier.size(18.dp).shadow(3.dp, CircleShape).clip(CircleShape)
