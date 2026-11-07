@@ -24,6 +24,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -91,7 +95,17 @@ fun WidgetPicker(vm: LauncherViewModel, host: Host) {
     }
 }
 
-private class WidgetGroup(val pkg: String, val label: String, val list: List<AppWidgetProviderInfo>)
+private class WidgetGroup(val pkg: String, val label: String, val list: List<AppWidgetProviderInfo>, val names: List<String>)
+
+/** Widget di MLauncher: nome, tipo e grandezza. */
+private val INTERNAL_WIDGETS = listOf(
+    Triple("Orologio", "clock", 2 to 1), Triple("Orologio", "clock", 2 to 2), Triple("Orologio", "clock", 4 to 2),
+    Triple("Orologio analogico", "analog", 2 to 2), Triple("Orologio analogico", "analog", 4 to 2),
+    Triple("Batteria", "battery", 1 to 1), Triple("Batteria", "battery", 2 to 1), Triple("Batteria", "battery", 2 to 2), Triple("Batteria", "battery", 4 to 2),
+    Triple("Nota veloce", "notes", 2 to 2), Triple("Nota veloce", "notes", 4 to 2), Triple("Nota veloce", "notes", 4 to 3),
+    Triple("Barra di ricerca", "search", 4 to 1), Triple("Barra di ricerca", "search", 3 to 1), Triple("Ricerca (icona)", "search", 1 to 1),
+    Triple("Meteo", "weather", 2 to 2), Triple("Meteo", "weather", 4 to 2)
+)
 
 @Composable
 internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = true) {
@@ -109,7 +123,8 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                     } catch (e: Exception) {
                         pkg
                     }
-                    WidgetGroup(pkg, label, list)
+                    val names = list.map { i -> try { i.loadLabel(pm) ?: "" } catch (e: Exception) { "" } }
+                    WidgetGroup(pkg, label, list, names)
                 }
                 .sortedBy { it.label.lowercase() }
         } catch (e: Exception) {
@@ -117,11 +132,24 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
         }
     }
     var expanded by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+    val q = query.trim().lowercase()
     androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose { vm.stackTarget = null; vm.minusPick = false }
     }
+    // cerca widget: per nome del widget o dell'app
+    val internal = INTERNAL_WIDGETS.filter { q.isEmpty() || it.first.lowercase().contains(q) }
+    val stacks = !vm.minusPick && (q.isEmpty() || "stack".contains(q) || "pila".contains(q))
+    val actions = MLA_ACTIONS.filter { q.isEmpty() || it.second.lowercase().contains(q) }
+    val pageAction = q.isEmpty() || "vai a pagina".contains(q)
+    val shown = if (q.isEmpty()) groups.map { it to it.list } else groups.mapNotNull { g ->
+        if (g.label.lowercase().contains(q)) g to g.list
+        else g.list.filterIndexed { i, _ -> g.names[i].lowercase().contains(q) }.takeIf { it.isNotEmpty() }?.let { g to it }
+    }
 
-    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+    // il testo prende sempre il colore giusto sul fondo del pannello (anche dentro l'anteprima pagine)
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides cs.onSurface) {
+    Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
         // nell'anteprima pagine maniglia e titolo li disegna il pannello che la contiene
         if (header) {
         Box(
@@ -139,47 +167,45 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
         )
         }
+        androidx.compose.material3.OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            placeholder = { Text("Cerca widget") },
+            leadingIcon = { androidx.compose.material3.Icon(Icons.Default.Search, null) },
+            trailingIcon = {
+                if (query.isNotEmpty()) androidx.compose.material3.IconButton(onClick = { query = "" }) {
+                    androidx.compose.material3.Icon(Icons.Default.Close, "Cancella")
+                }
+            },
+            shape = RoundedCornerShape(28.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+        )
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item {
+            if (internal.isNotEmpty() || stacks) item {
                 SectionTitle("MLauncher")
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    item { InternalCard(vm, host, "Orologio", "clock", 2, 1) }
-                    item { InternalCard(vm, host, "Orologio", "clock", 2, 2) }
-                    item { InternalCard(vm, host, "Orologio", "clock", 4, 2) }
-                    item { InternalCard(vm, host, "Orologio analogico", "analog", 2, 2) }
-                    item { InternalCard(vm, host, "Orologio analogico", "analog", 4, 2) }
-                    item { InternalCard(vm, host, "Batteria", "battery", 1, 1) }
-                    item { InternalCard(vm, host, "Batteria", "battery", 2, 1) }
-                    item { InternalCard(vm, host, "Batteria", "battery", 2, 2) }
-                    item { InternalCard(vm, host, "Batteria", "battery", 4, 2) }
-                    item { InternalCard(vm, host, "Nota veloce", "notes", 2, 2) }
-                    item { InternalCard(vm, host, "Nota veloce", "notes", 4, 2) }
-                    item { InternalCard(vm, host, "Nota veloce", "notes", 4, 3) }
-                    item { InternalCard(vm, host, "Barra di ricerca", "search", 4, 1) }
-                    item { InternalCard(vm, host, "Barra di ricerca", "search", 3, 1) }
-                    item { InternalCard(vm, host, "Ricerca (icona)", "search", 1, 1) }
-                    item { InternalCard(vm, host, "Meteo", "weather", 2, 2) }
-                    item { InternalCard(vm, host, "Meteo", "weather", 4, 2) }
-                    if (!vm.minusPick) item { EmptyStackCard(vm, 2, 2) }
-                    if (!vm.minusPick) item { EmptyStackCard(vm, 4, 2) }
-                    if (!vm.minusPick) item { EmptyStackCard(vm, 2, 1) }
-                    if (!vm.minusPick) item { EmptyStackCard(vm, 4, 4) }
+                    internal.forEach { (t, k, sz) -> item { InternalCard(vm, host, t, k, sz.first, sz.second) } }
+                    if (stacks) item { EmptyStackCard(vm, 2, 2) }
+                    if (stacks) item { EmptyStackCard(vm, 4, 2) }
+                    if (stacks) item { EmptyStackCard(vm, 2, 1) }
+                    if (stacks) item { EmptyStackCard(vm, 4, 4) }
                 }
                 Spacer(Modifier.height(12.dp))
             }
             // azioni di MLauncher (come le Azioni Nova): icone in Home che fanno qualcosa
-            if (!vm.minusPick && vm.stackTarget == null) item {
+            if (!vm.minusPick && vm.stackTarget == null && (actions.isNotEmpty() || pageAction)) item {
                 SectionTitle("Azioni MLauncher")
                 var pickPage by remember { mutableStateOf(false) }
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    MLA_ACTIONS.forEach { (k, l) -> item { ActionCard(vm, k, l) { vm.addActionToHome(k) } } }
-                    item { ActionCard(vm, "page:1", "Vai a pagina\u2026") { pickPage = true } }
+                    actions.forEach { (k, l) -> item { ActionCard(vm, k, l) { vm.addActionToHome(k) } } }
+                    if (pageAction) item { ActionCard(vm, "page:1", "Vai a pagina\u2026") { pickPage = true } }
                 }
                 Text(
                     "\u201cApp recenti\u201d e \u201cBlocca schermo\u201d usano il servizio di accessibilità di MLauncher.",
@@ -211,8 +237,16 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                 }
                 Spacer(Modifier.height(12.dp))
             }
-            items(groups, key = { it.pkg }) { g ->
-                val open = expanded == g.pkg
+            if (q.isNotEmpty() && internal.isEmpty() && !stacks && actions.isEmpty() && !pageAction && shown.isEmpty()) item {
+                Text(
+                    "Nessun widget per \u201c" + query.trim() + "\u201d",
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp)
+                )
+            }
+            items(shown, key = { it.first.pkg }) { (g, list) ->
+                // cercando, i gruppi trovati sono già aperti
+                val open = expanded == g.pkg || q.isNotEmpty()
                 Column {
                     Row(
                         Modifier
@@ -231,7 +265,7 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                         Column(Modifier.weight(1f)) {
                             Text(g.label, style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "${g.list.size} widget",
+                                "${list.size} widget",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = cs.onSurfaceVariant
                             )
@@ -243,7 +277,7 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(g.list, key = { it.provider.flattenToString() }) { info ->
+                            items(list, key = { it.provider.flattenToString() }) { info ->
                                 ExtCard(vm, host, info)
                             }
                         }
@@ -251,6 +285,7 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                 }
             }
         }
+    }
     }
 }
 
