@@ -60,7 +60,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
@@ -175,8 +179,11 @@ fun Modifier.pageEffect(effect: String, state: PagerState, page: Int): Modifier 
     val a = abs(o)
     when (effect) {
         "fade" -> {
-            translationX = -o * size.width
-            alpha = (1f - a).coerceIn(0f, 1f)
+            // le pagine non visibili tornano al loro posto (fuori schermo): così non prendono i tocchi
+            if (a < 1f) {
+                translationX = -o * size.width
+                alpha = 1f - a
+            } else alpha = 0f
         }
         "cube" -> {
             cameraDistance = 14f * density
@@ -186,10 +193,12 @@ fun Modifier.pageEffect(effect: String, state: PagerState, page: Int): Modifier 
         "rotate" -> {
             transformOrigin = TransformOrigin(0.5f, 1.3f)
             rotationZ = -18f * o.coerceIn(-1f, 1f)
-            alpha = (1f - a * 0.7f).coerceIn(0f, 1f)
+            // ruotate, le pagine lontane entrerebbero di sbieco nello schermo: spariscono del tutto
+            alpha = if (a >= 1f) 0f else (1f - a * 0.7f)
         }
         "cascade" -> {
-            if (o < 0f) {
+            if (o <= -1f) alpha = 0f
+            else if (o < 0f) {
                 translationX = -o * size.width
                 val sc = 1f - 0.18f * a.coerceAtMost(1f)
                 scaleX = sc
@@ -1710,17 +1719,19 @@ internal fun QuickMenu(
     val shortcuts by produceState<List<ShortcutEntry>>(emptyList(), item.id) {
         if (app != null) value = withContext(Dispatchers.IO) { vm.loadShortcuts(app.pkg) }
     }
-    val rows = (if (app != null) 3 + (if (app.removable) 1 else 0) else 5) + shortcuts.size
-    val menuW = 236.dp
+    val rows = (if (app != null) 4 + (if (app.removable) 1 else 0) else 5) + shortcuts.size
+    val menuW = 240.dp
     val menuWpx = with(density) { menuW.toPx() }
-    val estH = with(density) { (rows * 50 + 16).dp.toPx() }
+    val estH = with(density) { (rows * 54 + 8 + 10).dp.toPx() }
     val screenW = with(density) { conf.screenWidthDp.dp.toPx() }
     val screenH = with(density) { conf.screenHeightDp.dp.toPx() }
     val margin = with(density) { 16.dp.toPx() }
-    val gap = with(density) { 8.dp.toPx() }
+    val gap = with(density) { 2.dp.toPx() }
     val x = (rect.center.x - menuWpx / 2f).coerceIn(margin, maxOf(margin, screenW - menuWpx - margin))
     val below = rect.bottom + estH + gap + margin < screenH
     val y = if (below) rect.bottom + gap else maxOf(margin, rect.top - estH - gap)
+    // la freccetta punta al centro dell'icona premuta (come Nova)
+    val arrowX = with(density) { (rect.center.x - x).toDp() }.coerceIn(28.dp, menuW - 28.dp)
 
     Popup(
         alignment = Alignment.TopStart,
@@ -1728,67 +1739,80 @@ internal fun QuickMenu(
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true)
     ) {
-        MenuSurface(
-            vm, 24.dp,
-            modifier = Modifier.width(menuW).graphicsLayer {
+        Column(
+            Modifier.width(menuW).graphicsLayer {
                 alpha = appear.value
                 val sc = 0.92f + 0.08f * appear.value
                 scaleX = sc; scaleY = sc
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, if (below) 0f else 1f)
             }
         ) {
-            Column(Modifier.padding(vertical = 8.dp)) {
-                if (app != null) {
-                    shortcuts.forEach { sc ->
-                        MenuRow(sc.label, sc.icon) {
-                            onDismiss()
-                            vm.launchShortcut(sc)
+            if (below) MenuArrow(vm, arrowX, up = true)
+            MenuSurface(vm, 20.dp) {
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    var first = true
+                    @Composable
+                    fun row(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, bmp: androidx.compose.ui.graphics.ImageBitmap? = null, danger: Boolean = false, click: () -> Unit) {
+                        if (!first) MenuDivider()
+                        first = false
+                        MenuRow(text, icon, bmp, danger) { onDismiss(); click() }
+                    }
+                    if (app != null) {
+                        shortcuts.forEach { sc -> row(sc.label, bmp = sc.icon) { vm.launchShortcut(sc) } }
+                        if (vm.settings.homeMode == "drawer") row("Rimuovi", Icons.Default.Close) { vm.removeWidgetItem(item) }
+                        row("Informazioni app", Icons.Default.Info) { host.appInfo(app) }
+                        row("Modifica", Icons.Default.Edit) { vm.editMode = true }
+                        row("Nascondi", Icons.Default.Lock) { vm.hideApp(app.id) }
+                        if (app.removable) row("Disinstalla", Icons.Default.Delete, danger = true) { host.uninstall(app) }
+                    } else if (item is FolderItem) {
+                        row("Rinomina", Icons.Default.Create) {
+                            vm.folderAnchor = rect
+                            vm.openFolderId = item.folderId
                         }
-                    }
-                    MenuRow("Informazioni app") {
-                        onDismiss()
-                        host.appInfo(app)
-                    }
-                    MenuRow("Modifica Home") {
-                        onDismiss()
-                        vm.editMode = true
-                    }
-                    MenuRow("Nascondi") {
-                        onDismiss()
-                        vm.hideApp(app.id)
-                    }
-                    if (app.removable) {
-                        MenuRow("Disinstalla", danger = true) {
-                            onDismiss()
-                            host.uninstall(app)
-                        }
-                    }
-                } else if (item is FolderItem) {
-                    MenuRow("Rinomina") {
-                        onDismiss()
-                        vm.folderAnchor = rect
-                        vm.openFolderId = item.folderId
-                    }
-                    MenuRow("Ordina A-Z") {
-                        onDismiss()
-                        vm.sortFolder(item.folderId)
-                    }
-                    MenuRow(if (item.big) "Riduci" else "Ingrandisci (2x2)") {
-                        onDismiss()
-                        vm.setFolderBig(item.folderId, !item.big)
-                    }
-                    MenuRow("Elimina cartella", danger = true) {
-                        onDismiss()
-                        vm.dissolveFolder(item.folderId)
-                    }
-                    MenuRow("Modifica Home") {
-                        onDismiss()
-                        vm.editMode = true
+                        row("Ordina A-Z", Icons.Default.List) { vm.sortFolder(item.folderId) }
+                        row(if (item.big) "Riduci" else "Ingrandisci (2x2)", Icons.Default.Add) { vm.setFolderBig(item.folderId, !item.big) }
+                        row("Elimina cartella", Icons.Default.Delete, danger = true) { vm.dissolveFolder(item.folderId) }
+                        row("Modifica", Icons.Default.Edit) { vm.editMode = true }
+                    } else {
+                        row("Rimuovi", Icons.Default.Close) { vm.removeWidgetItem(item) }
+                        row("Modifica", Icons.Default.Edit) { vm.editMode = true }
                     }
                 }
             }
+            if (!below) MenuArrow(vm, arrowX, up = false)
         }
     }
+}
+
+/** Freccetta del menu verso l'elemento premuto, dello stesso colore del menu. */
+@Composable
+private fun MenuArrow(vm: LauncherViewModel, x: Dp, up: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    val m = vm.settings.matOf("menus")
+    val color = if (m.plain) cs.surfaceContainerHigh else when (m.style) {
+        "dark" -> androidx.compose.ui.graphics.lerp(cs.surfaceContainerHigh, Color.Black, 0.45f)
+        "tinted" -> androidx.compose.ui.graphics.lerp(cs.surfaceContainerHigh, cs.primary, 0.45f)
+        "pill" -> cs.surfaceContainer
+        else -> androidx.compose.ui.graphics.lerp(cs.surfaceContainerHigh, Color.White, 0.2f)
+    }
+    Box(
+        Modifier.padding(start = x - 8.dp).size(16.dp, 8.dp)
+            .clip(androidx.compose.foundation.shape.GenericShape { sz, _ ->
+                if (up) { moveTo(0f, sz.height); lineTo(sz.width / 2f, 0f); lineTo(sz.width, sz.height) }
+                else { moveTo(0f, 0f); lineTo(sz.width / 2f, sz.height); lineTo(sz.width, 0f) }
+                close()
+            })
+            .background(color)
+    )
+}
+
+/** Linea tra le voci del menu, che parte dopo l'icona (come Nova). */
+@Composable
+private fun MenuDivider() {
+    Box(
+        Modifier.padding(start = 56.dp).fillMaxWidth().height(1.dp)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+    )
 }
 
 @Composable
@@ -1810,16 +1834,20 @@ private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: (
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true)
     ) {
-        MenuSurface(vm, 28.dp, modifier = Modifier.width(menuW)) {
-            Column(Modifier.padding(vertical = 8.dp)) {
-                HomeMenuRow(Icons.Default.Create, "Sfondo e stile") { onDismiss(); vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
-                HomeMenuRow(Icons.Default.Add, "Widget") { onDismiss(); if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
-                HomeMenuRow(Icons.Default.Edit, "Modifica Home") { onDismiss(); vm.editMode = true }
-                HomeMenuRow(Icons.Default.Lock, if (vm.settings.lockHome) "Sblocca la Home" else "Blocca la Home") {
+        MenuSurface(vm, 20.dp, modifier = Modifier.width(menuW)) {
+            Column(Modifier.padding(vertical = 4.dp)) {
+                MenuRow("Sfondo e stile", Icons.Default.Create) { onDismiss(); vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
+                MenuDivider()
+                MenuRow("Widget", Icons.Default.Add) { onDismiss(); if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
+                MenuDivider()
+                MenuRow("Modifica Home", Icons.Default.Edit) { onDismiss(); vm.editMode = true }
+                MenuDivider()
+                MenuRow(if (vm.settings.lockHome) "Sblocca la Home" else "Blocca la Home", Icons.Default.Lock) {
                     onDismiss()
                     vm.setSetting("lockHome", !vm.settings.lockHome)
                 }
-                HomeMenuRow(Icons.Default.Settings, "Impostazioni Home") { onDismiss(); vm.overlay = Overlay.SETTINGS }
+                MenuDivider()
+                MenuRow("Impostazioni Home", Icons.Default.Settings) { onDismiss(); vm.overlay = Overlay.SETTINGS }
             }
         }
     }
@@ -1873,7 +1901,8 @@ private fun HomeMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
 @Composable
 private fun MenuRow(
     text: String,
-    icon: androidx.compose.ui.graphics.ImageBitmap? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    bmp: androidx.compose.ui.graphics.ImageBitmap? = null,
     danger: Boolean = false,
     onClick: () -> Unit
 ) {
@@ -1881,14 +1910,19 @@ private fun MenuRow(
     Row(
         Modifier
             .fillMaxWidth()
+            .height(53.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 13.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (icon != null) {
-            androidx.compose.foundation.Image(icon, null, Modifier.size(24.dp))
-            Spacer(Modifier.width(12.dp))
+        // icona a sinistra di ogni voce (come Nova); spazio vuoto se manca, così i testi restano allineati
+        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            when {
+                bmp != null -> androidx.compose.foundation.Image(bmp, null, Modifier.size(24.dp))
+                icon != null -> Icon(icon, null, tint = if (danger) cs.error else cs.onSurface, modifier = Modifier.size(22.dp))
+            }
         }
+        Spacer(Modifier.width(16.dp))
         Text(
             text,
             color = if (danger) cs.error else cs.onSurface,

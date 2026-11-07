@@ -59,8 +59,10 @@ class MainActivity : ComponentActivity(), Host {
     private val bindLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { r ->
+        restorePending()
         val info = pendingInfo
         val id = pendingWidgetId
+        AppLog.i("Widget: permesso di collegamento -> " + if (r.resultCode == RESULT_OK) "concesso" else "negato")
         if (info != null && id != -1) {
             if (r.resultCode == RESULT_OK) configureOrFinish(id, info) else cancelPending()
         }
@@ -164,6 +166,36 @@ class MainActivity : ComponentActivity(), Host {
 
     private var pendingWidgetId = -1
     private var pendingInfo: AppWidgetProviderInfo? = null
+    /** quando è stata aperta la configurazione del widget (per riconoscere le ROM che la aprono a parte) */
+    private var configOpenedAt = 0L
+    private var waitConfigReturn = false
+
+    /** Il widget in attesa resta salvato: se Android chiude MLauncher durante la configurazione, non si perde. */
+    private val pendingSp by lazy { getSharedPreferences("pending_widget", MODE_PRIVATE) }
+
+    private fun savePending() {
+        pendingSp.edit()
+            .putInt("id", pendingWidgetId)
+            .putBoolean("minus", vm.minusPick)
+            .putString("stack", vm.stackTarget)
+            .apply()
+    }
+
+    private fun restorePending() {
+        if (pendingWidgetId != -1 && pendingInfo != null) return
+        val id = pendingSp.getInt("id", -1)
+        if (id == -1) return
+        val info = try { vm.widgetMgr.getAppWidgetInfo(id) } catch (e: Exception) { null }
+        if (info == null) {
+            pendingSp.edit().clear().apply()
+            return
+        }
+        pendingWidgetId = id
+        pendingInfo = info
+        vm.minusPick = pendingSp.getBoolean("minus", false)
+        vm.stackTarget = pendingSp.getString("stack", null)
+        AppLog.i("Widget in attesa recuperato dopo il riavvio del Launcher (id $id)")
+    }
 
     /** Cambia layout prima che la Home venga ridisegnata, così non c'è un frame con la griglia sbagliata. */
     private fun syncOrientation(c: android.content.res.Configuration) {
@@ -246,6 +278,12 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun onResume() {
         super.onResume()
+        // configurazione aperta a parte: al ritorno il widget si aggiunge
+        if (waitConfigReturn && android.os.SystemClock.uptimeMillis() - configOpenedAt > 1500L) {
+            val info = pendingInfo
+            val id = pendingWidgetId
+            if (info != null && id != -1) finishPending(id, info) else waitConfigReturn = false
+        }
         updateDefault()
         vm.checkLocationPermission()
         vm.readWallpaperHint()
@@ -261,10 +299,22 @@ class MainActivity : ComponentActivity(), Host {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_CONFIGURE) {
+            restorePending()
             val info = pendingInfo
             val id = pendingWidgetId
+            val elapsed = android.os.SystemClock.uptimeMillis() - configOpenedAt
+            AppLog.i("Widget: configurazione chiusa -> " + (if (resultCode == RESULT_OK) "fatto" else "annullato") + " dopo ${elapsed} ms")
             if (info != null && id != -1) {
-                if (resultCode == RESULT_OK) finishPending(id, info) else cancelPending()
+                when {
+                    resultCode == RESULT_OK -> finishPending(id, info)
+                    // risposta "annullato" immediata: alcune ROM aprono la configurazione in un'altra finestra
+                    // e rispondono subito; il widget si aggiunge quando torni in MLauncher
+                    configOpenedAt > 0L && elapsed < 1500L -> {
+                        waitConfigReturn = true
+                        AppLog.i("Widget: configurazione aperta a parte, lo aggiungo al ritorno")
+                    }
+                    else -> cancelPending()
+                }
             }
         }
     }
@@ -273,19 +323,29 @@ class MainActivity : ComponentActivity(), Host {
         if (pendingWidgetId != -1) vm.discardWidgetId(pendingWidgetId)
         pendingWidgetId = -1
         pendingInfo = null
+        waitConfigReturn = false
+        configOpenedAt = 0L
+        pendingSp.edit().clear().apply()
     }
 
     private fun finishPending(id: Int, info: AppWidgetProviderInfo) {
         vm.addExternalWidget(id, info)
+        AppLog.i("Widget aggiunto: ${info.provider.flattenToShortString()}")
         pendingWidgetId = -1
         pendingInfo = null
+        waitConfigReturn = false
+        configOpenedAt = 0L
+        pendingSp.edit().clear().apply()
     }
 
     private fun configureOrFinish(id: Int, info: AppWidgetProviderInfo) {
         if (info.configure != null) {
             try {
+                configOpenedAt = android.os.SystemClock.uptimeMillis()
+                AppLog.i("Widget: apro la configurazione di ${info.provider.flattenToShortString()}")
                 vm.widgetHost.startAppWidgetConfigureActivityForResult(this, id, 0, REQ_CONFIGURE, null)
             } catch (e: Exception) {
+                AppLog.e("Widget: configurazione non avviata", e)
                 cancelPending()
             }
         } else {
@@ -400,6 +460,8 @@ class MainActivity : ComponentActivity(), Host {
         val id = vm.widgetHost.allocateAppWidgetId()
         pendingWidgetId = id
         pendingInfo = info
+        savePending()
+        AppLog.i("Widget: aggiungo ${info.provider.flattenToShortString()} (id $id)")
         if (vm.widgetMgr.bindAppWidgetIdIfAllowed(id, info.provider)) {
             configureOrFinish(id, info)
         } else {

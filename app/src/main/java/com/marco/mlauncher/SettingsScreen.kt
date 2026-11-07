@@ -2080,6 +2080,12 @@ private fun PageMatFolder(vm: LauncherViewModel) {
         }
     }
     Group("Cartella aperta") {
+        Text(
+            "La cartella aperta ha lo stesso materiale di \u201cMenu, pulsanti e cartelle aperte\u201d.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
+        )
         SliderRow("Sfocatura dello sfondo", if (s.folderBlur == 0) "Nessuna" else "${s.folderBlur} dp", s.folderBlur.toFloat(), 0f..40f, 0) {
             val v = (it / 2f).roundToInt() * 2
             if (v != s.folderBlur) vm.setSetting("folderBlur", v)

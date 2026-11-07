@@ -70,6 +70,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -234,7 +239,8 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
                     }
                 ) {
-                val dockSpec = LocalFolderDock.current
+                // la cartella aperta ha lo stesso materiale di menu e pulsanti
+                val dockSpec = vm.settings.matOf("menus").let { m -> if (m.plain) null else DockLookSpec(m.style, m.opacity, m.glass, m.corner) }
                 val followDock = dockSpec != null && dockSpec.style != "none" && dockSpec.style != "tiles"
                 val csF = MaterialTheme.colorScheme
                 val fgColor = if (followDock && dockSpec != null) {
@@ -488,7 +494,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                 )
                             }
                             if (pageN > 1) {
-                                Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(Modifier.padding(end = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     repeat(pageN) { d ->
                                         Box(
                                             Modifier.size(8.dp).clip(CircleShape).background(
@@ -497,6 +503,36 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                             )
                                         )
                                     }
+                                }
+                            }
+                            // ⋮ con le opzioni della cartella (come Nova)
+                            var folderMenu by remember(folderId) { mutableStateOf(false) }
+                            val fItem = vm.items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem
+                            Box {
+                                IconButton(onClick = { folderMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "Opzioni della cartella", tint = fgColor)
+                                }
+                                DropdownMenu(expanded = folderMenu, onDismissRequest = { folderMenu = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Rinomina") },
+                                        leadingIcon = { Icon(Icons.Default.Create, null) },
+                                        onClick = { folderMenu = false; if (!vm.blockedByLock()) editingName = true }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Ordina A-Z") },
+                                        leadingIcon = { Icon(Icons.Default.List, null) },
+                                        onClick = { folderMenu = false; vm.sortFolder(folderId) }
+                                    )
+                                    if (fItem != null) DropdownMenuItem(
+                                        text = { Text(if (fItem.big) "Riduci" else "Ingrandisci (2x2)") },
+                                        leadingIcon = { Icon(Icons.Default.Add, null) },
+                                        onClick = { folderMenu = false; vm.setFolderBig(folderId, !fItem.big) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Elimina cartella", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                        onClick = { folderMenu = false; vm.openFolderId = null; vm.dissolveFolder(folderId) }
+                                    )
                                 }
                             }
                         }
@@ -718,10 +754,20 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         }
         else -> bgColor.copy(alpha = s.drOpacity / 100f)
     }
+    val focusMgr = androidx.compose.ui.platform.LocalFocusManager.current
     Surface(Modifier.fillMaxSize(), color = surfaceColor, contentColor = fg) {
         Column(
             Modifier
                 .fillMaxSize()
+                // ricerca: un tocco dove non c'è niente riporta alla Home, sulla stessa pagina
+                .then(
+                    if (searchOnly) Modifier.pointerInput(Unit) {
+                        detectTapGestures {
+                            focusMgr.clearFocus(force = true)
+                            vm.overlay = Overlay.NONE
+                        }
+                    } else Modifier
+                )
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                 .imePadding()
         ) {

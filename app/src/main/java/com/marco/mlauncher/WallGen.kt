@@ -95,16 +95,51 @@ fun noiseTile(size: Int = 128): Bitmap {
     return Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888)
 }
 
-/** Sfocatura veloce: rimpicciolisce e ingrandisce di nuovo con il filtro (simile a una gaussiana). */
+/**
+ * Sfocatura vera (tre passaggi di media mobile = quasi gaussiana) su una copia rimpicciolita,
+ * poi ingrandita: essendo già liscia non mostra i "quadretti" del mosaico.
+ */
 private fun softBlur(src: Bitmap, amount: Float): Bitmap {
     if (amount <= 0f) return src
-    val f = 1f + amount * 28f
-    val w = max(2, (src.width / f).toInt())
-    val h = max(2, (src.height / f).toInt())
-    var small = Bitmap.createScaledBitmap(src, w, h, true)
-    // un secondo passaggio ammorbidisce i bordi dei "quadretti"
-    small = Bitmap.createScaledBitmap(Bitmap.createScaledBitmap(small, max(2, w / 2), max(2, h / 2), true), w, h, true)
-    return Bitmap.createScaledBitmap(small, src.width, src.height, true)
+    val radiusFull = amount * src.width * 0.06f
+    val d = (radiusFull / 6f).coerceIn(1f, 8f)
+    val w = max(2, (src.width / d).toInt())
+    val h = max(2, (src.height / d).toInt())
+    val small = Bitmap.createScaledBitmap(src, w, h, true)
+    val px = IntArray(w * h)
+    small.getPixels(px, 0, w, 0, 0, w, h)
+    val r = max(1, (radiusFull / d).toInt())
+    repeat(3) { boxBlur(px, w, h, r) }
+    val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    out.setPixels(px, 0, w, 0, 0, w, h)
+    return Bitmap.createScaledBitmap(out, src.width, src.height, true)
+}
+
+/** Media mobile orizzontale e verticale (bordi ripetuti). */
+private fun boxBlur(px: IntArray, w: Int, h: Int, r: Int) {
+    val tmp = IntArray(px.size)
+    val div = 2 * r + 1
+    fun pass(srcA: IntArray, dst: IntArray, len: Int, lines: Int, stride: Int, step: Int) {
+        for (l in 0 until lines) {
+            val base = l * stride
+            var sa = 0; var sr = 0; var sg = 0; var sb = 0
+            for (k in -r..r) {
+                val c = srcA[base + k.coerceIn(0, len - 1) * step]
+                sa += c ushr 24; sr += (c shr 16) and 255; sg += (c shr 8) and 255; sb += c and 255
+            }
+            for (i in 0 until len) {
+                dst[base + i * step] = ((sa / div) shl 24) or ((sr / div) shl 16) or ((sg / div) shl 8) or (sb / div)
+                val out = srcA[base + (i - r).coerceIn(0, len - 1) * step]
+                val inn = srcA[base + (i + r + 1).coerceIn(0, len - 1) * step]
+                sa += (inn ushr 24) - (out ushr 24)
+                sr += ((inn shr 16) and 255) - ((out shr 16) and 255)
+                sg += ((inn shr 8) and 255) - ((out shr 8) and 255)
+                sb += (inn and 255) - (out and 255)
+            }
+        }
+    }
+    pass(px, tmp, w, h, w, 1)      // righe
+    pass(tmp, px, h, w, 1, w)      // colonne
 }
 
 /** Applica gli effetti a un'immagine già ritagliata (larghezza e altezza finali). */
