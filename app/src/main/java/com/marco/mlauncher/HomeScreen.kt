@@ -2082,7 +2082,8 @@ private fun PagesOverviewControls(vm: LauncherViewModel, host: Host, pagerState:
         ) {
             Row(
                 Modifier.fillMaxWidth()
-                    .then(if (land) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(bottom = if (land) 0.dp else SHEET_PEEK)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
@@ -2098,9 +2099,9 @@ private fun PagesOverviewControls(vm: LauncherViewModel, host: Host, pagerState:
                 }
                 OverviewButton(Icons.Default.Settings, "Impostazioni") { vm.overlay = Overlay.SETTINGS }
             }
-            // pannello Widget: trascinandolo in su (o toccandolo) si apre l'elenco dei widget
-            if (!land) WidgetSheetPeek(vm)
         }
+        // pannello Widget: trascinandolo in su (o toccandolo) si allarga e mostra l'elenco dei widget
+        if (!land) WidgetSheet(vm, host, Modifier.align(Alignment.BottomCenter))
     }
     if (askDelete >= 0) {
         androidx.compose.material3.AlertDialog(
@@ -2120,54 +2121,99 @@ private fun PagesOverviewControls(vm: LauncherViewModel, host: Host, pagerState:
     }
 }
 
-/** Pannello "Widget" in fondo all'anteprima pagine: trascinandolo in su si apre l'elenco dei widget. */
+/** Altezza del pannello Widget chiuso (sopra la barra di navigazione). */
+private val SHEET_PEEK = 76.dp
+
+/**
+ * Pannello "Widget" in fondo all'anteprima pagine (come Nova): segue il dito mentre lo trascini in su
+ * e diventa l'elenco dei widget; trascinandolo in giù (o con Indietro) torna piccolo.
+ */
 @Composable
-private fun WidgetSheetPeek(vm: LauncherViewModel) {
+private fun WidgetSheet(vm: LauncherViewModel, host: Host, modifier: Modifier) {
     val cs = MaterialTheme.colorScheme
     val view = androidx.compose.ui.platform.LocalView.current
     val density = LocalDensity.current
-    var pull by remember { mutableStateOf(0f) }
-    val openPx = with(density) { 56.dp.toPx() }
-    val m = vm.settings.matOf("menus")
-    val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    Box(
-        Modifier
-            .padding(top = 6.dp)
-            .fillMaxWidth()
-            .graphicsLayer { translationY = pull }
-            .then(if (m.plain) Modifier.clip(sheetShape).background(cs.surfaceContainer) else Modifier.clip(sheetShape).background(cs.surfaceContainer.copy(alpha = 0.6f)).matLook(m, 28.dp, sheetShape, minOpacity = 60))
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { pull = 0f },
-                    onVerticalDrag = { c, dy ->
-                        c.consume()
-                        pull = (pull + dy).coerceIn(-openPx * 3f, 0f)
-                    },
-                    onDragEnd = {
-                        if (pull < -openPx) {
-                            Haptics.tick(view)
-                            if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS
-                        }
-                        pull = 0f
-                    },
-                    onDragCancel = { pull = 0f }
-                )
-            }
-            .clickable { if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
-            .windowInsetsPadding(WindowInsets.navigationBars)
-    ) {
-        val fg = if (m.plain) cs.onSurface else matContentColor(m)
-        Column(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier.padding(top = 10.dp).size(36.dp, 4.dp).clip(CircleShape).background(fg.copy(alpha = 0.45f))
+    val scope = rememberCoroutineScope()
+    val navH = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val peekPx = with(density) { (SHEET_PEEK + navH).toPx() }
+    val maxPx = with(density) { (LocalConfiguration.current.screenHeightDp.dp * 0.82f).toPx() }.coerceAtLeast(peekPx + 1f)
+    val h = remember { androidx.compose.animation.core.Animatable(peekPx) }
+    val frac = ((h.value - peekPx) / (maxPx - peekPx)).coerceIn(0f, 1f)
+    fun settle(open: Boolean) {
+        if (open) Haptics.tick(view)
+        scope.launch {
+            h.animateTo(
+                if (open) maxPx else peekPx,
+                tween((Motion.SHEET * vm.settings.animFactor).toInt().coerceAtLeast(1), easing = Motion.EmphasizedDecelerate)
             )
-            Row(
-                Modifier.fillMaxWidth().padding(start = 24.dp, top = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
+        }
+    }
+    // widget aggiunto: il pannello si richiude e il widget compare sulla pagina
+    val count = vm.items.size
+    LaunchedEffect(count) { if (h.value > peekPx + 1f) settle(false) }
+    if (frac > 0f) androidx.activity.compose.BackHandler { settle(false) }
+
+    val m = vm.settings.matOf("menus")
+    val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    val fgPeek = if (m.plain) cs.onSurface else matContentColor(m)
+    val fg = androidx.compose.ui.graphics.lerp(fgPeek, cs.onSurface, frac)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(with(density) { h.value.toDp() })
+            .clip(shape)
+            .then(if (m.plain) Modifier.background(cs.surfaceContainer) else Modifier.matLook(m, 28.dp, shape, minOpacity = 60))
+            // aprendolo diventa pieno, così l'elenco si legge bene
+            .background(cs.surfaceContainer.copy(alpha = if (m.plain) 0f else frac))
+            .pointerInput(Unit) { detectTapGestures { } }
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // maniglia e titolo: si trascinano
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        var acc = 0f
+                        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                acc = 0f
+                                tracker.resetTracking()
+                                scope.launch { h.stop() }
+                            },
+                            onVerticalDrag = { c, dy ->
+                                c.consume()
+                                acc += dy
+                                tracker.addPosition(c.uptimeMillis, Offset(0f, acc))
+                                scope.launch { h.snapTo((h.value - dy).coerceIn(peekPx, maxPx)) }
+                            },
+                            onDragEnd = {
+                                val v = tracker.calculateVelocity().y
+                                val f = (h.value - peekPx) / (maxPx - peekPx)
+                                settle(if (abs(v) > 900f) v < 0f else f > 0.3f)
+                            },
+                            onDragCancel = { settle((h.value - peekPx) / (maxPx - peekPx) > 0.5f) }
+                        )
+                    }
+                    .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
+                        if (!vm.blockedByLock()) settle(frac < 0.5f)
+                    }
+                    .padding(bottom = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(WidgetsIcon, null, tint = cs.primary, modifier = Modifier.size(26.dp))
-                Spacer(Modifier.width(14.dp))
-                Text("Widget", color = fg, fontSize = 20.sp)
+                Box(Modifier.padding(top = 10.dp).size(36.dp, 4.dp).clip(CircleShape).background(fg.copy(alpha = 0.45f)))
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 24.dp, top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(WidgetsIcon, null, tint = cs.primary, modifier = Modifier.size(26.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text("Widget", color = fg, fontSize = 20.sp)
+                }
+            }
+            // l'elenco compare mentre il pannello sale
+            if (frac > 0.02f) {
+                Box(Modifier.weight(1f).fillMaxWidth().alpha(frac)) { PickerContent(vm, host, header = false) }
             }
         }
     }

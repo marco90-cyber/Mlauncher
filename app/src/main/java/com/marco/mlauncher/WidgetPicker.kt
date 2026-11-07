@@ -94,7 +94,7 @@ fun WidgetPicker(vm: LauncherViewModel, host: Host) {
 private class WidgetGroup(val pkg: String, val label: String, val list: List<AppWidgetProviderInfo>)
 
 @Composable
-private fun PickerContent(vm: LauncherViewModel, host: Host) {
+internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = true) {
     val cs = MaterialTheme.colorScheme
     val ctx = LocalContext.current
     val groups = remember {
@@ -122,6 +122,8 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
     }
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+        // nell'anteprima pagine maniglia e titolo li disegna il pannello che la contiene
+        if (header) {
         Box(
             Modifier
                 .padding(top = 10.dp)
@@ -136,6 +138,7 @@ private fun PickerContent(vm: LauncherViewModel, host: Host) {
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
         )
+        }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
                 SectionTitle("MLauncher")
