@@ -316,6 +316,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     /** stile degli interruttori: android16 (predefinito), material, ios, hyperos */
     var switchStyle by mutableStateOf((sp.getString("switchStyle", "android16") ?: "android16").also { SwitchLook.style = it })
     var lockHome by mutableStateOf(sp.getBoolean("lockHome", false))
+    /** pagina principale della Home (dove porta il tasto Home) */
+    var homePage by mutableIntStateOf(sp.getInt("homePage", 0))
     /** cartella aperta: "center" (al centro dello schermo) o "icon" (vicino all'icona) */
     var folderPos by mutableStateOf(sp.getString("folderPos", "center") ?: "center")
     /** cartella aperta: "compact" o "large" (quasi tutta la larghezza, stile HyperOS) */
@@ -495,6 +497,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "clockSeconds" -> clockSeconds = value as Boolean
             "switchStyle" -> { switchStyle = value as String; SwitchLook.style = switchStyle }
             "lockHome" -> lockHome = value as Boolean
+            "homePage" -> homePage = value as Int
             "folderPos" -> folderPos = value as String
             "folderSize" -> folderSize = value as String
             "returnAnim" -> returnAnim = value as String

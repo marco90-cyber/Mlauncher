@@ -69,6 +69,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -94,6 +95,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -153,6 +155,7 @@ interface Host {
     fun requestContactsName()
     fun exportLayout()
     fun importLayout()
+    fun reconfigureWidget(widgetId: Int)
 }
 
 class DragState(val item: HomeItem, start: Offset) {
@@ -221,7 +224,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val view = androidx.compose.ui.platform.LocalView.current
-    val pagerState = rememberPagerState { vm.pageCount }
+    val pagerState = rememberPagerState(initialPage = vm.homePageIdx) { vm.pageCount }
     var gridRect by remember { mutableStateOf(Rect.Zero) }
     var dockRect by remember { mutableStateOf(Rect.Zero) }
     var drag by remember { mutableStateOf<DragState?>(null) }
@@ -229,7 +232,13 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     var menuFading by remember { mutableStateOf(false) }
     var menuRect by remember { mutableStateOf(Rect.Zero) }
     val edit = vm.editMode
-    val topPad by animateDpAsState(if (edit) 56.dp else 6.dp, androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate), label = "topPad")
+    val topPad = 6.dp
+    // anteprima pagine (come Nova): la Home si rimpicciolisce
+    val ov by animateFloatAsState(
+        if (vm.showOverview) 1f else 0f,
+        tween((Motion.SHEET * s.animFactor).toInt().coerceAtLeast(1), easing = Motion.EmphasizedDecelerate),
+        label = "overview"
+    )
     val folderZonePx = with(density) { 48.dp.toPx() }
     val switchPx = with(density) { 60.dp.toPx() }
     val dragRef by rememberUpdatedState(drag)
@@ -342,12 +351,10 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             }
         )
     }
-    var homeMenu by remember { mutableStateOf<Offset?>(null) }
     // come Launcher3: alla rotazione i trascinamenti e i menu aperti vengono annullati
     LaunchedEffect(landscape) {
         drag = null
         menuItem = null
-        homeMenu = null
         vm.folderAnchor = Rect.Zero
         gridRect = Rect.Zero
         dockRect = Rect.Zero
@@ -397,7 +404,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     LaunchedEffect(vm.lockedSignal) {
         if (vm.lockedSignal > 0) {
             Haptics.reject(view)
-            android.widget.Toast.makeText(ctxL, "Home bloccata: sbloccala tenendo premuto uno spazio vuoto", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(ctxL, "Home bloccata: sbloccala dall'anteprima pagine (pizzica la Home con due dita)", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -406,7 +413,6 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     LaunchedEffect(dDrag) {
         if (dDrag != null) {
             menuItem = null
-            homeMenu = null
             val st = DragState(AppItem(dDrag.appId, -3, 0, 0), dDrag.pos)
             dDrag.extras.forEach { st.collected.add("app:$it") }
             drag = st
@@ -478,7 +484,10 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     // torna alla prima pagina quando si preme Home
     LaunchedEffect(vm.homeSignal) {
         menuItem = null
-        if (vm.homeSignal > 0) pagerState.animateScrollToPage(0)
+        if (vm.homeSignal > 0) {
+            vm.showOverview = false
+            pagerState.animateScrollToPage(vm.homePageIdx)
+        }
     }
     // azione "Pagina N" / "Pagina principale"
     LaunchedEffect(vm.pageReqN) {
@@ -488,6 +497,14 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     if (vm.showOverview) {
         androidx.activity.compose.BackHandler { vm.showOverview = false }
     }
+    // entrando nell'anteprima si chiudono modifica e menu
+    LaunchedEffect(vm.showOverview) {
+        if (vm.showOverview) {
+            menuItem = null
+            if (vm.editMode) vm.exitEdit()
+        }
+    }
+    val pinchOk = rememberUpdatedState(drag == null && vm.overlay == Overlay.NONE && vm.openFolderId == null && vm.minusP == 0f)
 
     // cambio pagina trascinando vicino al bordo
     val edgePx = with(density) { 36.dp.toPx() }
@@ -570,6 +587,35 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
             .pointerInput(Unit) {
+                // pizzico con due dita: apre l'anteprima pagine (allargando le dita si chiude)
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    var d0 = 0f
+                    var fired = false
+                    while (true) {
+                        val ev = awaitPointerEvent(PointerEventPass.Initial)
+                        val down = ev.changes.filter { it.pressed }
+                        if (down.isEmpty()) break
+                        if (down.size >= 2 && !fired) {
+                            val dist = (down[0].position - down[1].position).getDistance()
+                            if (d0 == 0f) d0 = dist
+                            else if (pinchOk.value) {
+                                if (!vm.showOverview && dist < d0 * 0.72f) {
+                                    fired = true
+                                    vm.showOverview = true
+                                    Haptics.tick(view)
+                                } else if (vm.showOverview && dist > d0 * 1.35f) {
+                                    fired = true
+                                    vm.showOverview = false
+                                    Haptics.tick(view)
+                                }
+                            }
+                        } else if (down.size < 2) d0 = 0f
+                        if (fired) ev.changes.forEach { it.consume() }
+                    }
+                }
+            }
+            .pointerInput(Unit) {
                 // mentre un'icona è tenuta premuta, un secondo dito che scorre cambia pagina
                 awaitPointerEventScope {
                     val startX = HashMap<PointerId, Float>()
@@ -599,6 +645,26 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 }
             }
     ) {
+        // velo sullo sfondo nell'anteprima pagine
+        if (ov > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f * ov)))
+        val sbTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val ovScale = if (landscape) 0.5f else 0.72f
+        val ovLayer = Modifier.graphicsLayer {
+            if (ov > 0f) {
+                val sc = 1f - (1f - ovScale) * ov
+                scaleX = sc
+                scaleY = sc
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                translationY = ov * (sbTop.toPx() * (1f - ovScale) + 56.dp.toPx())
+            }
+        }
+        // in anteprima la dock e i puntini spariscono e non si toccano
+        val ovHide: @Composable (@Composable () -> Unit) -> Unit = { content ->
+            Box(Modifier.alpha(1f - ov)) {
+                content()
+                if (vm.showOverview) Box(Modifier.matchParentSize().pointerInput(Unit) { detectTapGestures { vm.showOverview = false } })
+            }
+        }
         val pagerContent: @Composable (Modifier) -> Unit = { mod ->
             HorizontalPager(
                 state = pagerState,
@@ -611,6 +677,12 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 ),
                 userScrollEnabled = drag == null,
                 modifier = mod
+                    .then(
+                        if (ov > 0f) Modifier
+                            .border(2.dp, Color.White.copy(alpha = 0.55f * ov), RoundedCornerShape(28.dp))
+                            .background(Color.White.copy(alpha = 0.08f * ov), RoundedCornerShape(28.dp))
+                        else Modifier
+                    )
                     .nestedScroll(minusConn)
                     .onGloballyPositioned { gridRect = it.boundsInRoot() }
             ) { page ->
@@ -622,7 +694,10 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                     dragId = hiddenIds,
                     cb = cb,
                     onMenu = onMenu,
-                    onEmptyMenu = { homeMenu = it }
+                    onEmptyMenu = {
+                        // Home bloccata: si apre l'anteprima, dove c'è "Sblocca"
+                        if (vm.settings.lockHome) vm.showOverview = true else vm.editMode = true
+                    }
                 )
             }
         }
@@ -637,38 +712,40 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 )
             }
             Row(
-                Modifier.fillMaxSize().windowInsetsPadding(
+                Modifier.fillMaxSize().then(ovLayer).windowInsetsPadding(
                     WindowInsets.systemBars.union(WindowInsets.displayCutout)
                         .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
                 )
             ) {
                 // con il telefono ruotato dall'altra parte la dock sta a sinistra, come in Launcher3
-                if (seascape && (!s.hideDock || edit)) dockContent()
+                if (seascape && (!s.hideDock || edit)) ovHide { dockContent() }
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
-                    Spacer(Modifier.height(if (edit) 44.dp else 2.dp))
+                    Spacer(Modifier.height(2.dp))
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
-                    PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
+                    ovHide { PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER } }
                 }
-                if (!seascape && (!s.hideDock || edit)) dockContent()
+                if (!seascape && (!s.hideDock || edit)) ovHide { dockContent() }
             }
         } else {
         Column(
-            Modifier.fillMaxSize().windowInsetsPadding(
+            Modifier.fillMaxSize().then(ovLayer).windowInsetsPadding(
                 WindowInsets.systemBars.union(WindowInsets.displayCutout)
                     .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
             )
         ) {
             Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
-            PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER }
-            if (!s.hideDock || edit) Dock(
-                vm = vm,
-                host = host,
-                dragId = hiddenIds,
-                cb = cb,
-                onMenu = onMenu,
-                onRect = { dockRect = it }
-            ) else {
+            ovHide { PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER } }
+            if (!s.hideDock || edit) ovHide {
+                Dock(
+                    vm = vm,
+                    host = host,
+                    dragId = hiddenIds,
+                    cb = cb,
+                    onMenu = onMenu,
+                    onRect = { dockRect = it }
+                )
+            } else {
                 dockRect = Rect.Zero
                 Spacer(Modifier.windowInsetsPadding(WindowInsets.navigationBars).height(8.dp))
             }
@@ -676,49 +753,15 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
 
         }
 
-        // anteprima delle pagine (azione "Anteprima pagine")
-        if (vm.showOverview) PagesOverview(vm, pagerState.currentPage) { p ->
-            vm.showOverview = false
-            scope.launch { pagerState.animateScrollToPage(p) }
-        }
-
-        // barra modifica
-        val showCreate = drag?.let { dd ->
-            dd.collected.isNotEmpty() && gridRect != Rect.Zero &&
-                dd.pos.y < gridRect.top + gridRect.height * 0.35f
-        } == true
-        AnimatedVisibility(
-            visible = edit && !showCreate,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 6.dp),
-            enter = fadeIn(androidx.compose.animation.core.tween(Motion.FADE, easing = Motion.StandardDecelerate)) +
-                slideInVertically(androidx.compose.animation.core.tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate)) { -it },
-            exit = fadeOut(androidx.compose.animation.core.tween(Motion.FADE, easing = Motion.StandardAccelerate)) +
-                slideOutVertically(androidx.compose.animation.core.tween(Motion.REORDER, easing = Motion.EmphasizedAccelerate)) { -it }
-        ) {
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                BarButton(barMat, "Sfondo") { vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
-                BarButton(barMat, "Widget") { vm.overlay = Overlay.WIDGETS }
-                BarButton(barMat, "+ Pagina") {
-                    vm.addPage()
-                    scope.launch {
-                        delay(80)
-                        pagerState.animateScrollToPage(vm.pageCount - 1)
-                    }
-                }
-                BarButton(barMat, "Impostazioni") { vm.overlay = Overlay.SETTINGS }
-                BarButton(barMat, "Fine") { vm.exitEdit() }
+        // anteprima delle pagine (pizzico o azione "Anteprima pagine"): comandi sopra e sotto la pagina
+        if (ov > 0f) PagesOverviewControls(vm, host, pagerState, ov) {
+            vm.addPage()
+            scope.launch {
+                delay(80)
+                pagerState.animateScrollToPage(vm.pageCount - 1)
             }
         }
 
-        homeMenu?.let { o ->
-            HomeMenu(o, vm, host) { homeMenu = null }
-        }
 
         // menu rapido
         val mi = menuItem
@@ -874,24 +917,6 @@ private fun SettingsButton(onClick: () -> Unit) {
             Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = cs.onSurfaceVariant)
         }
     }
-}
-
-@Composable
-private fun BarButton(m: Mat, text: String, onClick: () -> Unit) {
-    if (m.plain) {
-        FilledTonalButton(
-            onClick = onClick,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-            modifier = Modifier.height(36.dp)
-        ) { Text(text, fontSize = 12.sp, maxLines = 1) }
-        return
-    }
-    // pulsanti della modifica con il materiale di "Menu e pulsanti"
-    Box(
-        Modifier.height(36.dp).matLook(m, 18.dp, CircleShape, minOpacity = 40)
-            .clip(CircleShape).clickable(onClick = onClick).padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center
-    ) { Text(text, color = matContentColor(m), fontSize = 12.sp, maxLines = 1) }
 }
 
 @Composable
@@ -1078,7 +1103,13 @@ private fun HomePage(
             .onGloballyPositioned { origin = it.positionInRoot() }
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { if (vm.editMode) vm.exitEdit() },
+                    onTap = {
+                        when {
+                            vm.showOverview -> vm.showOverview = false
+                            vm.selectedWidget != null -> vm.selectedWidget = null
+                            vm.editMode -> vm.exitEdit()
+                        }
+                    },
                     onDoubleTap = {
                         if (!vm.editMode && vm.settings.doubleTapLock) {
                             Haptics.confirm(view)
@@ -1086,7 +1117,7 @@ private fun HomePage(
                         }
                     },
                     onLongPress = { off ->
-                        if (!vm.editMode) {
+                        if (!vm.editMode && !vm.showOverview) {
                             if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onEmptyMenu(origin + off)
                         }
@@ -1146,6 +1177,8 @@ private fun HomePage(
                 }
             }
         }
+        // anteprima pagine: un tocco sulla pagina la apre (le icone non si avviano)
+        if (vm.showOverview) Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { vm.showOverview = false } })
     }
 }
 
@@ -1583,19 +1616,23 @@ private fun WidgetCell(
             }
         }
         if (edit) {
+            val sel = vm.selectedWidget == item.id
             Box(
                 Modifier
                     .fillMaxSize()
                     .clip(shape)
-                    .border(2.dp, cs.primary, shape)
+                    .border(if (sel) 2.5.dp else 1.5.dp, if (sel) cs.primary else cs.primary.copy(alpha = 0.55f), shape)
                     .onGloballyPositioned {
                         holder.root = it.positionInRoot()
                         holder.window = it.boundsInWindow()
                     }
+                    // tocco: seleziona il widget e compaiono i pallini per ridimensionarlo (come Nova)
+                    .pointerInput(item.id) { detectTapGestures { vm.selectedWidget = curItem.id } }
                     .pointerInput(item.id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { pos ->
                                 if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                vm.selectedWidget = null
                                 val id = curItem.id
                                 snapScope.launch {
                                     val bmp = try { snapLayer.toImageBitmap() } catch (e: Exception) { null }
@@ -1613,37 +1650,82 @@ private fun WidgetCell(
             if (item is StackItem) {
                 StackManage(item, vm, Modifier.align(Alignment.TopEnd).padding(6.dp))
             }
-            // maniglia per ridimensionare
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(6.dp)
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .background(cs.primary)
-                    .pointerInput(item.id) {
-                        var startSx = 1
-                        var startSy = 1
-                        var acc = Offset.Zero
-                        detectDragGestures(
-                            onDragStart = {
-                                startSx = curItem.spanX
-                                startSy = curItem.spanY
-                                acc = Offset.Zero
+            if (sel) {
+                // pallini a metà dei lati: 0 sinistra, 1 sopra, 2 destra, 3 sotto
+                for (side in 0..3) {
+                    val al = when (side) {
+                        0 -> Alignment.CenterStart
+                        1 -> Alignment.TopCenter
+                        2 -> Alignment.CenterEnd
+                        else -> Alignment.BottomCenter
+                    }
+                    Box(
+                        Modifier
+                            .align(al)
+                            .size(30.dp)
+                            .pointerInput(item.id, side) {
+                                var x0 = 0
+                                var y0 = 0
+                                var sx0 = 1
+                                var sy0 = 1
+                                var acc = Offset.Zero
+                                detectDragGestures(
+                                    onDragStart = {
+                                        x0 = curItem.x; y0 = curItem.y
+                                        sx0 = curItem.spanX; sy0 = curItem.spanY
+                                        acc = Offset.Zero
+                                    },
+                                    onDrag = { c, d ->
+                                        c.consume()
+                                        acc += d
+                                        val dx = (acc.x / cwPx).roundToInt()
+                                        val dy = (acc.y / chPx).roundToInt()
+                                        var nx = x0; var ny = y0; var nsx = sx0; var nsy = sy0
+                                        when (side) {
+                                            0 -> { val k = dx.coerceIn(-x0, sx0 - 1); nx = x0 + k; nsx = sx0 - k }
+                                            1 -> { val k = dy.coerceIn(-y0, sy0 - 1); ny = y0 + k; nsy = sy0 - k }
+                                            2 -> nsx = (sx0 + dx).coerceIn(1, maxOf(1, vm.gridCols - x0))
+                                            else -> nsy = (sy0 + dy).coerceIn(1, maxOf(1, vm.gridRows - y0))
+                                        }
+                                        val cur = curItem
+                                        if (nx != cur.x || ny != cur.y || nsx != cur.spanX || nsy != cur.spanY) {
+                                            vm.moveResize(cur, nx, ny, nsx, nsy)
+                                            Haptics.tick(view)
+                                        }
+                                    }
+                                )
                             },
-                            onDrag = { c, d ->
-                                c.consume()
-                                acc += d
-                                val nx = (startSx + (acc.x / cwPx).roundToInt()).coerceIn(1, 4)
-                                val ny = (startSy + (acc.y / chPx).roundToInt()).coerceIn(1, 4)
-                                if (nx != curItem.spanX || ny != curItem.spanY) Haptics.tick(view)
-                                vm.resizeItem(curItem, nx, ny)
-                            }
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            Modifier.size(18.dp).shadow(3.dp, CircleShape).clip(CircleShape)
+                                .background(cs.primary).border(2.dp, cs.onPrimary, CircleShape)
                         )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("↘", color = cs.onPrimary, fontSize = 15.sp)
+                    }
+                }
+                // pulsantini: riconfigura (se il widget lo permette) ed elimina
+                val extId = (item as? WidgetItem)?.ref?.takeIf { it.kind == "ext" }?.widgetId
+                val canConfig = extId != null && vm.widgetMgr.getAppWidgetInfo(extId)?.configure != null
+                Row(
+                    Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (canConfig && extId != null) {
+                        Box(
+                            Modifier.size(40.dp).shadow(3.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
+                                .background(cs.primary).clickable { host.reconfigureWidget(extId) },
+                            contentAlignment = Alignment.Center
+                        ) { Icon(Icons.Default.Edit, "Riconfigura", tint = cs.onPrimary, modifier = Modifier.size(20.dp)) }
+                    }
+                    Box(
+                        Modifier.size(40.dp).shadow(3.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
+                            .background(cs.errorContainer).clickable {
+                                vm.selectedWidget = null
+                                vm.removeWidgetItem(item)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Default.Delete, "Elimina widget", tint = cs.onErrorContainer, modifier = Modifier.size(20.dp)) }
+                }
             }
         }
     }
@@ -1837,44 +1919,6 @@ private fun MenuDivider() {
     )
 }
 
-@Composable
-private fun HomeMenu(at: Offset, vm: LauncherViewModel, host: Host, onDismiss: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    val density = LocalDensity.current
-    val conf = LocalConfiguration.current
-    val menuW = 250.dp
-    val menuWpx = with(density) { menuW.toPx() }
-    val estH = with(density) { (4 * 56 + 16).dp.toPx() }
-    val screenW = with(density) { conf.screenWidthDp.dp.toPx() }
-    val screenH = with(density) { conf.screenHeightDp.dp.toPx() }
-    val margin = with(density) { 16.dp.toPx() }
-    val x = (at.x - menuWpx / 2f).coerceIn(margin, maxOf(margin, screenW - menuWpx - margin))
-    val y = if (at.y + estH + margin < screenH) at.y else maxOf(margin, at.y - estH)
-    Popup(
-        alignment = Alignment.TopStart,
-        offset = IntOffset(x.roundToInt(), y.roundToInt()),
-        onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true)
-    ) {
-        MenuSurface(vm, 20.dp, modifier = Modifier.width(menuW)) {
-            Column(Modifier.padding(vertical = 4.dp)) {
-                MenuRow("Sfondo e stile", Icons.Default.Create) { onDismiss(); vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper" }
-                MenuDivider()
-                MenuRow("Widget", Icons.Default.Add) { onDismiss(); if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
-                MenuDivider()
-                MenuRow("Modifica Home", Icons.Default.Edit) { onDismiss(); vm.editMode = true }
-                MenuDivider()
-                MenuRow(if (vm.settings.lockHome) "Sblocca la Home" else "Blocca la Home", Icons.Default.Lock) {
-                    onDismiss()
-                    vm.setSetting("lockHome", !vm.settings.lockHome)
-                }
-                MenuDivider()
-                MenuRow("Impostazioni Home", Icons.Default.Settings) { onDismiss(); vm.overlay = Overlay.SETTINGS }
-            }
-        }
-    }
-}
-
 /** Fondo dei menu rapidi con il loro materiale (generale o proprio). */
 @Composable
 internal fun MenuSurface(vm: LauncherViewModel, corner: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -1956,59 +2000,196 @@ private fun MenuRow(
 }
 
 
-/** Tutte le pagine in piccolo: tocchi quella dove vuoi andare. */
+/** Icona "Sfondi" (Material Wallpaper). */
+private val WallpaperIcon: androidx.compose.ui.graphics.vector.ImageVector by lazy {
+    pathIcon("Sfondi", "M4 4h7V2H4c-1.1 0-2 .9-2 2v7h2V4zm6 9l-4 5h12l-3-4-2.03 2.71L10 13zm7-4.5c0-.83-.67-1.5-1.5-1.5S14 7.67 14 8.5s.67 1.5 1.5 1.5S17 9.33 17 8.5zM20 2h-7v2h7v7h2V4c0-1.1-.9-2-2-2zm0 18h-7v2h7c1.1 0 2-.9 2-2v-7h-2v7zM4 13H2v7c0 1.1.9 2 2 2h7v-2H4v-7z")
+}
+
+/** Icona "Widget" (Material Widgets). */
+internal val WidgetsIcon: androidx.compose.ui.graphics.vector.ImageVector by lazy {
+    pathIcon("Widget", "M13 13v8h8v-8h-8zM3 21h8v-8H3v8zM3 3v8h8V3H3zm13.66-1.31L11 7.34 16.66 13l5.66-5.66-5.66-5.65z")
+}
+
+private fun pathIcon(name: String, d: String): androidx.compose.ui.graphics.vector.ImageVector =
+    androidx.compose.ui.graphics.vector.ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).addPath(
+        pathData = androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toNodes(),
+        fill = androidx.compose.ui.graphics.SolidColor(Color.Black)
+    ).build()
+
+/**
+ * Anteprima pagine come Nova: sopra la pagina rimpicciolita il pulsante della pagina principale
+ * e quello per eliminarla; sotto Sfondi, Nuova pagina, Blocca e Impostazioni, e il pannello Widget
+ * che si apre trascinandolo in su.
+ */
 @Composable
-private fun PagesOverview(vm: LauncherViewModel, current: Int, onPick: (Int) -> Unit) {
+private fun PagesOverviewControls(vm: LauncherViewModel, host: Host, pagerState: PagerState, ov: Float, onAddPage: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.62f))
-            .pointerInput(Unit) { detectTapGestures { vm.showOverview = false } }
-            .windowInsetsPadding(WindowInsets.systemBars)
-    ) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+    val view = androidx.compose.ui.platform.LocalView.current
+    val density = LocalDensity.current
+    val page = pagerState.currentPage
+    val isHome = vm.homePageIdx == page
+    var askDelete by remember { mutableStateOf(-1) }
+    val land = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    Box(Modifier.fillMaxSize().alpha(ov)) {
+        // sopra la pagina
+        Row(
+            Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Pagine", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
-            (0 until vm.pageCount).chunked(2).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    row.forEach { p ->
-                        Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).clickable { onPick(p) },
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            PageThumb(vm, p, p == current)
-                            Text("Pagina ${p + 1}", color = Color.White, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
-                        }
-                    }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
+            OverviewRound(
+                Icons.Default.Home,
+                if (isHome) "Pagina principale" else "Rendi principale",
+                filled = isHome
+            ) {
+                if (!isHome) {
+                    vm.setHomePage(page)
+                    Haptics.confirm(view)
                 }
+            }
+            val canDelete = vm.pageCount > 1 && (vm.pageEmpty(page) || vm.settings.homeMode != "all")
+            if (canDelete) OverviewRound(Icons.Default.Delete, "Elimina pagina", filled = false) {
+                if (vm.pageEmpty(page)) vm.deletePage(page) else askDelete = page
+            }
+        }
+        // sotto la pagina
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .then(if (land) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // in orizzontale non c'è spazio per il pannello: Widget diventa un pulsante
+                if (land) OverviewButton(WidgetsIcon, "Widget") { if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
+                OverviewButton(WallpaperIcon, "Sfondi") {
+                    vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper"
+                }
+                OverviewButton(Icons.Default.Add, "Nuova pagina") { if (!vm.blockedByLock()) onAddPage() }
+                OverviewButton(Icons.Default.Lock, if (vm.settings.lockHome) "Sblocca" else "Blocca") {
+                    vm.setSetting("lockHome", !vm.settings.lockHome)
+                    Haptics.confirm(view)
+                }
+                OverviewButton(Icons.Default.Settings, "Impostazioni") { vm.overlay = Overlay.SETTINGS }
+            }
+            // pannello Widget: trascinandolo in su (o toccandolo) si apre l'elenco dei widget
+            if (!land) WidgetSheetPeek(vm)
+        }
+    }
+    if (askDelete >= 0) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { askDelete = -1 },
+            title = { Text("Eliminare la pagina?") },
+            text = { Text("Spariscono anche le icone e i widget che contiene. Le app restano nel cassetto.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    vm.deletePage(askDelete)
+                    askDelete = -1
+                }) { Text("Elimina") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { askDelete = -1 }) { Text("Annulla") }
+            }
+        )
+    }
+}
+
+/** Pannello "Widget" in fondo all'anteprima pagine: trascinandolo in su si apre l'elenco dei widget. */
+@Composable
+private fun WidgetSheetPeek(vm: LauncherViewModel) {
+    val cs = MaterialTheme.colorScheme
+    val view = androidx.compose.ui.platform.LocalView.current
+    val density = LocalDensity.current
+    var pull by remember { mutableStateOf(0f) }
+    val openPx = with(density) { 56.dp.toPx() }
+    val m = vm.settings.matOf("menus")
+    val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    Box(
+        Modifier
+            .padding(top = 6.dp)
+            .fillMaxWidth()
+            .graphicsLayer { translationY = pull }
+            .then(if (m.plain) Modifier.clip(sheetShape).background(cs.surfaceContainer) else Modifier.clip(sheetShape).background(cs.surfaceContainer.copy(alpha = 0.6f)).matLook(m, 28.dp, sheetShape, minOpacity = 60))
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { pull = 0f },
+                    onVerticalDrag = { c, dy ->
+                        c.consume()
+                        pull = (pull + dy).coerceIn(-openPx * 3f, 0f)
+                    },
+                    onDragEnd = {
+                        if (pull < -openPx) {
+                            Haptics.tick(view)
+                            if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS
+                        }
+                        pull = 0f
+                    },
+                    onDragCancel = { pull = 0f }
+                )
+            }
+            .clickable { if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
+            .windowInsetsPadding(WindowInsets.navigationBars)
+    ) {
+        val fg = if (m.plain) cs.onSurface else matContentColor(m)
+        Column(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier.padding(top = 10.dp).size(36.dp, 4.dp).clip(CircleShape).background(fg.copy(alpha = 0.45f))
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(start = 24.dp, top = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(WidgetsIcon, null, tint = cs.primary, modifier = Modifier.size(26.dp))
+                Spacer(Modifier.width(14.dp))
+                Text("Widget", color = fg, fontSize = 20.sp)
             }
         }
     }
 }
 
+/** Pulsante tondo sopra la pagina dell'anteprima. */
 @Composable
-private fun PageThumb(vm: LauncherViewModel, page: Int, current: Boolean) {
+private fun OverviewRound(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, filled: Boolean, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    BoxWithConstraints(
-        Modifier.fillMaxWidth().aspectRatio(0.56f).clip(RoundedCornerShape(20.dp))
-            .background(Color.White.copy(alpha = 0.12f))
-            .border(if (current) 3.dp else 1.dp, if (current) cs.primary else Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-            .padding(8.dp)
+    Box(
+        Modifier
+            .size(44.dp)
+            .shadow(4.dp, CircleShape)
+            .clip(CircleShape)
+            .background(if (filled) cs.primary else cs.surfaceContainerHigh)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        val cw = maxWidth / vm.gridCols
-        val ch = maxHeight / vm.gridRows
-        vm.items.filter { it.page == page }.forEach { it ->
-            Box(Modifier.offset(cw * it.x, ch * it.y).size(cw * it.spanX, ch * it.spanY).padding(3.dp)) {
-                when (it) {
-                    is AppItem -> vm.apps[it.appId]?.let { a ->
-                        androidx.compose.foundation.Image(a.icon, null, Modifier.fillMaxSize(0.82f).align(Alignment.Center))
-                    }
-                    is FolderItem -> Box(Modifier.fillMaxSize(0.82f).align(Alignment.Center).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.4f)))
-                    else -> Box(Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.25f)))
-                }
-            }
-        }
+        Icon(icon, desc, tint = if (filled) cs.onPrimary else cs.primary, modifier = Modifier.size(24.dp))
+    }
+}
+
+/** Pulsante sotto la pagina dell'anteprima: icona col colore del tema e nome. */
+@Composable
+private fun OverviewButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier.width(84.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(52.dp).clip(CircleShape).background(cs.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) { Icon(icon, label, tint = cs.onPrimaryContainer, modifier = Modifier.size(26.dp)) }
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), 4f)),
+            modifier = Modifier.padding(top = 6.dp)
+        )
     }
 }

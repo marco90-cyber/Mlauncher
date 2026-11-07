@@ -515,6 +515,20 @@ private fun Done(vm: LauncherViewModel, host: Host) {
     Headline("Tutto pronto!", "Ecco il tuo MLauncher. Gli ultimi ritocchi qui sotto sono facoltativi.")
     Summary(vm)
     Spacer(Modifier.height(12.dp))
+    // come si usa la Home
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Da sapere", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            listOf(
+                "Pizzica la Home con due dita: anteprima pagine con sfondi, widget, nuove pagine e pagina principale",
+                "Tieni premuto uno spazio vuoto per spostare icone e widget",
+                "In modifica tocca un widget per ridimensionarlo dai pallini sui lati"
+            ).forEach {
+                Text("•  " + it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
     SetupRow(
         "Home predefinita", "Usa MLauncher con il tasto Home e i gesti",
         vm.isDefaultHome, "Imposta"
@@ -530,7 +544,7 @@ private fun Done(vm: LauncherViewModel, host: Host) {
     ToggleRow("Scuoti per riordinare", "In modifica, scuoti il telefono per compattare la pagina", vm.settings.shakeTidy) {
         vm.setSetting("shakeTidy", it)
     }
-    ToggleRow("Blocca la Home", "Icone e widget non si spostano per sbaglio (sblocchi tenendo premuto uno spazio vuoto)", vm.settings.lockHome) {
+    ToggleRow("Blocca la Home", "Icone e widget non si spostano per sbaglio (sblocchi dall'anteprima pagine)", vm.settings.lockHome) {
         vm.setSetting("lockHome", it)
     }
     SetupRow(

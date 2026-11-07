@@ -140,6 +140,17 @@ class MainActivity : ComponentActivity(), Host {
         importLayoutLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
     }
 
+    /** Pulsante matita del widget: riapre la configurazione del widget (es. la città del meteo). */
+    override fun reconfigureWidget(widgetId: Int) {
+        try {
+            AppLog.i("Widget: riconfiguro $widgetId")
+            vm.widgetHost.startAppWidgetConfigureActivityForResult(this, widgetId, 0, REQ_RECONFIGURE, null)
+        } catch (e: Exception) {
+            AppLog.e("Widget: riconfigurazione non avviata", e)
+            android.widget.Toast.makeText(this, "Questo widget non si può riconfigurare", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     /** Cartella del backup automatico: il permesso resta anche dopo il riavvio. */
     private val folderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -392,7 +403,7 @@ class MainActivity : ComponentActivity(), Host {
             "lock" -> lockScreen()
             "statusbar" -> vm.setSetting("hideStatusBar", !vm.settings.hideStatusBar)
             "dock" -> vm.setSetting("hideDock", !vm.settings.hideDock)
-            "home" -> vm.goToPage(0)
+            "home" -> vm.goToPage(vm.homePageIdx)
             "page" -> vm.goToPage((spec.substringAfter(":").toIntOrNull() ?: 1) - 1)
             "overview" -> vm.showOverview = true
         }
@@ -593,5 +604,6 @@ class MainActivity : ComponentActivity(), Host {
 
     companion object {
         private const val REQ_CONFIGURE = 7001
+        private const val REQ_RECONFIGURE = 7002
     }
 }

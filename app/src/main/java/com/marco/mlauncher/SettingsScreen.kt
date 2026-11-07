@@ -729,10 +729,24 @@ private fun OrientationTabs(s: LauncherSettings) {
 @Composable
 private fun PageHome(vm: LauncherViewModel) {
     val s = vm.settings
+    Group("Pagine") {
+        ChoiceRow(
+            "Pagina principale",
+            (0 until vm.pageCount).map { it.toString() to "Pagina " + (it + 1) },
+            vm.homePageIdx.toString()
+        ) { vm.setHomePage(it.toInt()) }
+        ListItem(
+            headlineContent = { Text("Anteprima pagine") },
+            supportingContent = { Text("Pizzica la Home con due dita: sfondi, widget, nuove pagine e pagina principale") },
+            trailingContent = { Chevron() },
+            colors = prefColors(),
+            modifier = Modifier.hl("Anteprima pagine").clickable { vm.overlay = Overlay.NONE; vm.showOverview = true }
+        )
+    }
     Group("Disposizione delle app") {
         SwitchRow(
             "Blocca la Home",
-            "Icone, cartelle e widget non si possono spostare né togliere. Si sblocca anche dal menu della Home",
+            "Icone, cartelle e widget non si possono spostare né togliere. Si sblocca dall'anteprima pagine (pizzica la Home)",
             s.lockHome
         ) { vm.setSetting("lockHome", it) }
         var askOrder by remember { mutableStateOf(false) }
@@ -1044,7 +1058,7 @@ private fun PageWidgets(vm: LauncherViewModel, host: Host) {
     Group("Orologio") { StyleLink(vm, "Stile del widget orologio", "clock") }
     Group("Ricerca") {
         Text(
-            "La barra di ricerca è un widget: tieni premuto sulla Home → Widget → Barra di ricerca. Puoi spostarla e ridimensionarla come gli altri.",
+            "La barra di ricerca è un widget: pizzica la Home → Widget → Barra di ricerca. Puoi spostarla e ridimensionarla come gli altri.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -1070,7 +1084,7 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
         ) { vm.setSetting("shakeTidy", it) }
         SwitchRow(
             "Tasto Home apre il cassetto",
-            "Se sei già sulla prima pagina della Home",
+            "Se sei già sulla pagina principale della Home",
             s.homeOpensDrawer
         ) { vm.setSetting("homeOpensDrawer", it) }
         ChoiceRow(

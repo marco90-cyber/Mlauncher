@@ -141,7 +141,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 return
             }
             editModeState = v
+            if (!v) selectedWidget = null
         }
+    /** widget selezionato in modifica: mostra i pallini per ridimensionarlo */
+    var selectedWidget by mutableStateOf<String?>(null)
     /** cresce ogni volta che si prova a cambiare la Home mentre è bloccata */
     var lockedSignal by mutableIntStateOf(0)
         private set
@@ -2286,6 +2289,40 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
+    /** pagina principale (dove porta il tasto Home), sempre tra quelle esistenti */
+    val homePageIdx: Int get() = settings.homePage.coerceIn(0, maxOf(0, pageCount - 1))
+
+    fun setHomePage(p: Int) {
+        settings.set("homePage", p.coerceIn(0, maxOf(0, pageCount - 1)))
+    }
+
+    fun pageEmpty(p: Int) = items.none { it.page == p }
+
+    /** Elimina una pagina con tutto quello che c'è (le app restano nel cassetto). */
+    fun deletePage(p: Int) {
+        if (blockedByLock()) return
+        if (pageCount <= 1) return
+        items.filter { it.page == p }.forEach { if (it is WidgetItem || it is StackItem) removeWidgetItem(it) }
+        items.removeAll { it.page == p }
+        for (it in items.toList()) {
+            if (it.page > p) replace(it, it.at(it.page - 1, it.x, it.y))
+        }
+        pageCount -= 1
+        val hp = settings.homePage
+        val newHp = (if (hp > p) hp - 1 else hp).coerceIn(0, maxOf(0, pageCount - 1))
+        if (newHp != hp) settings.set("homePage", newHp)
+        saveLayout()
+    }
+
+    /** Sposta e ridimensiona insieme (pallini dei widget a sinistra e in alto). */
+    fun moveResize(item: HomeItem, x: Int, y: Int, sx: Int, sy: Int) {
+        val cur = items.firstOrNull { it.id == item.id } ?: return
+        if (x == cur.x && y == cur.y && sx == cur.spanX && sy == cur.spanY) return
+        if (!areaFree(cur.page, x, y, sx, sy, cur.id)) return
+        replace(cur, cur.at(cur.page, x, y).sized(sx, sy))
+        saveLayout()
+    }
+
     fun exitEdit() {
         editMode = false
         trimPages()
@@ -2298,6 +2335,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         for (it in items.toList()) {
             if (it.page >= 0) replace(it, it.at(map[it.page] ?: 0, it.x, it.y))
         }
+        // la pagina principale segue le pagine che restano
+        val hp = settings.homePage
+        val newHp = map[hp] ?: used.count { it < hp }.coerceAtMost(maxOf(used.size - 1, 0))
+        if (newHp != hp) settings.set("homePage", newHp)
         pageCount = maxOf(used.size, 1)
         saveLayout()
     }
@@ -2305,7 +2346,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** [alreadyHome]: il tasto Home è stato premuto mentre la Home era già in primo piano. */
     /** Indietro sulla Home: torna alla prima pagina (e chiude menu aperti), senza chiudere il Launcher. */
     fun backOnHome() {
-        if (currentPage != 0) homeSignal += 1
+        if (currentPage != homePageIdx) homeSignal += 1
     }
 
     fun onHomePressed(alreadyHome: Boolean = false) {
@@ -2318,7 +2359,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         // già sulla prima pagina, senza nulla di aperto: il tasto Home apre il cassetto
         if (alreadyHome && settings.homeOpensDrawer && overlay == Overlay.NONE && openFolderId == null &&
-            !editMode && currentPage == 0
+            !editMode && currentPage == homePageIdx
         ) {
             overlay = Overlay.DRAWER
             return
