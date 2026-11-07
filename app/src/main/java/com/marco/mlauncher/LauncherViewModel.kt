@@ -450,6 +450,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** posizione della cartella toccata: la cartella aperta nasce da lì */
     var folderAnchor by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
     var homeSignal by mutableIntStateOf(0)
+        private set
     /** richiesta di andare a una pagina (azione "Pagina N") */
     var pageReq by mutableIntStateOf(-1)
     var pageReqN by mutableIntStateOf(0)
@@ -471,7 +472,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         overlay = Overlay.NONE
         AppLog.i("Azione $spec aggiunta in Home")
     }
-        private set
     var currentPage by mutableIntStateOf(0)
     var isDefaultHome by mutableStateOf(false)
     var listenerEnabled by mutableStateOf(false)
