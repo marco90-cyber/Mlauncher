@@ -145,6 +145,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     /** widget selezionato in modifica: mostra i pallini per ridimensionarlo */
     var selectedWidget by mutableStateOf<String?>(null)
+    private var selectedAt = 0L
+
+    fun selectWidget(id: String) {
+        selectedWidget = id
+        selectedAt = android.os.SystemClock.uptimeMillis()
+    }
+
+    /** la selezione è appena avvenuta: il tocco che l'ha fatta non la deve anche togliere */
+    fun selectionSettled() = android.os.SystemClock.uptimeMillis() - selectedAt > 400
     /** cresce ogni volta che si prova a cambiare la Home mentre è bloccata */
     var lockedSignal by mutableIntStateOf(0)
         private set

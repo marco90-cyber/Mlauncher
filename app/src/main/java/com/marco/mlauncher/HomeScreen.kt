@@ -1106,7 +1106,7 @@ private fun HomePage(
                     onTap = {
                         when {
                             vm.showOverview -> vm.showOverview = false
-                            vm.selectedWidget != null -> vm.selectedWidget = null
+                            vm.selectedWidget != null -> { if (vm.selectionSettled()) vm.selectedWidget = null }
                             vm.editMode -> vm.exitEdit()
                         }
                     },
@@ -1583,11 +1583,13 @@ private fun WidgetCell(
     val curItem by rememberUpdatedState(item)
     val curCb by rememberUpdatedState(cb)
     val edit = vm.editMode
+    // pressione lunga sul widget: si entra in modifica con il widget già selezionato (come Nova)
     val enterEdit: () -> Unit = {
         if (!vm.editMode) {
             if (Haptics.pressOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             vm.editMode = true
         }
+        if (vm.editMode) vm.selectWidget(curItem.id)
     }
     val cwPx = with(density) { cellW.toPx() }
     val chPx = with(density) { cellH.toPx() }
@@ -1626,8 +1628,26 @@ private fun WidgetCell(
                         holder.root = it.positionInRoot()
                         holder.window = it.boundsInWindow()
                     }
-                    // tocco: seleziona il widget e compaiono i pallini per ridimensionarlo (come Nova)
-                    .pointerInput(item.id) { detectTapGestures { vm.selectedWidget = curItem.id } }
+                    // tocco: seleziona il widget e compaiono i pallini per ridimensionarlo (come Nova).
+                    // Letto nel primo passaggio, così nessun altro gesto se lo prende prima.
+                    .pointerInput(item.id) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            var moved = false
+                            while (true) {
+                                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                                if (!c.pressed) {
+                                    if (!moved && c.uptimeMillis - down.uptimeMillis < viewConfiguration.longPressTimeoutMillis) {
+                                        vm.selectWidget(curItem.id)
+                                        c.consume()
+                                    }
+                                    break
+                                }
+                            }
+                        }
+                    }
                     .pointerInput(item.id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { pos ->
@@ -1879,7 +1899,7 @@ internal fun QuickMenu(
                         row("Modifica", Icons.Default.Edit) { vm.editMode = true }
                     } else {
                         row("Rimuovi", Icons.Default.Close) { vm.removeWidgetItem(item) }
-                        row("Modifica", Icons.Default.Edit) { vm.editMode = true }
+                        row("Ridimensiona", Icons.Default.Edit) { vm.editMode = true; vm.selectWidget(item.id) }
                     }
                 }
             }
