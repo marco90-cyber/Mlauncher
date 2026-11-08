@@ -2633,10 +2633,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun syncOrientation(land: Boolean) {
         if (land == layoutLand) return
         AppLog.i("Orientamento: " + if (land) "orizzontale" else "verticale")
+        // ruotando si resta dove si era: stessa pagina, cartella aperta e modifica restano
+        val keep = currentPage
         swapTo(land)
-        editMode = false
-        openFolderId = null
-        homeSignal += 1
+        val sel = selectedWidget
+        if (sel != null && items.none { it.id == sel }) selectedWidget = null
+        val folder = openFolderId
+        if (folder != null && items.none { it is FolderItem && it.folderId == folder }) openFolderId = null
+        goToPage(keep.coerceIn(0, maxOf(0, pageCount - 1)))
     }
 
     /** Adatta il layout attivo alla griglia e al numero di slot della dock. */
