@@ -101,6 +101,7 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1960,9 +1961,12 @@ internal fun MenuSurface(vm: LauncherViewModel, corner: Dp, modifier: Modifier =
         "pill", "solid" -> cs.onSurface
         else -> folderTextColor(m.style, m.opacity, if (m.style == "tinted") cs.primary else cs.surfaceContainer, cs.surfaceContainerHigh, cs.onSurface)
     }
-    Surface(shape = shape, color = cs.surfaceContainerHigh.copy(alpha = 0.72f), shadowElevation = 8.dp, modifier = modifier) {
-        Box(Modifier.matLook(m, corner, shape, minOpacity = 40)) {
-            MaterialTheme(colorScheme = cs.copy(onSurface = fg, onSurfaceVariant = fg.copy(alpha = 0.75f))) {
+    // fondo quasi pieno: le icone sotto il menu non devono trasparire e confondere le voci
+    Surface(shape = shape, color = cs.surfaceContainerHigh.copy(alpha = 0.9f), shadowElevation = 8.dp, modifier = modifier) {
+        Box(Modifier.matLook(m, corner, shape, minOpacity = 70)) {
+            // il rosso di "Disinstalla"/"Elimina" segue il testo: scuro su fondo chiaro, chiaro su fondo scuro
+            val err = if (fg.luminance() < 0.5f) Color(0xFFB3261E) else Color(0xFFFFB4AB)
+            MaterialTheme(colorScheme = cs.copy(onSurface = fg, onSurfaceVariant = fg.copy(alpha = 0.75f), error = err)) {
                 androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides fg) { content() }
             }
         }
