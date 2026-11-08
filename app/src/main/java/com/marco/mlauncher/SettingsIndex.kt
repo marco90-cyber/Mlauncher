@@ -19,7 +19,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Colonne", "home", "Disposizione delle app", ""),
     SettingEntry("Righe", "home", "Disposizione delle app", ""),
     SettingEntry("Dimensione icone", "home", "Disposizione delle app", ""),
-    SettingEntry("Rotazione della Home", "home", "Schermo", "In orizzontale la dock passa a lato. Spento: la Home resta in verticale"),
+    SettingEntry("Rotazione della Home", "home", "Schermo", "In orizzontale icone e widget restano nei posti corrispondenti, con la griglia orizzontale; la dock passa a lato. Spento: la Home resta in verticale"),
     SettingEntry("Grandezza", "dock", "", ""),
     SettingEntry("Icone nella dock", "dock", "", ""),
     SettingEntry("Badge delle notifiche", "icons", "Notifiche", ""),

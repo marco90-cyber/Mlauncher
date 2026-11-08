@@ -815,7 +815,7 @@ private fun PageHome(vm: LauncherViewModel) {
     Group("Schermo") {
         SwitchRow(
             "Rotazione della Home",
-            "In orizzontale la dock passa a lato. Spento: la Home resta in verticale",
+            "In orizzontale icone e widget restano nei posti corrispondenti, con la griglia orizzontale; la dock passa a lato. Spento: la Home resta in verticale",
             s.allowRotation
         ) { vm.setSetting("allowRotation", it) }
         StyleLink(vm, "Nomi delle app, forma delle icone", "iconstyle")

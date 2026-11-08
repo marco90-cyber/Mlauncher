@@ -1403,7 +1403,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Cancella layout, impostazioni, app nascoste: tutto come al primo avvio. */
     fun resetLauncher() {
-        discardExtOf(otherKey("layout"))
+        if (!layoutLand) dropLegacyLand()
         items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
         items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
         sp.edit().clear().commit()
@@ -1676,12 +1676,133 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun saveLayout() {
         if (dryRun) return
+        if (layoutLand) {
+            // in orizzontale si modifica la disposizione unica (quella verticale), nel posto corrispondente
+            writeBackToMaster()
+            sp.edit()
+                .putStringSet("known", HashSet(knownIds))
+                .putStringSet("hidden", HashSet(hidden))
+                .apply()
+            return
+        }
         sp.edit()
-            .putString(lk("layout"), encodeItems().toString())
-            .putInt(lk("pages"), pageCount)
+            .putString("layout", encodeItems().toString())
+            .putInt("pages", pageCount)
             .putStringSet("known", HashSet(knownIds))
             .putStringSet("hidden", HashSet(hidden))
             .apply()
+    }
+
+    // ---------- disposizione unica: l'orizzontale è ricavata dalla verticale ----------
+
+    /** Com'era la Home orizzontale appena ricavata (o all'ultimo salvataggio): serve a capire cosa è cambiato. */
+    private var landSnap: Map<String, HomeItem> = emptyMap()
+    private var landSnapPages = 1
+
+    private var landSnapTaken = false
+
+    private fun takeLandSnapshot() {
+        landSnap = items.associateBy { it.id }
+        landSnapPages = pageCount
+        landSnapTaken = true
+    }
+
+    /** Vecchia disposizione orizzontale separata (versioni precedenti): i suoi widget vengono liberati. */
+    private fun dropLegacyLand() {
+        if (!sp.contains("layout_l")) return
+        discardExtOf("layout_l")
+        sp.edit().remove("layout_l").remove("pages_l").apply()
+        AppLog.i("Orientamento: la Home orizzontale ora segue quella verticale")
+    }
+
+    /** Posizione corrispondente tra due griglie: in alto a destra resta in alto a destra. */
+    private fun mapPos(v: Int, span: Int, fromN: Int, toSpan: Int, toN: Int): Int {
+        val f = if (fromN - span > 0) v.toFloat() / (fromN - span) else 0f
+        return (f * (toN - toSpan)).roundToInt().coerceIn(0, maxOf(0, toN - toSpan))
+    }
+
+    private fun freeIn(list: List<HomeItem>, page: Int, x: Int, y: Int, sx: Int, sy: Int, cols: Int, rows: Int, slots: Int, except: String?): Boolean {
+        if (page == -1) {
+            if (x < 0 || x >= slots) return false
+            return list.none { it.id != except && it.page == -1 && it.x == x }
+        }
+        if (x < 0 || y < 0 || x + sx > cols || y + sy > rows) return false
+        return list.none {
+            it.id != except && it.page == page &&
+                x < it.x + it.spanX && it.x < x + sx && y < it.y + it.spanY && it.y < y + sy
+        }
+    }
+
+    /** Posto libero più vicino a (tx,ty) nella pagina; se la pagina è piena, la prima libera dopo. */
+    private fun spotIn(list: List<HomeItem>, page: Int, tx: Int, ty: Int, sx: Int, sy: Int, cols: Int, rows: Int, slots: Int, except: String?, pages: Int): Triple<Int, Int, Int> {
+        var p = maxOf(page, 0)
+        while (p < pages + 20) {
+            var best: Pair<Int, Int>? = null
+            var bd = Int.MAX_VALUE
+            for (y in 0..(rows - sy)) for (x in 0..(cols - sx)) {
+                if (!freeIn(list, p, x, y, sx, sy, cols, rows, slots, except)) continue
+                val d = (x - tx) * (x - tx) + 2 * (y - ty) * (y - ty)
+                if (d < bd) { bd = d; best = x to y }
+            }
+            if (best != null) return Triple(p, best.first, best.second)
+            p++
+        }
+        return Triple(pages, 0, 0)
+    }
+
+    /** Quello che è cambiato in orizzontale finisce anche nella disposizione verticale. */
+    private fun writeBackToMaster() {
+        // senza un punto di partenza non si sa cosa è cambiato: non tocco la disposizione verticale
+        if (!landSnapTaken) {
+            takeLandSnapshot()
+            return
+        }
+        val str = sp.getString("layout", null)
+        val master = ArrayList<HomeItem>()
+        if (str != null) try { master.addAll(decodeItems(JSONArray(str), false)) } catch (e: Exception) { return }
+        var mPages = sp.getInt("pages", 1).coerceAtLeast(1)
+        val pc = settings.colsOf(false)
+        val pr = settings.rowsOf(false)
+        val ps = settings.dockSlotsOf(false)
+        val lc = curCols
+        val lr = curRows
+        val now = items.associateBy { it.id }
+        var changed = false
+        // tolti in orizzontale
+        if (master.removeAll { it.id in landSnap && it.id !in now }) changed = true
+        // pagine aggiunte o tolte
+        val dp = pageCount - landSnapPages
+        if (dp != 0) { mPages = maxOf(1, mPages + dp); changed = true }
+        for (l in items) {
+            val snap = landSnap[l.id]
+            if (snap == l) continue
+            changed = true
+            val m = master.firstOrNull { it.id == l.id }
+            val moved = snap == null || m == null || snap.page != l.page || snap.x != l.x || snap.y != l.y ||
+                snap.spanX != l.spanX || snap.spanY != l.spanY
+            if (m != null && !moved) {
+                // cambiato solo il contenuto (nome della cartella, app dentro…): il posto resta quello verticale
+                master[master.indexOf(m)] = l.at(m.page, m.x, m.y).sized(m.spanX, m.spanY)
+                continue
+            }
+            if (m != null) master.remove(m)
+            val sx = if (m != null && snap != null && snap.spanX == l.spanX) m.spanX else minOf(l.spanX, pc)
+            val sy = if (m != null && snap != null && snap.spanY == l.spanY) m.spanY else minOf(l.spanY, pr)
+            val placed: HomeItem = if (l.page == -1 && freeIn(master, -1, l.x, 0, 1, 1, pc, pr, ps, l.id)) {
+                l.at(-1, l.x, 0)
+            } else {
+                val tx = if (l.page == -1) 0 else mapPos(l.x, l.spanX, lc, sx, pc)
+                val ty = if (l.page == -1) pr - 1 else mapPos(l.y, l.spanY, lr, sy, pr)
+                val (p, x, y) = spotIn(master, maxOf(l.page, 0), tx, ty, sx, sy, pc, pr, ps, l.id, mPages)
+                if (p + 1 > mPages) mPages = p + 1
+                l.at(p, x, y).sized(sx, sy)
+            }
+            master.add(placed)
+        }
+        if (changed) {
+            sp.edit().putString("layout", encodeItems(master).toString()).putInt("pages", mPages).apply()
+        }
+        takeLandSnapshot()
     }
 
     // ---------- backup ----------
@@ -1692,7 +1813,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
         o.put("layout", JSONArray(sp.getString("layout", "[]")))
         o.put("pages", sp.getInt("pages", 1))
-        sp.getString("layout_l", null)?.let { o.put("layout_l", JSONArray(it)); o.put("pages_l", sp.getInt("pages_l", 1)) }
         o.put("hidden", JSONArray(hidden.toList()))
         o.put("notes", JSONObject().apply { notes.forEach { (k, n) -> put(k, JSONObject().put("t", n.text).put("c", n.color).put("s", n.size)) } })
         o.put("settings", settings.dump())
@@ -1707,7 +1827,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
         o.put("layout", JSONArray(sp.getString("layout", "[]")))
         o.put("pages", sp.getInt("pages", 1))
-        sp.getString("layout_l", null)?.let { o.put("layout_l", JSONArray(it)); o.put("pages_l", sp.getInt("pages_l", 1)) }
         o.put("minus", JSONArray(settings.minusWidgets))
         o.put("notes", JSONObject().apply { notes.forEach { (k, n) -> put(k, JSONObject().put("t", n.text).put("c", n.color).put("s", n.size)) } })
         return o.toString(2)
@@ -1766,11 +1885,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             items.addAll(list)
             pageCount = o.optInt("pages", 1).coerceAtLeast(1)
             val e = sp.edit().remove("layout_l").remove("pages_l")
-            o.optJSONArray("layout_l")?.let {
-                val (l, lostL) = reviveItems(decodeItems(it, false))
-                lost += lostL
-                e.putString("layout_l", encodeItems(l).toString()).putInt("pages_l", o.optInt("pages_l", 1))
-            }
             e.apply()
             o.optJSONArray("minus")?.let { a ->
                 // pagina −1: stessi controlli sui widget delle altre app
@@ -1811,9 +1925,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             items.addAll(list)
             pageCount = o.optInt("pages", 1).coerceAtLeast(1)
             val e = sp.edit().remove("layout_l").remove("pages_l")
-            o.optJSONArray("layout_l")?.let {
-                e.putString("layout_l", encodeItems(decodeItems(it, true)).toString()).putInt("pages_l", o.optInt("pages_l", 1))
-            }
             e.apply()
             o.optJSONObject("notes")?.let { no ->
                 for (k in no.keys()) no.optJSONObject(k)?.let { n ->
@@ -1973,7 +2084,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun resetHome() {
         items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
         items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
-        discardExtOf(otherKey("layout"))
+        if (!layoutLand) dropLegacyLand()
         editMode = false
         openFolderId = null
         // la Home predefinita nasce sempre in verticale; l'orizzontale si ricava da quella
@@ -1987,7 +2098,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             items.clear()
             layoutLand = true
             buildFromOther()
-            saveLayout()
+            takeLandSnapshot()
         }
         homeSignal += 1
     }
@@ -2004,8 +2115,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Dopo un riordino globale l'altro orientamento viene rigenerato da questo alla prossima rotazione. */
     private fun dropOtherLayout() {
-        discardExtOf(otherKey("layout"))
-        sp.edit().remove(otherKey("layout")).remove(otherKey("pages")).apply()
+        // c'è una sola disposizione: resta solo da togliere quella vecchia separata, se c'è
+        if (!layoutLand) dropLegacyLand()
     }
 
     /** Mette un elemento grande dove vuole e sposta in posti liberi quelli che occupavano l'area. */
@@ -2395,7 +2506,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 arrangeHomeApps()
                 dropOtherLayout()
             }
-            "cols", "rows", "dockSlots" -> inOrientation(settings.landscape) { fit() }
+            "cols", "rows", "dockSlots" -> if (settings.landscape) {
+                // griglia orizzontale cambiata: la Home orizzontale si ricava di nuovo dalla verticale
+                if (layoutLand) {
+                    items.clear()
+                    buildFromOther()
+                    takeLandSnapshot()
+                    homeSignal += 1
+                }
+            } else inOrientation(false) { fit() }
             "iconPack" -> reloadIcons()
         }
     }
@@ -2419,7 +2538,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
         items.clear()
         layoutLand = land
-        if (!loadLayout()) buildFromOther()
+        if (land) {
+            // l'orizzontale non ha una disposizione sua: la ricavo ogni volta da quella verticale
+            dropLegacyLand()
+            buildFromOther()
+            takeLandSnapshot()
+        } else if (!loadLayout()) buildFromOther()
         if (apps.isNotEmpty()) {
             items.removeAll { it is AppItem && it.appId !in apps }
             // app installate mentre era attivo l'altro orientamento
@@ -2439,10 +2563,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      */
     private fun buildFromOther() {
         items.clear()
-        pageCount = 1
+        pageCount = sp.getInt(otherKey("pages"), 1).coerceAtLeast(1)
         val str = sp.getString(otherKey("layout"), null) ?: return
         val src = try {
-            decodeItems(JSONArray(str), true)
+            // anche i widget delle altre app: è lo stesso widget, se ne vede uno alla volta
+            decodeItems(JSONArray(str), false)
         } catch (e: Exception) {
             return
         }
