@@ -31,9 +31,13 @@ object Perf {
     private val timings = LinkedHashMap<String, Timing>()
     private val scenes = LinkedHashMap<String, Scene>()
     private var day = ""
+    /** versione di MLauncher a cui si riferiscono le statistiche (si riparte da zero a ogni aggiornamento) */
+    private var ver = ""
+    private var curVer = ""
 
     fun init(ctx: Context) {
         sp = ctx.getSharedPreferences("mlauncher_perf", Context.MODE_PRIVATE)
+        curVer = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
         load()
         rollDay()
     }
@@ -157,17 +161,19 @@ object Perf {
 
     // ---------- riepilogo giornaliero ----------
 
+    /** Nuovo giorno o nuova versione: scrivo il riepilogo di prima e riparto, così i confronti sono puliti. */
     private fun rollDay() {
         val today = dayFmt.format(Date())
-        if (day == today) return
+        if (day == today && ver == curVer) return
         if (day.isNotEmpty() && (timings.isNotEmpty() || scenes.isNotEmpty())) AppLog.i(summary())
         timings.clear()
         scenes.clear()
         day = today
+        ver = curVer
     }
 
     private fun summary(): String {
-        val sb = StringBuilder("Riepilogo velocità del $day:")
+        val sb = StringBuilder("Riepilogo velocità del $day" + (if (ver.isNotEmpty()) " (versione $ver)" else "") + ":")
         for ((k, t) in timings) {
             if (t.n == 0) continue
             sb.append("\n  • $k: ${t.n} volte, media ${(t.sum.toDouble() / t.n).roundToInt()} ms, peggiore ${t.max} ms")
@@ -186,7 +192,7 @@ object Perf {
     private fun save() {
         val p = sp ?: return
         try {
-            val o = JSONObject().put("day", day)
+            val o = JSONObject().put("day", day).put("ver", ver)
             val ti = JSONObject()
             synchronized(lock) {
                 timings.forEach { (k, t) -> ti.put(k, JSONObject().put("n", t.n).put("s", t.sum).put("m", t.max)) }
@@ -205,6 +211,7 @@ object Perf {
         try {
             val o = JSONObject(str)
             day = o.optString("day", "")
+            ver = o.optString("ver", "")
             o.optJSONObject("t")?.let { ti ->
                 for (k in ti.keys()) ti.getJSONObject(k).let { timings[k] = Timing(it.optInt("n"), it.optLong("s"), it.optLong("m")) }
             }

@@ -216,22 +216,43 @@ object SlowSpot {
         }
     }
 
+    /** Cosa c'è aperto in questo momento (cassetto, cartella, impostazioni…): lo imposta MainActivity. */
+    @Volatile var context: (() -> String)? = null
+
+    /** Righe di codice "vere": senza i passaggi intermedi generati dal compilatore (riga 0 o 1). */
+    private fun useful(e: StackTraceElement): Boolean =
+        e.className.startsWith("com.marco.mlauncher") && !e.className.contains("SlowSpot") &&
+            e.lineNumber > 1 && !e.methodName.startsWith("access$") && !e.methodName.contains("\$r8\$") &&
+            !e.className.contains("ExternalSynthetic")
+
     private fun report(dur: Long, desc: String) {
         val list = synchronized(samples) { ArrayList(samples) }
         val msg = desc.removePrefix(">>>>> Dispatching to ").take(120)
-        val sb = StringBuilder("Rallentamento ($why): $dur ms in un solo lavoro — $msg")
+        val now = try { context?.invoke() } catch (e: Exception) { null }
+        val sb = StringBuilder("Rallentamento ($why" + (if (!now.isNullOrEmpty()) " · aperto: $now" else "") + "): $dur ms in un solo lavoro — $msg")
         if (list.isEmpty()) {
             sb.append("\n    (nessun campione)")
         } else {
             // dove passava il tempo nel codice di MLauncher (i punti più frequenti nei campioni)
             val own = HashMap<String, Int>()
             val top = HashMap<String, Int>()
+            var gpu = 0
             for (t in list) {
-                t.firstOrNull()?.let { top[it.toString()] = (top[it.toString()] ?: 0) + 1 }
-                t.filter { it.className.startsWith("com.marco.mlauncher") && !it.className.contains("SlowSpot") }
+                t.firstOrNull()?.let {
+                    top[it.toString()] = (top[it.toString()] ?: 0) + 1
+                    if (it.methodName == "nSyncAndDrawFrame" || it.methodName == "nCreateHardwareBitmap") gpu++
+                }
+                t.filter { useful(it) }
                     .take(4).map { it.toString() }.distinct()
                     .forEach { own[it] = (own[it] ?: 0) + 1 }
             }
+            // in breve: di chi è la colpa
+            val what = when {
+                gpu * 100 >= list.size * 60 -> "quasi tutto il tempo ad aspettare la scheda grafica (disegno), non il codice"
+                own.isEmpty() -> "lavoro di Android/Compose, nessun punto preciso di MLauncher"
+                else -> "codice di MLauncher (vedi sotto)"
+            }
+            sb.append("\n    → $what")
             sb.append("\n    campioni: ${list.size}")
             sb.append("\n    in MLauncher:")
             own.entries.sortedByDescending { it.value }.take(8).forEach { sb.append("\n      ${it.value}× ${it.key}") }

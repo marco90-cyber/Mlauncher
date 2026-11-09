@@ -235,6 +235,21 @@ class MainActivity : ComponentActivity(), Host {
         vm.loadCrash()
         AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
         Perf.attach(window)
+        // il rilevatore dei rallentamenti scrive anche cosa c'era aperto in quel momento
+        SlowSpot.context = {
+            listOfNotNull(
+                when (vm.overlay) {
+                    Overlay.DRAWER -> "cassetto"
+                    Overlay.SETTINGS -> "impostazioni"
+                    Overlay.WIDGETS -> "widget"
+                    else -> null
+                },
+                if (vm.openFolderId != null) "cartella" else null,
+                if (vm.minusP > 0f) "pagina −1" else null,
+                if (vm.showOverview) "anteprima pagine" else null,
+                if (vm.editMode) "modifica" else null
+            ).ifEmpty { listOf("Home, pagina ${vm.currentPage + 1}") }.joinToString(", ")
+        }
         // "content capture" (lettura dello schermo per le funzioni intelligenti del sistema): alla Home non serve
         // e all'avvio costava oltre 100 ms sul thread principale
         try {
