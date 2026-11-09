@@ -590,15 +590,21 @@ fun AppsOverlay(vm: LauncherViewModel, host: Host) {
     }
     val prog = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(visible) {
-        prog.animateTo(
-            if (visible) 1f else 0f,
-            tween(
-                ((if (visible) Motion.ALL_APPS_OPEN else Motion.ALL_APPS_CLOSE) * s.animFactor).toInt().coerceAtLeast(1),
-                easing = if (visible) Motion.EmphasizedDecelerate else Motion.EmphasizedAccelerate
+        try {
+            prog.animateTo(
+                if (visible) 1f else 0f,
+                tween(
+                    ((if (visible) Motion.ALL_APPS_OPEN else Motion.ALL_APPS_CLOSE) * s.animFactor).toInt().coerceAtLeast(1),
+                    easing = if (visible) Motion.EmphasizedDecelerate else Motion.EmphasizedAccelerate
+                )
             )
-        )
+        } finally {
+            // animazione interrotta (app aperta, Home lasciata…): il cassetto chiuso non deve restare a metà
+            if (!visible) kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { prog.snapTo(0f) }
+        }
     }
     val idle by remember { androidx.compose.runtime.derivedStateOf { prog.value == 0f } }
+    val visibleRef = rememberUpdatedState(visible)
     if (!ready && !visible && idle) return
     // mentre un'icona viene portata sulla Home il cassetto sparisce ma resta vivo (il dito è ancora suo)
     var dragHidden by remember { mutableStateOf(false) }
@@ -613,11 +619,10 @@ fun AppsOverlay(vm: LauncherViewModel, host: Host) {
         Modifier
             .fillMaxSize()
             // chiuso: resta pronto ma fuori dallo schermo (non si disegna e non prende tocchi)
-            .offset { if (prog.value == 0f) IntOffset(0, 100_000) else IntOffset.Zero }
+            // chiuso (e non in animazione): fuori dallo schermo, così non copre mai la Home né prende i suoi tocchi
+            .offset { if (!visibleRef.value && (!prog.isRunning || prog.value < 0.02f)) IntOffset(0, 100_000) else IntOffset.Zero }
             .graphicsLayer {
                 val p = prog.value
-                // la trasparenza va su ogni elemento, senza ridisegnare tutto il cassetto in un'immagine a parte
-                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
                 alpha = (p * 1.6f).coerceIn(0f, 1f) * a
                 val sc = 0.92f + 0.08f * p
                 scaleX = sc
