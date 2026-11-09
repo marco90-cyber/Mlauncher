@@ -1663,8 +1663,9 @@ private fun WidgetCell(
                                 curCb.start(curItem, holder.root + pos)
                             },
                             onDrag = { ch, _ -> curCb.move(holder.root + ch.position) },
-                            onDragEnd = { curCb.end() },
-                            onDragCancel = { curCb.end() }
+                            // dopo lo spostamento il widget resta selezionato, con pallini, matita e cestino (come Nova)
+                            onDragEnd = { val id = curItem.id; curCb.end(); if (vm.editMode && vm.items.any { it.id == id }) vm.selectWidget(id) },
+                            onDragCancel = { val id = curItem.id; curCb.end(); if (vm.editMode && vm.items.any { it.id == id }) vm.selectWidget(id) }
                         )
                     }
             )
