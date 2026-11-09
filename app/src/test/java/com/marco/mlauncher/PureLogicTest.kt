@@ -37,4 +37,12 @@ class PureLogicTest {
         assertEquals(px[7 * w + 5], px[7 * w + 9])
         assertEquals(px[5 * w + 7], px[9 * w + 7])
     }
+
+    @Test fun isActionId_recognisesOnlyActions() {
+        assertTrue(isActionId("com.marco.mlauncher/action:drawer"))
+        assertTrue(isActionId("com.marco.mlauncher/action:page:3"))
+        assertTrue(!isActionId("com.marco.mlauncher/com.marco.mlauncher.SettingsActivity"))
+        assertTrue(!isActionId("com.whatsapp/com.whatsapp.Main"))
+        assertTrue("un'app che si chiama action ma non è un'Azione", !isActionId("action.app/com.x.Main"))
+    }
 }

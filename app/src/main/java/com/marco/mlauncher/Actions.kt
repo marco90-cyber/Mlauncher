@@ -36,6 +36,9 @@ const val ACTION_MAX_PAGE = 9
 
 val AppEntry.isAction: Boolean get() = cls.startsWith(ACTION_PREFIX)
 
+/** Id di un'app ("pacchetto/classe") che è un'Azione MLauncher: non va mai messa in Home da sola. */
+fun isActionId(id: String): Boolean = id.substringAfter('/').startsWith(ACTION_PREFIX)
+
 /** Colore di fondo dell'icona di ogni azione. */
 private fun actionColor(key: String): Int = when (key) {
     "drawer", "search" -> 0xFF3D5AFE.toInt()

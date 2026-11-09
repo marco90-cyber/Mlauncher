@@ -1474,7 +1474,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun arrangeHomeApps() {
         items.removeAll { it.page >= 1 && (it is AppItem || it is FolderItem) }
         val placed = placedAppIds()
-        var list = apps.values.filter { it.id !in placed && it.id !in hidden }
+        // le Azioni MLauncher si mettono in Home solo a mano, dal selettore dei widget
+        var list = apps.values.filter { !it.isAction && it.id !in placed && it.id !in hidden }
         val byName = compareBy<AppEntry> { it.label.lowercase() }
         // cartelle intelligenti: niente cartelle generiche, chi non rientra (o resterebbe da solo) va sciolto
         if (settings.autoFolders) {
@@ -1704,10 +1705,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (settings.homeMode == "all") {
             sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { placeNewApp(it) }
         } else if (settings.autoAddNew && knownIds.isNotEmpty()) {
-            ids.filter { it !in knownIds && it !in placed && it !in hidden }.forEach { addApp(it) }
+            ids.filter { !isActionId(it) && it !in knownIds && it !in placed && it !in hidden }.forEach { addApp(it) }
         }
         if (knownIds.isNotEmpty()) {
-            val fresh = ids.filter { it !in knownIds && it !in newApps }
+            val fresh = ids.filter { !isActionId(it) && it !in knownIds && it !in newApps }
             if (fresh.isNotEmpty()) {
                 newApps.addAll(fresh)
                 sp.edit().putStringSet("newApps", HashSet(newApps)).apply()
