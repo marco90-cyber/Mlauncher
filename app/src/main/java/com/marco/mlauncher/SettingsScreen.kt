@@ -591,7 +591,7 @@ private fun logIsError(e: String): Boolean {
 private fun logIsSpeed(e: String): Boolean {
     val msg = e.drop(19)
     return listOf(
-        "Scatti", "Lento", "Riepilogo velocità", "Avvio della Home", "Home mostrata dalla cache",
+        "Scatti", "Lento", "Rallentamento", "Riepilogo velocità", "Avvio della Home", "Home mostrata dalla cache",
         "App caricate", "Cache delle icone", "Home ridisposta", "Aggiornat", "Home sbloccata", "HOME BLOCCATA"
     ).any { msg.startsWith(it) }
 }
