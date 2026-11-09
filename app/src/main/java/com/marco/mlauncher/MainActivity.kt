@@ -298,11 +298,29 @@ class MainActivity : ComponentActivity(), Host {
      * Lavori del ritorno alla Home che possono aspettare (posizione, sfondo, backup, meteo): partono un
      * attimo dopo, così il primo scorrimento e l'animazione di ritorno restano fluidi.
      */
-    private val lateResume = Runnable {
-        vm.checkLocationPermission()
-        vm.readWallpaperHint()
-        vm.runAutoBackup()
-        vm.refreshWeather()
+    private var lateSince = 0L
+    @Volatile private var lastTouch = 0L
+    @Volatile private var touching = false
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        lastTouch = android.os.SystemClock.uptimeMillis()
+        touching = ev.actionMasked != android.view.MotionEvent.ACTION_UP && ev.actionMasked != android.view.MotionEvent.ACTION_CANCEL
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private val lateResume = object : Runnable {
+        override fun run() {
+            val now = android.os.SystemClock.uptimeMillis()
+            // aspetto che tu sia fermo (niente dita sullo schermo da 0,8 s), al massimo 8 secondi
+            if ((touching || now - lastTouch < 800) && now - lateSince < 8000) {
+                lateH.postDelayed(this, 300)
+                return
+            }
+            vm.checkLocationPermission()
+            vm.readWallpaperHint()
+            vm.runAutoBackup()
+            vm.refreshWeather()
+        }
     }
 
     override fun onPause() {
@@ -323,6 +341,7 @@ class MainActivity : ComponentActivity(), Host {
         }
         updateDefault()
         lateH.removeCallbacks(lateResume)
+        lateSince = android.os.SystemClock.uptimeMillis()
         lateH.postDelayed(lateResume, 1200)
         val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
         vm.listenerEnabled = enabled.contains(packageName)

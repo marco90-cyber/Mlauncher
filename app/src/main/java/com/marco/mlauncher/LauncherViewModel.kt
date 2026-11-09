@@ -467,6 +467,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return true
     }
     var openFolderId by mutableStateOf<String?>(null)
+    /** cartella toccata ma non ancora aperta: il contenuto si prepara nascosto */
+    var folderPreload by mutableStateOf<String?>(null)
     /** posizione della cartella toccata: la cartella aperta nasce da lì */
     var folderAnchor by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
     var homeSignal by mutableIntStateOf(0)

@@ -68,6 +68,7 @@ object Perf {
 
     fun onResume(activity: Activity) {
         resumeAt = SystemClock.uptimeMillis()
+        SlowSpot.watch(3000, "ritorno alla Home")
         val start = resumeAt
         try {
             activity.window.decorView.viewTreeObserver.registerFrameCommitCallback {
@@ -95,6 +96,7 @@ object Perf {
 
     /** Osserva i fotogrammi per [ms] millisecondi (animazione di durata nota: cartella, cassetto…). */
     fun watch(name: String, ms: Long = 700) = synchronized(lock) {
+        SlowSpot.watch(ms + 300, name)
         flushScene()
         scene = name
         sceneUntil = SystemClock.uptimeMillis() + ms
@@ -102,6 +104,7 @@ object Perf {
 
     /** Osserva i fotogrammi finché non si chiama [end] (es. scorrimento tra le pagine). */
     fun begin(name: String) = synchronized(lock) {
+        SlowSpot.watch(1000, name)
         flushScene()
         scene = name
         sceneUntil = Long.MAX_VALUE

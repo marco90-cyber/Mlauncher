@@ -155,3 +155,89 @@ object MainWatchdog {
         else -> "altro motivo ($r)"
     }
 }
+
+/**
+ * Rilevatore dei rallentamenti: per pochi secondi (ritorno alla Home, apertura di cassetto e cartelle)
+ * misura ogni lavoro del thread principale; se uno dura più di 50 ms scrive nel registro quanto è durato
+ * e in quali punti del codice stava passando il tempo (campioni presi ogni 8 ms).
+ */
+object SlowSpot {
+    @Volatile private var until = 0L
+    @Volatile private var why = ""
+    @Volatile private var msgStart = 0L
+    @Volatile private var msgDesc = ""
+    private val samples = ArrayList<Array<StackTraceElement>>()
+    @Volatile private var installed = false
+    @Volatile private var sampler: Thread? = null
+    private val main = Looper.getMainLooper()
+
+    private val printer = android.util.Printer { s ->
+        val now = SystemClock.uptimeMillis()
+        if (s.startsWith(">")) {
+            if (now > until) {
+                // finestra finita: smetto di misurare
+                main.setMessageLogging(null)
+                installed = false
+                return@Printer
+            }
+            synchronized(samples) { samples.clear() }
+            msgDesc = s
+            msgStart = now
+        } else if (s.startsWith("<") && msgStart > 0L) {
+            val dur = now - msgStart
+            msgStart = 0L
+            if (dur >= 50) report(dur, msgDesc)
+        }
+    }
+
+    /** Misura il thread principale per [ms] millisecondi. */
+    fun watch(ms: Long, reason: String) {
+        val now = SystemClock.uptimeMillis()
+        if (now + ms > until) until = now + ms
+        why = reason
+        if (!installed) {
+            installed = true
+            Handler(main).post { main.setMessageLogging(printer) }
+        }
+        if (sampler?.isAlive != true) {
+            sampler = Thread({
+                while (SystemClock.uptimeMillis() < until + 300) {
+                    val st = msgStart
+                    if (st > 0L && SystemClock.uptimeMillis() - st > 25) {
+                        val trace = main.thread.stackTrace
+                        synchronized(samples) { if (samples.size < 60) samples.add(trace) }
+                    }
+                    try { Thread.sleep(8) } catch (e: InterruptedException) { return@Thread }
+                }
+            }, "MLauncher-slowspot").apply {
+                isDaemon = true
+                start()
+            }
+        }
+    }
+
+    private fun report(dur: Long, desc: String) {
+        val list = synchronized(samples) { ArrayList(samples) }
+        val msg = desc.removePrefix(">>>>> Dispatching to ").take(120)
+        val sb = StringBuilder("Rallentamento ($why): $dur ms in un solo lavoro — $msg")
+        if (list.isEmpty()) {
+            sb.append("\n    (nessun campione)")
+        } else {
+            // dove passava il tempo nel codice di MLauncher (i punti più frequenti nei campioni)
+            val own = HashMap<String, Int>()
+            val top = HashMap<String, Int>()
+            for (t in list) {
+                t.firstOrNull()?.let { top[it.toString()] = (top[it.toString()] ?: 0) + 1 }
+                t.filter { it.className.startsWith("com.marco.mlauncher") && !it.className.contains("SlowSpot") }
+                    .take(4).map { it.toString() }.distinct()
+                    .forEach { own[it] = (own[it] ?: 0) + 1 }
+            }
+            sb.append("\n    campioni: ${list.size}")
+            sb.append("\n    in MLauncher:")
+            own.entries.sortedByDescending { it.value }.take(8).forEach { sb.append("\n      ${it.value}× ${it.key}") }
+            sb.append("\n    in cima (sistema):")
+            top.entries.sortedByDescending { it.value }.take(4).forEach { sb.append("\n      ${it.value}× ${it.key}") }
+        }
+        AppLog.w(sb.toString())
+    }
+}

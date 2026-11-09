@@ -134,9 +134,20 @@ import kotlinx.coroutines.launch
 fun FolderOverlay(vm: LauncherViewModel, host: Host) {
     val id = vm.openFolderId
     val folder = vm.items.firstOrNull { it is FolderItem && it.folderId == id } as? FolderItem
+    // cartella appena toccata: si prepara nascosta prima dell'apertura
+    val preId = vm.folderPreload
+    val pre = if (folder == null && preId != null) vm.items.firstOrNull { it is FolderItem && it.folderId == preId } as? FolderItem else null
+    LaunchedEffect(preId, folder != null) {
+        if (folder != null) vm.folderPreload = null
+        else if (preId != null) {
+            // toccata ma non aperta (pressione lunga, trascinamento…): dopo un attimo la preparazione si toglie
+            kotlinx.coroutines.delay(1200)
+            if (vm.openFolderId != preId) vm.folderPreload = null
+        }
+    }
     var last by remember { mutableStateOf<FolderItem?>(null) }
     if (folder != null) last = folder
-    val shown = folder ?: last
+    val shown = folder ?: pre ?: last
     val s = vm.settings
     val dur = (240 * s.animFactor).toInt()
     val ctx = LocalContext.current
@@ -160,7 +171,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
     run {
         // resta viva anche mentre le icone tirate fuori vengono portate sulla Home (il dito è ancora qui)
         val handoffHere = shown != null && vm.drawerDrag?.fromFolder == shown.folderId
-        if (shown != null && (folder != null || animating || handoffHere)) {
+        if (shown != null && (folder != null || animating || handoffHere || pre != null)) {
             var name by remember(shown.folderId) { mutableStateOf(shown.name) }
             val nameRef = rememberUpdatedState(name)
             val folderId = shown.folderId
@@ -195,9 +206,12 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 }
             }
             var menuRect by remember(folderId) { mutableStateOf(Rect.Zero) }
+            // solo preparata (non aperta): resta fuori dallo schermo, non copre la Home né prende tocchi
+            val onlyPrepared = folder == null && !animating && !handoffHere
             Box(
                 Modifier
                     .fillMaxSize()
+                    .offset { if (onlyPrepared) IntOffset(0, 100_000) else IntOffset.Zero }
                     .drawBehind { drawRect(Color.Black.copy(alpha = 0.18f * prog.value)) }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },

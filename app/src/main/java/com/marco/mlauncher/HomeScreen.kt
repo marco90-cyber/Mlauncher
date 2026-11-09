@@ -1345,6 +1345,16 @@ private fun Modifier.itemGestures(
     val curMenu by rememberUpdatedState(onMenu)
     val curTap by rememberUpdatedState(onTap)
     return this
+        // cartella: appena il dito la tocca, il suo contenuto si prepara (nascosto), così all'apertura è già pronto
+        .then(
+            if (item is FolderItem) Modifier.pointerInput(item.id) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val f = curItem as? FolderItem
+                    if (f != null && !vm.editMode && vm.openFolderId == null) vm.folderPreload = f.folderId
+                }
+            } else Modifier
+        )
         .pointerInput(item.id) {
             detectTapGestures(onTap = { pos -> if (!vm.editMode) curTap(pos) else curCb.collect(curItem) })
         }
