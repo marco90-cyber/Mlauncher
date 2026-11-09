@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -501,7 +502,7 @@ private fun PageLog(vm: LauncherViewModel) {
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         listOf("Tutto", "Errori", "Velocità").forEachIndexed { i, l ->
-            androidx.compose.material3.SegmentedButton(
+            SegmentedButton(
                 selected = filter == i,
                 onClick = { filter = i },
                 shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(i, 3)
