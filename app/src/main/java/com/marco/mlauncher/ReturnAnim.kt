@@ -27,6 +27,8 @@ fun returnDuration(style: String): Int = when (style) {
 fun Modifier.returnWhole(vm: LauncherViewModel): Modifier = this.graphicsLayer {
     val p = vm.returnP
     if (p >= 1f) return@graphicsLayer
+    // trasparenza applicata direttamente a ogni elemento, senza ridisegnare tutta la Home in un'immagine a parte
+    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
     val e = Motion.EmphasizedDecelerate.transform(p)
     when (vm.settings.returnAnim) {
         "settle" -> {

@@ -292,8 +292,22 @@ class MainActivity : ComponentActivity(), Host {
         super.onStop()
     }
 
+    private val lateH = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Lavori del ritorno alla Home che possono aspettare (posizione, sfondo, backup, meteo): partono un
+     * attimo dopo, così il primo scorrimento e l'animazione di ritorno restano fluidi.
+     */
+    private val lateResume = Runnable {
+        vm.checkLocationPermission()
+        vm.readWallpaperHint()
+        vm.runAutoBackup()
+        vm.refreshWeather()
+    }
+
     override fun onPause() {
         super.onPause()
+        lateH.removeCallbacks(lateResume)
         Perf.onPause()
     }
 
@@ -308,10 +322,8 @@ class MainActivity : ComponentActivity(), Host {
             if (info != null && id != -1) finishPending(id, info) else waitConfigReturn = false
         }
         updateDefault()
-        vm.checkLocationPermission()
-        vm.readWallpaperHint()
-        vm.runAutoBackup()
-        vm.refreshWeather()
+        lateH.removeCallbacks(lateResume)
+        lateH.postDelayed(lateResume, 1200)
         val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
         vm.listenerEnabled = enabled.contains(packageName)
         val acc = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""

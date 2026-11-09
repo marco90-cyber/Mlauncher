@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
@@ -91,7 +92,20 @@ fun Root(vm: LauncherViewModel, host: Host) {
                     androidx.compose.animation.core.tween(Motion.ALL_APPS_OPEN, easing = Motion.Standard),
                     label = "searchBlur"
                 )
-                Box(Modifier.fillMaxSize().blur(maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur))) {
+                // sfocatura letta solo in fase di disegno: mentre si anima (cartella, cassetto, pagina −1)
+                // la Home non viene ricomposta a ogni fotogramma
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        val r = maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur).toPx()
+                        if (r > 0.5f) {
+                            renderEffect = androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp)
+                            clip = true
+                        } else {
+                            renderEffect = null
+                            clip = false
+                        }
+                    }
+                ) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
                     if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm)) {
                         // sfoca e scurisci ora sono effetti dell'editor, dentro l'immagine

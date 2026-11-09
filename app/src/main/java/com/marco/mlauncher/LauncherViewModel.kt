@@ -40,6 +40,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -407,11 +408,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun readSystemHint() {
-        try {
-            val c = android.app.WallpaperManager.getInstance(ctx).getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)
-            wallDarkText = c != null && (c.colorHints and android.app.WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
-        } catch (e: Exception) {
-            // colori dello sfondo non disponibili
+        // i colori dello sfondo possono richiedere un calcolo: fuori dal thread della Home
+        viewModelScope.launch {
+            val dark = withContext(Dispatchers.IO) {
+                try {
+                    val c = android.app.WallpaperManager.getInstance(ctx).getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)
+                    c != null && (c.colorHints and android.app.WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+                } catch (e: Exception) {
+                    null // colori dello sfondo non disponibili
+                }
+            }
+            if (dark != null && !customWallActive) wallDarkText = dark
         }
     }
 
@@ -711,44 +718,100 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val cacheLock = kotlinx.coroutines.sync.Mutex()
 
     private var cacheJob: kotlinx.coroutines.Job? = null
+    private var cacheFull = false
+    private val cacheChanged = HashSet<String>()
 
-    /** Salva icone e nomi su disco per l'avvio veloce; più richieste ravvicinate diventano un solo salvataggio. */
-    private fun saveAppCache(list: List<AppEntry>, pack: String) {
+    /**
+     * Lavori di fondo (icone, cache) a bassa priorità: così non rubano il processore alle animazioni della Home.
+     */
+    private val bg = java.util.concurrent.Executors.newFixedThreadPool(2) { r ->
+        Thread({
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            r.run()
+        }, "MLauncher-bg")
+    }.asCoroutineDispatcher()
+
+    /** Nome dei file di un'app nella cache (stabile: non cambia se si aggiungono o tolgono altre app). */
+    private fun cacheBase(a: AppEntry): String {
+        val key = a.pkg + "/" + a.cls
+        return "a" + Integer.toHexString(key.hashCode()) + "_" + key.length
+    }
+
+    private class CacheData(val list: List<AppEntry>, val pkgTimes: Map<String, Long>, val packTime: Long)
+
+    private fun pkgTime(pkg: String): Long = try { pm.getPackageInfo(pkg, 0).lastUpdateTime } catch (e: Exception) { -1L }
+
+    /**
+     * Salva icone e nomi su disco per l'avvio veloce. Riscrive solo le icone delle app cambiate
+     * ([changed] = pacchetti; null = tutte), e più richieste ravvicinate diventano un solo salvataggio.
+     */
+    private fun saveAppCache(list: List<AppEntry>, pack: String, changed: Collection<String>? = null) {
+        if (changed == null) cacheFull = true else cacheChanged.addAll(changed)
         cacheJob?.cancel()
-        cacheJob = viewModelScope.launch(Dispatchers.IO) {
+        cacheJob = viewModelScope.launch {
             delay(1500)
-            cacheLock.withLock {
-                val t0 = System.currentTimeMillis()
-                try {
-                    val dir = iconDir
-                    dir.deleteRecursively()
-                    dir.mkdirs()
-                    val arr = JSONArray()
-                    fun put(b: ImageBitmap?, name: String): Boolean {
-                        if (b == null) return false
-                        return try {
-                            java.io.FileOutputStream(java.io.File(dir, name)).use { b.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
-                        } catch (e: Exception) {
-                            false
+            val full = cacheFull
+            val pkgs: Set<String> = HashSet(cacheChanged)
+            cacheFull = false
+            cacheChanged.clear()
+            withContext(bg) {
+                cacheLock.withLock {
+                    val t0 = System.currentTimeMillis()
+                    var written = 0
+                    try {
+                        val dir = iconDir
+                        if (full) dir.deleteRecursively()
+                        dir.mkdirs()
+                        val arr = JSONArray()
+                        val used = HashSet<String>()
+                        fun put(b: ImageBitmap?, name: String): Boolean {
+                            if (b == null) return false
+                            return try {
+                                java.io.FileOutputStream(java.io.File(dir, name)).use { b.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
+                            } catch (e: Exception) {
+                                false
+                            }
                         }
-                    }
-                    list.forEachIndexed { i, a ->
-                        if (!put(a.icon, "${i}i.png")) return@forEachIndexed
-                        arr.put(
-                            JSONObject().put("p", a.pkg).put("c", a.cls).put("l", a.label).put("r", a.removable).put("n", i)
-                                .put("m", put(a.mono, "${i}m.png")).put("w", put(a.raw, "${i}w.png"))
+                        for (a in list) {
+                            val base = cacheBase(a)
+                            val iconF = java.io.File(dir, base + "i.png")
+                            val m: Boolean
+                            val w: Boolean
+                            if (full || a.pkg in pkgs || !iconF.exists()) {
+                                if (!put(a.icon, base + "i.png")) continue
+                                m = put(a.mono, base + "m.png")
+                                w = put(a.raw, base + "w.png")
+                                written++
+                            } else {
+                                m = java.io.File(dir, base + "m.png").exists()
+                                w = java.io.File(dir, base + "w.png").exists()
+                            }
+                            used.add(base + "i.png")
+                            if (m) used.add(base + "m.png")
+                            if (w) used.add(base + "w.png")
+                            arr.put(
+                                JSONObject().put("p", a.pkg).put("c", a.cls).put("l", a.label).put("r", a.removable)
+                                    .put("f", base).put("m", m).put("w", w)
+                            )
+                        }
+                        // file di app che non ci sono più (o della vecchia cache)
+                        dir.listFiles()?.forEach { f -> if (f.name.endsWith(".png") && f.name !in used) f.delete() }
+                        val times = JSONObject()
+                        list.map { it.pkg }.distinct().forEach { times.put(it, pkgTime(it)) }
+                        java.io.File(dir, "index.json").writeText(
+                            JSONObject().put("v", 2).put("pack", pack).put("packU", if (pack.isEmpty()) 0L else pkgTime(pack))
+                                .put("pkgs", times).put("apps", arr).toString()
                         )
+                        AppLog.i("Cache delle icone salvata: $written icone riscritte su ${list.size} app in ${System.currentTimeMillis() - t0} ms")
+                    } catch (e: Exception) {
+                        AppLog.e("Salvataggio cache icone non riuscito", e)
                     }
-                    java.io.File(dir, "index.json").writeText(JSONObject().put("pack", pack).put("apps", arr).toString())
-                    AppLog.i("Cache delle icone salvata: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
-                } catch (e: Exception) {
-                    AppLog.e("Salvataggio cache icone non riuscito", e)
                 }
             }
         }
     }
 
-    private suspend fun loadAppCache(pack: String): List<AppEntry>? = withContext(Dispatchers.IO) {
+    private suspend fun loadAppCache(pack: String): CacheData? = withContext(Dispatchers.IO) {
         cacheLock.withLock {
             try {
                 val dir = iconDir
@@ -762,18 +825,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 val out = ArrayList<AppEntry>()
                 for (k in 0 until arr.length()) {
                     val o = arr.getJSONObject(k)
-                    val n = o.getInt("n")
-                    val icon = img("${n}i.png") ?: continue
+                    // nuova cache: file per nome dell'app; vecchia: per posizione
+                    val base = o.optString("f").ifEmpty { o.optInt("n").toString() }
+                    val icon = img(base + "i.png") ?: continue
                     out.add(
                         AppEntry(
                             o.getString("p"), o.getString("c"), o.getString("l"), icon,
-                            if (o.optBoolean("m")) img("${n}m.png") else null,
+                            if (o.optBoolean("m")) img(base + "m.png") else null,
                             o.optBoolean("r"),
-                            if (o.optBoolean("w")) img("${n}w.png") else null
+                            if (o.optBoolean("w")) img(base + "w.png") else null
                         )
                     )
                 }
-                out
+                val times = HashMap<String, Long>()
+                j.optJSONObject("pkgs")?.let { t -> for (k in t.keys()) times[k] = t.optLong(k) }
+                CacheData(out, times, j.optLong("packU", 0L))
             } catch (e: Exception) {
                 AppLog.e("Cache icone non leggibile", e)
                 null
@@ -781,18 +847,61 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun loadFromCache() {
+    /**
+     * Avvio: la Home compare subito dalla cache, poi controllo solo quali app sono state installate,
+     * aggiornate o tolte nel frattempo e ricarico soltanto quelle (prima si ricaricavano tutte, 2-3 secondi).
+     */
+    private fun startupLoad() {
         val t0 = System.currentTimeMillis()
         val pack = settings.iconPack
         viewModelScope.launch {
-            val list = loadAppCache(pack) ?: return@launch
-            if (loaded || list.isEmpty()) return@launch
-            apps = list.associateBy { it.id }
-            sortedApps = list.filter { !it.isAction }.sortedBy { it.label.lowercase() }
-            loaded = true
-            AppLog.i("Home mostrata dalla cache: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
-            Perf.time("Icone dalla cache all'avvio", System.currentTimeMillis() - t0)
+            val cache = loadAppCache(pack)
+            if (cache == null || cache.list.isEmpty() || cache.pkgTimes.isEmpty()) {
+                // niente cache (o cache vecchia senza date): carico tutto
+                if (cache != null && cache.list.isNotEmpty() && !loaded) showCache(cache.list, t0)
+                refresh(null)
+                return@launch
+            }
+            if (!loaded) showCache(cache.list, t0)
+            val t1 = System.currentTimeMillis()
+            val check = withContext(bg) {
+                // il pacchetto di icone aggiornato cambia tutte le icone
+                if (pack.isNotEmpty() && pkgTime(pack) != cache.packTime) return@withContext null
+                val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val now = pm.queryIntentActivities(intent, 0).mapNotNull { it.activityInfo }
+                    .filter { it.packageName != ctx.packageName }
+                val cachedKeys = cache.list.filter { it.pkg != ctx.packageName }.map { it.pkg + "/" + it.cls }.toSet()
+                val nowKeys = now.map { it.packageName + "/" + it.name }.toSet()
+                val changed = LinkedHashSet<String>()
+                // app nuove o con attività cambiate
+                now.filter { (it.packageName + "/" + it.name) !in cachedKeys }.forEach { changed.add(it.packageName) }
+                // app tolte
+                cache.list.filter { it.pkg != ctx.packageName && (it.pkg + "/" + it.cls) !in nowKeys }.forEach { changed.add(it.pkg) }
+                // app aggiornate (MLauncher compreso: azioni e icona delle impostazioni)
+                (now.map { it.packageName }.distinct() + ctx.packageName).forEach { p ->
+                    if (p !in changed && cache.pkgTimes[p] != pkgTime(p)) changed.add(p)
+                }
+                try { smart.prepare(); smartReady = true } catch (e: Exception) { AppLog.e("Categorie non pronte", e) }
+                iconPacks = findIconPacks()
+                changed.toList()
+            }
+            if (check == null) {
+                AppLog.i("Avvio: pacchetto di icone aggiornato, ricarico tutte le icone")
+                refresh(null)
+                return@launch
+            }
+            AppLog.i("Avvio: controllo delle app in ${System.currentTimeMillis() - t1} ms, " +
+                if (check.isEmpty()) "nessuna cambiata" else "da ricaricare: ${check.joinToString(", ")}")
+            if (check.isEmpty()) reconcile() else refreshPkgs(check)
         }
+    }
+
+    private fun showCache(list: List<AppEntry>, t0: Long) {
+        apps = list.associateBy { it.id }
+        sortedApps = list.filter { !it.isAction }.sortedBy { it.label.lowercase() }
+        loaded = true
+        AppLog.i("Home mostrata dalla cache: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
+        Perf.time("Icone dalla cache all'avvio", System.currentTimeMillis() - t0)
     }
 
     // Aggiornamenti di pacchetti in arrivo tutti insieme (es. tornando alla Home dopo gli aggiornamenti del
@@ -816,7 +925,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             val packName = settings.iconPack
-            val fresh = withContext(Dispatchers.Default) {
+            val fresh = withContext(bg) {
                 try { smart.prepare(); smartReady = true } catch (e: Exception) { AppLog.e("Categorie non pronte", e) }
                 val pack = loadIconPack(packName)
                 list.associateWith { queryApps(it, pack) }
@@ -839,7 +948,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 (if (list.size == 1) "Aggiornato il pacchetto ${list[0]}" else "Aggiornati ${list.size} pacchetti: ${list.joinToString(", ")}") +
                     " (${t1 - t0} ms in background + ${System.currentTimeMillis() - t1} ms sulla Home)"
             )
-            saveAppCache(map.values.toList(), packName)
+            saveAppCache(map.values.toList(), packName, list)
         }
     }
 
@@ -851,7 +960,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             val packName = settings.iconPack
-            val fresh = withContext(Dispatchers.Default) {
+            // con la Home già visibile il ricaricamento va a bassa priorità
+            val fresh = withContext(if (loaded) bg else Dispatchers.Default) {
                 // ruoli delle app (browser, galleria…) possono cambiare con installazioni e rimozioni
                 try { smart.prepare(); smartReady = true } catch (e: Exception) { AppLog.e("Categorie non pronte", e) }
                 val pack = loadIconPack(packName)
@@ -2991,6 +3101,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun loadCrash() {
         val f = MLApp.crashFile(ctx)
+        // l'ultimo errore si cancella da solo dopo 7 giorni, come il registro
+        if (f.exists() && System.currentTimeMillis() - f.lastModified() > AppLog.KEEP_DAYS * 24L * 3600_000L) {
+            try { f.delete() } catch (e: Exception) { }
+        }
         lastCrash = if (f.exists()) try { f.readText() } catch (e: Exception) { null } else null
     }
 
@@ -3191,13 +3305,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             addDataScheme("package")
         }
         ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
-        loadFromCache()
         readWallpaperHint()
         try {
             android.app.WallpaperManager.getInstance(ctx).addOnColorsChangedListener(
                 { _, _ -> readWallpaperHint() }, android.os.Handler(android.os.Looper.getMainLooper())
             )
         } catch (e: Exception) { }
-        refresh(null)
+        startupLoad()
     }
 }

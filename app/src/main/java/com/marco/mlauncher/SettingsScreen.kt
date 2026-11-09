@@ -448,31 +448,83 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun PageLog(vm: LauncherViewModel) {
     val cs = MaterialTheme.colorScheme
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val clip = androidx.compose.ui.platform.LocalClipboardManager.current
     var log by remember { mutableStateOf(AppLog.read()) }
+    // cosa vedere: 0 tutto, 1 solo errori, 2 solo velocità
+    var filter by remember { mutableStateOf(0) }
+    var askClear by remember { mutableStateOf(false) }
     val crash = vm.lastCrash
     val head = remember(log) { MainWatchdog.deviceInfo(ctx) }
     val speed = remember(log) { Perf.todaySummary() }
-    val all = "=== DISPOSITIVO ===\n$head\n\n=== VELOCITÀ DI OGGI ===\n$speed\n\n" + (if (crash != null) "=== ULTIMO ERRORE ===\n$crash\n\n" else "") + "=== REGISTRO ===\n$log"
+    val allEntries = remember(log) { AppLog.entries(log) }
+    val shown = remember(log, filter) {
+        when (filter) {
+            1 -> allEntries.filter { logIsError(it) }
+            2 -> allEntries.filter { logIsSpeed(it) }
+            else -> allEntries
+        }
+    }
+    // Copia e Invia mandano quello che si sta guardando
+    val text = "=== DISPOSITIVO ===\n$head\n\n" +
+        (if (filter != 1) "=== VELOCITÀ DI OGGI ===\n$speed\n\n" else "") +
+        (if (filter != 2 && crash != null) "=== ULTIMO ERRORE ===\n$crash\n\n" else "") +
+        "=== REGISTRO" + (when (filter) { 1 -> " (solo errori)"; 2 -> " (solo velocità)"; else -> "" }) + " ===\n" +
+        shown.joinToString("\n") { it.trimEnd() }
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         androidx.compose.material3.FilledTonalButton(onClick = { log = AppLog.read(); vm.loadCrash() }) { Text("Aggiorna") }
         androidx.compose.material3.FilledTonalButton(onClick = {
-            clip.setText(androidx.compose.ui.text.AnnotatedString(all))
+            clip.setText(androidx.compose.ui.text.AnnotatedString(text))
             android.widget.Toast.makeText(ctx, "Copiato", android.widget.Toast.LENGTH_SHORT).show()
         }) { Text("Copia") }
         androidx.compose.material3.FilledTonalButton(onClick = {
             val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-                .putExtra(android.content.Intent.EXTRA_TEXT, all)
+                .putExtra(android.content.Intent.EXTRA_TEXT, text)
             try { ctx.startActivity(android.content.Intent.createChooser(i, "Condividi registro")) } catch (e: Exception) { }
         }) { Text("Invia") }
+        androidx.compose.material3.FilledTonalButton(
+            onClick = { askClear = true },
+            colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                containerColor = cs.errorContainer,
+                contentColor = cs.onErrorContainer
+            )
+        ) { Text("Cancella") }
     }
-    if (crash != null) Group("Ultimo errore") {
+    // scelta di cosa vedere
+    androidx.compose.material3.SingleChoiceSegmentedButtonRow(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        listOf("Tutto", "Errori", "Velocità").forEachIndexed { i, l ->
+            androidx.compose.material3.SegmentedButton(
+                selected = filter == i,
+                onClick = { filter = i },
+                shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(i, 3)
+            ) { Text(l) }
+        }
+    }
+    Text(
+        "Il registro tiene gli ultimi ${AppLog.KEEP_DAYS} giorni: gli eventi più vecchi si cancellano da soli.",
+        style = MaterialTheme.typography.bodySmall,
+        color = cs.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 24.dp)
+    )
+    if (filter == 2) Group("Velocità di oggi") {
+        Text(
+            speed,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            color = cs.onSurface,
+            modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(12.dp)
+        )
+    }
+    if (filter != 2 && crash != null) Group("Ultimo errore") {
         Text(
             crash.take(6000),
             fontSize = 11.sp,
@@ -481,12 +533,20 @@ private fun PageLog(vm: LauncherViewModel) {
             modifier = Modifier.fillMaxWidth().background(cs.errorContainer).padding(14.dp)
         )
     }
-    val entries = remember(log) {
-        log.split(Regex("\n(?=\\d\\d/\\d\\d \\d\\d:)")).filter { it.isNotBlank() }.reversed().take(400)
-    }
-    Group(if (entries.isEmpty()) "Registro vuoto" else "Eventi, dal più recente") {
+    val entries = remember(shown) { shown.reversed().take(400) }
+    Group(
+        if (entries.isEmpty()) (if (filter == 0) "Registro vuoto" else "Niente da mostrare")
+        else "Eventi, dal più recente"
+    ) {
         Column(Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(12.dp)) {
-            if (entries.isEmpty()) Text("Ancora nessun evento registrato.", color = cs.onSurfaceVariant)
+            if (entries.isEmpty()) Text(
+                when (filter) {
+                    1 -> "Nessun errore registrato."
+                    2 -> "Nessuna misura di velocità registrata."
+                    else -> "Ancora nessun evento registrato."
+                },
+                color = cs.onSurfaceVariant
+            )
             entries.forEach { line ->
                 val lvl = line.drop(16).take(3).trim()
                 Text(
@@ -504,18 +564,35 @@ private fun PageLog(vm: LauncherViewModel) {
             }
         }
     }
-    Group(null) {
-        ListItem(
-            headlineContent = { Text("Cancella il registro", color = cs.error) },
-            supportingContent = { Text("Svuota gli eventi e l'ultimo errore") },
-            colors = prefColors(),
-            modifier = Modifier.clickable {
+    if (askClear) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { askClear = false },
+        title = { Text("Cancellare il registro?") },
+        text = { Text("Si svuotano tutti gli eventi e l'ultimo errore.") },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
                 AppLog.clear()
                 vm.clearCrash()
                 log = ""
-            }
-        )
-    }
+                askClear = false
+            }) { Text("Cancella", color = cs.error) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { askClear = false }) { Text("Annulla") } }
+    )
+}
+
+/** Evento del registro che riguarda un problema: errori, blocchi, chiusure anomale, memoria. */
+private fun logIsError(e: String): Boolean {
+    val lvl = e.drop(16).take(3).trim()
+    return lvl == "E" || lvl == "W"
+}
+
+/** Evento del registro che riguarda la velocità: scatti, tempi lenti, caricamenti, riepiloghi. */
+private fun logIsSpeed(e: String): Boolean {
+    val msg = e.drop(19)
+    return listOf(
+        "Scatti", "Lento", "Riepilogo velocità", "Avvio della Home", "Home mostrata dalla cache",
+        "App caricate", "Cache delle icone", "Home ridisposta", "Aggiornat", "Home sbloccata", "HOME BLOCCATA"
+    ).any { msg.startsWith(it) }
 }
 
 @Composable

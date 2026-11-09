@@ -122,6 +122,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 // =====================================================================
@@ -154,10 +155,12 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
         )
     }
     val geo = remember { floatArrayOf(0.5f, 0.5f) }
+    // letto in composizione solo come sì/no: la cartella non si ricompone a ogni fotogramma dell'animazione
+    val animating by remember { androidx.compose.runtime.derivedStateOf { prog.value > 0.001f } }
     run {
         // resta viva anche mentre le icone tirate fuori vengono portate sulla Home (il dito è ancora qui)
         val handoffHere = shown != null && vm.drawerDrag?.fromFolder == shown.folderId
-        if (shown != null && (folder != null || prog.value > 0.001f || handoffHere)) {
+        if (shown != null && (folder != null || animating || handoffHere)) {
             var name by remember(shown.folderId) { mutableStateOf(shown.name) }
             val nameRef = rememberUpdatedState(name)
             val folderId = shown.folderId
@@ -575,35 +578,54 @@ fun AppsOverlay(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val visible = vm.overlay == Overlay.DRAWER
     var query by remember { mutableStateOf("") }
-    val dur = (260 * s.animFactor).toInt()
     LaunchedEffect(visible) { if (!visible) query = "" }
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween((Motion.FADE * s.animFactor).toInt(), easing = Motion.StandardDecelerate)) +
-            slideInVertically(tween((Motion.ALL_APPS_OPEN * s.animFactor).toInt(), easing = Motion.EmphasizedDecelerate)) { it / 3 } +
-            androidx.compose.animation.scaleIn(
-                tween((Motion.ALL_APPS_OPEN * s.animFactor).toInt(), easing = Motion.EmphasizedDecelerate),
-                initialScale = 0.92f
-            ),
-        exit = fadeOut(tween((Motion.ALL_APPS_CLOSE * s.animFactor).toInt(), easing = Motion.StandardAccelerate)) +
-            slideOutVertically(tween((Motion.ALL_APPS_CLOSE * s.animFactor).toInt(), easing = Motion.EmphasizedAccelerate)) { it / 3 } +
-            androidx.compose.animation.scaleOut(
-                tween((Motion.ALL_APPS_CLOSE * s.animFactor).toInt(), easing = Motion.EmphasizedAccelerate),
-                targetScale = 0.92f
-            )
-    ) {
-        // mentre un'icona viene portata sulla Home il cassetto sparisce ma resta vivo (il dito è ancora suo)
-        var dragHidden by remember { mutableStateOf(false) }
-        LaunchedEffect(vm.drawerDrag) { if (vm.drawerDrag != null) dragHidden = true }
-        LaunchedEffect(visible) { if (visible) dragHidden = false }
-        val a by androidx.compose.animation.core.animateFloatAsState(
-            if (dragHidden) 0f else 1f,
-            tween(Motion.FADE, easing = Motion.Standard),
-            label = "drawerDrag"
-        )
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = a }) {
-            DrawerContent(vm, host, query, active = visible) { query = it }
+    // Il cassetto viene preparato in anticipo (poco dopo l'avvio, a Home ferma) e poi resta pronto:
+    // aprirlo non deve più costruire tutte le icone nel primo fotogramma.
+    var ready by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.loaded) {
+        if (vm.loaded && !ready) {
+            delay(2500)
+            ready = true
         }
+    }
+    val prog = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(visible) {
+        prog.animateTo(
+            if (visible) 1f else 0f,
+            tween(
+                ((if (visible) Motion.ALL_APPS_OPEN else Motion.ALL_APPS_CLOSE) * s.animFactor).toInt().coerceAtLeast(1),
+                easing = if (visible) Motion.EmphasizedDecelerate else Motion.EmphasizedAccelerate
+            )
+        )
+    }
+    val idle by remember { androidx.compose.runtime.derivedStateOf { prog.value == 0f } }
+    if (!ready && !visible && idle) return
+    // mentre un'icona viene portata sulla Home il cassetto sparisce ma resta vivo (il dito è ancora suo)
+    var dragHidden by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.drawerDrag) { if (vm.drawerDrag != null) dragHidden = true }
+    LaunchedEffect(visible) { if (visible) dragHidden = false }
+    val a by androidx.compose.animation.core.animateFloatAsState(
+        if (dragHidden) 0f else 1f,
+        tween(Motion.FADE, easing = Motion.Standard),
+        label = "drawerDrag"
+    )
+    Box(
+        Modifier
+            .fillMaxSize()
+            // chiuso: resta pronto ma fuori dallo schermo (non si disegna e non prende tocchi)
+            .offset { if (prog.value == 0f) IntOffset(0, 100_000) else IntOffset.Zero }
+            .graphicsLayer {
+                val p = prog.value
+                // la trasparenza va su ogni elemento, senza ridisegnare tutto il cassetto in un'immagine a parte
+                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
+                alpha = (p * 1.6f).coerceIn(0f, 1f) * a
+                val sc = 0.92f + 0.08f * p
+                scaleX = sc
+                scaleY = sc
+                translationY = (1f - p) * size.height / 3f
+            }
+    ) {
+        DrawerContent(vm, host, query, active = visible) { query = it }
     }
 }
 
@@ -694,8 +716,10 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
     val gridState = rememberLazyGridState(
         initialFirstVisibleItemIndex = if (s.drRemember) vm.drawerScroll else 0
     )
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose { vm.drawerScroll = gridState.firstVisibleItemIndex }
+    // il cassetto resta pronto anche da chiuso: la posizione si ricorda alla chiusura
+    LaunchedEffect(active) {
+        if (!active) vm.drawerScroll = gridState.firstVisibleItemIndex
+        else if (!s.drRemember && gridState.firstVisibleItemIndex != 0) gridState.scrollToItem(0)
     }
     val scope = rememberCoroutineScope()
     val searchOnly = s.homeMode == "all"
@@ -710,7 +734,8 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         if (query.isBlank()) visible
         else visible.filter { it.label.contains(query.trim(), ignoreCase = true) }
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
         val wantFocus = searchOnly || vm.searchFocus
         vm.searchFocus = false
         if (wantFocus) {
@@ -1099,6 +1124,11 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host, forceGri
                 }
             }
         }
+        // il cassetto resta pronto anche da chiuso: alla chiusura il menu dell'app si chiude
+        if (menu) LaunchedEffect(Unit) {
+            androidx.compose.runtime.snapshotFlow { vm.overlay }.first { it != Overlay.DRAWER }
+            menu = false
+        }
         AppMenu(app, menu, { menu = false }, vm, host)
     }
 }
@@ -1230,6 +1260,11 @@ private fun ResultCard(app: AppEntry, query: String, vm: LauncherViewModel, host
                     }
                 }
             }
+        }
+        // il cassetto resta pronto anche da chiuso: alla chiusura il menu dell'app si chiude
+        if (menu) LaunchedEffect(Unit) {
+            androidx.compose.runtime.snapshotFlow { vm.overlay }.first { it != Overlay.DRAWER }
+            menu = false
         }
         AppMenu(app, menu, { menu = false }, vm, host)
     }
