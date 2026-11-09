@@ -455,7 +455,8 @@ private fun PageLog(vm: LauncherViewModel) {
     var log by remember { mutableStateOf(AppLog.read()) }
     val crash = vm.lastCrash
     val head = remember(log) { MainWatchdog.deviceInfo(ctx) }
-    val all = "=== DISPOSITIVO ===\n$head\n\n" + (if (crash != null) "=== ULTIMO ERRORE ===\n$crash\n\n" else "") + "=== REGISTRO ===\n$log"
+    val speed = remember(log) { Perf.todaySummary() }
+    val all = "=== DISPOSITIVO ===\n$head\n\n=== VELOCITÀ DI OGGI ===\n$speed\n\n" + (if (crash != null) "=== ULTIMO ERRORE ===\n$crash\n\n" else "") + "=== REGISTRO ===\n$log"
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)

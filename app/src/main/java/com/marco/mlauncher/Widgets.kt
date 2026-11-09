@@ -601,7 +601,9 @@ fun ExtWidget(ref: WidgetRef, vm: LauncherViewModel, onLongPress: () -> Unit, mo
         AndroidView(
             factory = { c ->
                 try {
+                    val t0 = android.os.SystemClock.uptimeMillis()
                     val v = vm.widgetHost.createView(c, ref.widgetId, info)
+                    Perf.time("Creazione di un widget", android.os.SystemClock.uptimeMillis() - t0, slowMs = 150, detail = info.provider.packageName)
                     (v as? LongPressHostView)?.onLongPress = { lp.value() }
                     v
                 } catch (e: Exception) {

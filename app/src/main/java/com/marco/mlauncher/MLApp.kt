@@ -17,6 +17,7 @@ class MLApp : Application() {
         // perché si era chiuso l'ultima volta (blocco, errore, memoria…) e sorveglianza dei blocchi della Home
         MainWatchdog.logExitReasons(this)
         MainWatchdog.start(this)
+        Perf.init(this)
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {

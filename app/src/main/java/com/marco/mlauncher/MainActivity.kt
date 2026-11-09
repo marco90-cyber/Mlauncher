@@ -234,6 +234,7 @@ class MainActivity : ComponentActivity(), Host {
         vm.checkUpdate(auto = true)
         vm.loadCrash()
         AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
+        Perf.attach(window)
         setContent {
             MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null) {
                 Root(vm, this@MainActivity)
@@ -291,8 +292,14 @@ class MainActivity : ComponentActivity(), Host {
         super.onStop()
     }
 
+    override fun onPause() {
+        super.onPause()
+        Perf.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        Perf.onResume(this)
         applyStatusBar(vm.settings.hideStatusBar)
         // configurazione aperta a parte: al ritorno il widget si aggiunge
         if (waitConfigReturn && android.os.SystemClock.uptimeMillis() - configOpenedAt > 1500L) {

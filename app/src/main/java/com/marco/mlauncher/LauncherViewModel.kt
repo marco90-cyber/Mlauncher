@@ -604,6 +604,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun loadIconPack(name: String): IconPackData? {
         if (name.isEmpty()) return null
+        val t0 = System.currentTimeMillis()
+        val r = loadIconPackRaw(name)
+        Perf.time("Lettura del pacchetto di icone", System.currentTimeMillis() - t0, slowMs = 800, detail = name)
+        return r
+    }
+
+    private fun loadIconPackRaw(name: String): IconPackData? {
         return try {
             val res = pm.getResourcesForApplication(name)
             val map = HashMap<String, String>()
@@ -784,6 +791,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             sortedApps = list.filter { !it.isAction }.sortedBy { it.label.lowercase() }
             loaded = true
             AppLog.i("Home mostrata dalla cache: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
+            Perf.time("Icone dalla cache all'avvio", System.currentTimeMillis() - t0)
         }
     }
 
@@ -867,7 +875,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
             reconcile()
             loaded = true
-            if (pkg == null) AppLog.i("App caricate: ${map.size} in ${System.currentTimeMillis() - t0} ms")
+            if (pkg == null) {
+                AppLog.i("App caricate: ${map.size} in ${System.currentTimeMillis() - t0} ms")
+                Perf.time("Caricamento completo di app e icone", System.currentTimeMillis() - t0)
+            }
             else AppLog.i("Aggiornato il pacchetto $pkg")
             saveAppCache(map.values.toList(), packName)
         }

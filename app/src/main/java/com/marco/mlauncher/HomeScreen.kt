@@ -89,6 +89,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -492,6 +493,36 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         }
     }
     // azione "Pagina N" / "Pagina principale"
+    // ---------- misure di velocità per il registro ----------
+    LaunchedEffect(vm.loaded) {
+        if (vm.loaded) {
+            withFrameNanos { }
+            Perf.homeReady()
+        }
+    }
+    val prevFolder = remember { arrayOfNulls<String>(1) }
+    LaunchedEffect(vm.openFolderId) {
+        val f = vm.openFolderId
+        if (f != null && prevFolder[0] == null) Perf.watch("Apertura cartella")
+        else if (f == null && prevFolder[0] != null) Perf.watch("Chiusura cartella")
+        prevFolder[0] = f
+    }
+    val prevOverlay = remember { arrayOf(Overlay.NONE) }
+    LaunchedEffect(vm.overlay) {
+        val o = vm.overlay
+        if (o == Overlay.DRAWER && prevOverlay[0] != Overlay.DRAWER) Perf.watch("Apertura cassetto")
+        else if (o == Overlay.NONE && prevOverlay[0] == Overlay.DRAWER) Perf.watch("Chiusura cassetto")
+        prevOverlay[0] = o
+    }
+    val prevOv = remember { booleanArrayOf(false) }
+    LaunchedEffect(vm.showOverview) {
+        if (vm.showOverview != prevOv[0]) Perf.watch(if (vm.showOverview) "Apertura anteprima pagine" else "Chiusura anteprima pagine")
+        prevOv[0] = vm.showOverview
+    }
+    LaunchedEffect(pagerState.isScrollInProgress) {
+        if (pagerState.isScrollInProgress) Perf.begin("Cambio pagina") else Perf.end("Cambio pagina")
+    }
+
     LaunchedEffect(vm.pageReqN) {
         val p = vm.pageReq
         if (vm.pageReqN > 0 && p >= 0) pagerState.animateScrollToPage(p.coerceIn(0, maxOf(0, vm.pageCount - 1)))
