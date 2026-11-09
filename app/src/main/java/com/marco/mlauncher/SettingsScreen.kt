@@ -97,7 +97,7 @@ private val shapeNames = mapOf(
     "original" to "Predefinita", "ios" to "iOS", "circle" to "Cerchio", "square" to "Quadrato arrotondato"
 )
 private val effectNames = mapOf(
-    "slide" to "Scorrimento", "fade" to "Dissolvenza", "cube" to "Cubo", "rotate" to "Rotazione", "cascade" to "Cascata"
+    "slide" to "Scorrimento", "fade" to "Dissolvenza", "cube" to "Cubo", "cascade" to "Cascata"
 )
 private val folderNames = mapOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72", "stack" to "Ventaglio")
 private val orderOptions = listOf(
@@ -1284,7 +1284,6 @@ private fun PageAnim(vm: LauncherViewModel) {
                 "slide" to "Scorrimento",
                 "fade" to "Dissolvenza",
                 "cube" to "Cubo",
-                "rotate" to "Rotazione",
                 "cascade" to "Cascata"
             ),
             s.pageEffect,

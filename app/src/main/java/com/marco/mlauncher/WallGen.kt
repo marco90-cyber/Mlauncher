@@ -116,7 +116,7 @@ private fun softBlur(src: Bitmap, amount: Float): Bitmap {
 }
 
 /** Media mobile orizzontale e verticale (bordi ripetuti). */
-private fun boxBlur(px: IntArray, w: Int, h: Int, r: Int) {
+internal fun boxBlur(px: IntArray, w: Int, h: Int, r: Int) {
     val tmp = IntArray(px.size)
     val div = 2 * r + 1
     fun pass(srcA: IntArray, dst: IntArray, len: Int, lines: Int, stride: Int, step: Int) {

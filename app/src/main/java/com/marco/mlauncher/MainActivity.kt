@@ -235,6 +235,11 @@ class MainActivity : ComponentActivity(), Host {
         vm.loadCrash()
         AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
         Perf.attach(window)
+        // "content capture" (lettura dello schermo per le funzioni intelligenti del sistema): alla Home non serve
+        // e all'avvio costava oltre 100 ms sul thread principale
+        try {
+            getSystemService(android.view.contentcapture.ContentCaptureManager::class.java)?.setContentCaptureEnabled(false)
+        } catch (e: Exception) { }
         setContent {
             MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null) {
                 Root(vm, this@MainActivity)

@@ -17,6 +17,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.luminance
@@ -92,17 +96,60 @@ fun Root(vm: LauncherViewModel, host: Host) {
                     androidx.compose.animation.core.tween(Motion.ALL_APPS_OPEN, easing = Motion.Standard),
                     label = "searchBlur"
                 )
-                // sfocatura letta solo in fase di disegno: mentre si anima (cartella, cassetto, pagina −1)
-                // la Home non viene ricomposta a ogni fotogramma
+                // Sfocatura "a foto": appena serve (cartella, cassetto, pagina −1) si fotografa la Home una volta,
+                // la si sfoca piccola in background e la si disegna sopra in dissolvenza. Prima la Home veniva
+                // sfocata a grandezza piena a ogni fotogramma: era il lavoro più pesante per la scheda grafica.
+                val homeLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+                var blurred by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+                var blurTarget by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    androidx.compose.runtime.snapshotFlow {
+                        maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur) > 0.5.dp
+                    }.collect { on ->
+                        if (!on) {
+                            blurred = null
+                            return@collect
+                        }
+                        // quanto sarà sfocata alla fine (la dissolvenza va da 0 a questa)
+                        val target = maxOf(
+                            if (vm.openFolderId != null) vm.settings.folderBlur.dp else 0.dp,
+                            if (vm.minusP > 0f) vm.settings.minusBlur.dp else 0.dp,
+                            if (vm.overlay == Overlay.DRAWER && vm.searchMinusLook) vm.searchBlurEff.dp
+                            else if (vm.overlay == Overlay.DRAWER && !vm.settings.matOf("drawer").plain) vm.settings.minusBlur.dp
+                            else 0.dp
+                        )
+                        blurTarget = with(density) { target.toPx() }.coerceAtLeast(1f)
+                        val shot = try { homeLayer.toImageBitmap() } catch (e: Exception) { null } ?: return@collect
+                        val sigma = blurTarget * 0.577f
+                        val img = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            blurSnapshot(shot.asAndroidBitmap(), sigma)?.asImageBitmap()
+                        }
+                        // ancora da sfocare? (nel frattempo la cartella potrebbe essersi già chiusa)
+                        if (maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur) > 0.5.dp) blurred = img
+                    }
+                }
                 Box(
-                    Modifier.fillMaxSize().graphicsLayer {
+                    Modifier.fillMaxSize().drawWithContent {
+                        homeLayer.record { this@drawWithContent.drawContent() }
                         val r = maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur).toPx()
-                        if (r > 0.5f) {
-                            renderEffect = androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp)
-                            clip = true
+                        val f = (r / blurTarget).coerceIn(0f, 1f)
+                        val img = blurred
+                        if (img == null || f <= 0f) {
+                            homeLayer.alpha = 1f
+                            drawLayer(homeLayer)
                         } else {
-                            renderEffect = null
-                            clip = false
+                            // la Home nitida sfuma via e la foto sfocata compare
+                            if (f < 1f) {
+                                homeLayer.alpha = 1f - f
+                                drawLayer(homeLayer)
+                            }
+                            drawImage(
+                                img,
+                                dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
+                                alpha = f,
+                                filterQuality = androidx.compose.ui.graphics.FilterQuality.Low
+                            )
                         }
                     }
                 ) {

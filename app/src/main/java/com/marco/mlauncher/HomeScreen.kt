@@ -83,6 +83,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -493,6 +494,19 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         }
     }
     // azione "Pagina N" / "Pagina principale"
+    // Pagine preparate a scaglioni: all'avvio e dopo una rotazione si costruiscono subito solo la pagina
+    // visibile e le due vicine; le altre si aggiungono una alla volta quando la Home è ferma.
+    var beyondPages by remember { mutableIntStateOf(1) }
+    LaunchedEffect(vm.loaded, vm.layoutLand) {
+        beyondPages = 1
+        if (!vm.loaded) return@LaunchedEffect
+        delay(900)
+        while (beyondPages < 8) {
+            if (!pagerState.isScrollInProgress && vm.overlay == Overlay.NONE) beyondPages++
+            delay(150)
+        }
+    }
+
     // ---------- misure di velocità per il registro ----------
     LaunchedEffect(vm.loaded) {
         if (vm.loaded) {
@@ -701,7 +715,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         val pagerContent: @Composable (Modifier) -> Unit = { mod ->
             HorizontalPager(
                 state = pagerState,
-                beyondViewportPageCount = 8,
+                // pagine pronte a scaglioni: prima quella visibile e le vicine, le altre una alla volta
+                beyondViewportPageCount = beyondPages,
                 flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
                     pagerState,
                     snapAnimationSpec = androidx.compose.animation.core.tween(

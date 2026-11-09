@@ -195,8 +195,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     val showLabels: Boolean get() = showLabelsP
     var themedIcons by mutableStateOf(sp.getBoolean("themedIcons", false))
         private set
-    private var pageEffectP by mutableStateOf(sp.getString("pageEffect", "slide") ?: "slide")
-    private var pageEffectL by mutableStateOf(sp.getString("pageEffect_l", sp.getString("pageEffect", "slide")) ?: "slide")
+    // l'effetto "Rotazione" è stato tolto: chi l'aveva passa a Scorrimento
+    private var pageEffectP by mutableStateOf((sp.getString("pageEffect", "slide") ?: "slide").let { if (it == "rotate") "slide" else it })
+    private var pageEffectL by mutableStateOf((sp.getString("pageEffect_l", sp.getString("pageEffect", "slide")) ?: "slide").let { if (it == "rotate") "slide" else it })
     val pageEffect: String get() = pageEffectP
     var animSpeed by mutableIntStateOf(sp.getInt("animSpeed", 1))
         private set
