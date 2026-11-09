@@ -40,6 +40,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -528,7 +529,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 i.getBooleanExtra(Intent.EXTRA_REPLACING, false)
             ) return
             val pkg = i.data?.schemeSpecificPart ?: return
-            refresh(pkg)
+            queuePkg(pkg)
         }
     }
 
@@ -702,9 +703,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val iconDir get() = java.io.File(ctx.cacheDir, "icons")
     private val cacheLock = kotlinx.coroutines.sync.Mutex()
 
+    private var cacheJob: kotlinx.coroutines.Job? = null
+
+    /** Salva icone e nomi su disco per l'avvio veloce; più richieste ravvicinate diventano un solo salvataggio. */
     private fun saveAppCache(list: List<AppEntry>, pack: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        cacheJob?.cancel()
+        cacheJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(1500)
             cacheLock.withLock {
+                val t0 = System.currentTimeMillis()
                 try {
                     val dir = iconDir
                     dir.deleteRecursively()
@@ -726,6 +733,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         )
                     }
                     java.io.File(dir, "index.json").writeText(JSONObject().put("pack", pack).put("apps", arr).toString())
+                    AppLog.i("Cache delle icone salvata: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
                 } catch (e: Exception) {
                     AppLog.e("Salvataggio cache icone non riuscito", e)
                 }
@@ -779,7 +787,59 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // Aggiornamenti di pacchetti in arrivo tutti insieme (es. tornando alla Home dopo gli aggiornamenti del
+    // Play Store): li raccolgo per un attimo e li elaboro in un colpo solo, invece di ricaricare tutto N volte.
+    private val pendingPkgs = LinkedHashSet<String>()
+    private var pkgJob: kotlinx.coroutines.Job? = null
+
+    private fun queuePkg(pkg: String) {
+        pendingPkgs.add(pkg)
+        pkgJob?.cancel()
+        pkgJob = viewModelScope.launch {
+            delay(350)
+            val list = pendingPkgs.toList()
+            pendingPkgs.clear()
+            refreshPkgs(list)
+        }
+    }
+
+    private fun refreshPkgs(list: List<String>) {
+        if (list.isEmpty()) return
+        val t0 = System.currentTimeMillis()
+        viewModelScope.launch {
+            val packName = settings.iconPack
+            val fresh = withContext(Dispatchers.Default) {
+                try { smart.prepare(); smartReady = true } catch (e: Exception) { AppLog.e("Categorie non pronte", e) }
+                val pack = loadIconPack(packName)
+                list.associateWith { queryApps(it, pack) }
+            }
+            val t1 = System.currentTimeMillis()
+            val map = HashMap(apps)
+            for ((pkg, got) in fresh) {
+                val old = map.values.filter { it.pkg == pkg }
+                old.forEach { map.remove(it.id) }
+                // durante una disinstallazione tengo l'icona per l'animazione
+                val pend = pendingUninstall
+                if (got.isEmpty() && pend != null && pend.pkg == pkg) old.forEach { map[it.id] = it }
+                got.forEach { map[it.id] = it }
+            }
+            apps = map
+            sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
+            reconcile()
+            loaded = true
+            AppLog.i(
+                (if (list.size == 1) "Aggiornato il pacchetto ${list[0]}" else "Aggiornati ${list.size} pacchetti: ${list.joinToString(", ")}") +
+                    " (${t1 - t0} ms in background + ${System.currentTimeMillis() - t1} ms sulla Home)"
+            )
+            saveAppCache(map.values.toList(), packName)
+        }
+    }
+
     fun refresh(pkg: String?) {
+        if (pkg != null) {
+            queuePkg(pkg)
+            return
+        }
         val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             val packName = settings.iconPack
@@ -2635,7 +2695,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         AppLog.i("Orientamento: " + if (land) "orizzontale" else "verticale")
         // ruotando si resta dove si era: stessa pagina, cartella aperta e modifica restano
         val keep = currentPage
+        val t0 = System.currentTimeMillis()
         swapTo(land)
+        AppLog.i("Home ridisposta in ${System.currentTimeMillis() - t0} ms")
         val sel = selectedWidget
         if (sel != null && items.none { it.id == sel }) selectedWidget = null
         val folder = openFolderId

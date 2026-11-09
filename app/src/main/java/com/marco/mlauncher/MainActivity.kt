@@ -274,6 +274,7 @@ class MainActivity : ComponentActivity(), Host {
         launchedSinceStart = false
         try { vm.widgetHost.startListening() } catch (e: Exception) { AppLog.e("Widget host non avviato", e) }
         AppLog.i("Home in primo piano")
+        MainWatchdog.active = true
     }
 
     override fun onStop() {
@@ -286,6 +287,7 @@ class MainActivity : ComponentActivity(), Host {
         }
         try { vm.widgetHost.stopListening() } catch (e: Exception) { }
         AppLog.i("Home in background")
+        MainWatchdog.active = false
         super.onStop()
     }
 

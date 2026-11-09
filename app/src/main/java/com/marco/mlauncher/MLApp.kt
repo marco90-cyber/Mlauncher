@@ -14,6 +14,9 @@ class MLApp : Application() {
         super.onCreate()
         AppLog.init(this)
         AppLog.i("Avvio del processo")
+        // perché si era chiuso l'ultima volta (blocco, errore, memoria…) e sorveglianza dei blocchi della Home
+        MainWatchdog.logExitReasons(this)
+        MainWatchdog.start(this)
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {
@@ -36,6 +39,24 @@ class MLApp : Application() {
             }
             prev?.uncaughtException(t, e)
         }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        val what = when (level) {
+            TRIM_MEMORY_RUNNING_MODERATE -> "memoria in calo"
+            TRIM_MEMORY_RUNNING_LOW -> "memoria bassa"
+            TRIM_MEMORY_RUNNING_CRITICAL -> "memoria CRITICA"
+            TRIM_MEMORY_COMPLETE -> "MLauncher sta per essere chiuso per liberare memoria"
+            else -> null
+        }
+        if (what != null) AppLog.w("Il sistema segnala: $what\n" + MainWatchdog.memInfo())
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        AppLog.w("Il sistema segnala: memoria esaurita\n" + MainWatchdog.memInfo())
     }
 
     companion object {
