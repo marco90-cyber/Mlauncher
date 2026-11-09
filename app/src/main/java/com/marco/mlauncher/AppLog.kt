@@ -27,6 +27,31 @@ object AppLog {
     fun entries(text: String): List<String> =
         text.split(Regex("\n(?=\\d\\d/\\d\\d \\d\\d:)")).filter { it.isNotBlank() }
 
+    /** Solo gli eventi degli ultimi [days] giorni rispetto a [nowMillis] (quelli senza data si tengono). */
+    fun recent(list: List<String>, nowMillis: Long, days: Int = KEEP_DAYS): List<String> {
+        val now = java.util.Calendar.getInstance()
+        now.timeInMillis = nowMillis
+        val limit = nowMillis - days * 24L * 3600_000L
+        return list.filter { (entryTime(it, now) ?: Long.MAX_VALUE) >= limit }
+    }
+
+    /** Livello di un evento: "I", "W" o "E". */
+    fun level(e: String): String = e.drop(16).take(3).trim()
+
+    /** Evento che riguarda un problema: errori, blocchi, chiusure anomale, memoria. */
+    fun isError(e: String): Boolean = level(e).let { it == "E" || it == "W" }
+
+    /** Evento che riguarda la velocità: scatti, tempi lenti, caricamenti, riepiloghi. */
+    fun isSpeed(e: String): Boolean {
+        val msg = e.drop(19)
+        return SPEED_WORDS.any { msg.startsWith(it) }
+    }
+
+    private val SPEED_WORDS = listOf(
+        "Scatti", "Lento", "Rallentamento", "Riepilogo velocità", "Avvio della Home", "Home mostrata dalla cache",
+        "App caricate", "Cache delle icone", "Home ridisposta", "Aggiornat", "Home sbloccata", "HOME BLOCCATA"
+    )
+
     /** Data di un evento ("dd/MM ...") come millisecondi, nell'anno giusto. */
     private fun entryTime(e: String, now: java.util.Calendar): Long? {
         val d = e.take(2).toIntOrNull() ?: return null
@@ -48,9 +73,8 @@ object AppLog {
             if (!f.exists()) return
             val now = java.util.Calendar.getInstance()
             prunedDay = now.get(java.util.Calendar.DAY_OF_YEAR)
-            val limit = now.timeInMillis - KEEP_DAYS * 24L * 3600_000L
             val all = entries(f.readText())
-            val keep = all.filter { (entryTime(it, now) ?: Long.MAX_VALUE) >= limit }
+            val keep = recent(all, now.timeInMillis)
             if (keep.size != all.size) f.writeText(keep.joinToString("\n") { it.trimEnd('\n') } + "\n")
         } catch (e: Exception) {
             // registro non disponibile
@@ -61,6 +85,24 @@ object AppLog {
     fun w(msg: String) = write("W", msg)
     fun e(msg: String, t: Throwable? = null) =
         write("E", msg + (t?.let { "\n" + android.util.Log.getStackTraceString(it).take(4000) } ?: ""))
+
+    private val quietSeen = HashMap<String, Long>()
+
+    /**
+     * Errore non grave, che l'app supera da sola: finisce comunque nel registro, così se qualcosa non va
+     * si vede il motivo. Lo stesso errore è scritto al massimo una volta ogni 10 minuti.
+     */
+    fun quiet(what: String, t: Throwable) {
+        val key = what + "|" + t.javaClass.name
+        val now = System.currentTimeMillis()
+        synchronized(quietSeen) {
+            val last = quietSeen[key]
+            if (last != null && now - last < 600_000L) return
+            if (quietSeen.size > 200) quietSeen.clear()
+            quietSeen[key] = now
+        }
+        write("W", "Ignorato — $what: ${t.javaClass.simpleName}" + (t.message?.let { ": " + it.take(200) } ?: ""))
+    }
 
     private fun write(level: String, msg: String) {
         val line = "${fmt.format(Date())}  $level  $msg\n"

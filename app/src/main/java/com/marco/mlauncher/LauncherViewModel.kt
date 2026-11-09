@@ -605,6 +605,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     if (p !in set) set[p] = ri.loadLabel(pm).toString()
                 }
             } catch (e: Exception) {
+                AppLog.quiet("elenco dei pacchetti di icone", e)
                 // niente
             }
         }
@@ -688,6 +689,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     ai.packageName != ctx.packageName
                 result.add(AppEntry(ai.packageName, ai.name, label, icon, mono, removable, raw))
             } catch (e: Exception) {
+                AppLog.quiet("un'app non si è potuta leggere", e)
                 // app non leggibile: la salto
             }
         }
@@ -697,6 +699,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 val r = renderIcons(sd)
                 result.add(AppEntry(ctx.packageName, SETTINGS_CLS, "Impostazioni Home", r.first, r.second, false, renderRaw(sd)))
             } catch (e: Exception) {
+                AppLog.quiet("icona di Impostazioni Home", e)
                 // senza icona dell'app
             }
             // azioni di MLauncher (non compaiono nel cassetto: solo se le aggiungi tu)
@@ -732,12 +735,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             r.run()
         }, "MLauncher-bg")
     }.asCoroutineDispatcher()
-
-    /** Nome dei file di un'app nella cache (stabile: non cambia se si aggiungono o tolgono altre app). */
-    private fun cacheBase(a: AppEntry): String {
-        val key = a.pkg + "/" + a.cls
-        return "a" + Integer.toHexString(key.hashCode()) + "_" + key.length
-    }
 
     private class CacheData(val list: List<AppEntry>, val pkgTimes: Map<String, Long>, val packTime: Long)
 
@@ -775,7 +772,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                             }
                         }
                         for (a in list) {
-                            val base = cacheBase(a)
+                            val base = iconCacheName(a.pkg, a.cls)
                             val iconF = java.io.File(dir, base + "i.png")
                             val m: Boolean
                             val w: Boolean
@@ -1000,32 +997,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ---------- layout: geometria ----------
 
+    // le regole stanno in LayoutLogic (controllate dai test automatici); qui si applicano alla Home corrente
+    private val grid get() = Grid(curCols, curRows, curSlots)
+
     private fun overlaps(a: HomeItem, page: Int, x: Int, y: Int, sx: Int, sy: Int) =
-        a.page == page && a.x < x + sx && x < a.x + a.spanX && a.y < y + sy && y < a.y + a.spanY
+        LayoutLogic.overlaps(a, page, x, y, sx, sy)
 
-    private fun areaFree(page: Int, x: Int, y: Int, sx: Int, sy: Int, ignoreId: String? = null): Boolean {
-        if (x < 0 || y < 0) return false
-        if (page == -1) {
-            if (y != 0 || sy != 1 || x + sx > curSlots) return false
-        } else if (x + sx > curCols || y + sy > curRows) {
-            return false
-        }
-        return items.none { it.id != ignoreId && overlaps(it, page, x, y, sx, sy) }
-    }
+    private fun areaFree(page: Int, x: Int, y: Int, sx: Int, sy: Int, ignoreId: String? = null): Boolean =
+        LayoutLogic.areaFree(items, grid, page, x, y, sx, sy, ignoreId)
 
-    private fun findFree(startPage: Int, sx: Int = 1, sy: Int = 1): Triple<Int, Int, Int> {
-        val cols = curCols
-        val rows = curRows
-        val w = minOf(sx, cols)
-        val h = minOf(sy, rows)
-        var p = startPage
-        while (true) {
-            for (y in 0..(rows - h)) for (x in 0..(cols - w)) {
-                if (areaFree(p, x, y, w, h)) return Triple(p, x, y)
-            }
-            p++
-        }
-    }
+    private fun findFree(startPage: Int, sx: Int = 1, sy: Int = 1): Triple<Int, Int, Int> =
+        LayoutLogic.findFree(items, grid, startPage, sx, sy)
 
     private fun ensurePages(upTo: Int) {
         if (upTo + 1 > pageCount) pageCount = upTo + 1
@@ -1256,7 +1238,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             found.sortedByDescending { it.second }.drop(keep).forEach { (id, _) ->
                 try {
                     android.provider.DocumentsContract.deleteDocument(cr, android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id))
-                } catch (e: Exception) { }
+                } catch (e: Exception) { AppLog.quiet("vecchio backup non eliminato", e) }
             }
             null
         } catch (e: SecurityException) {
@@ -1277,7 +1259,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             try {
                 val o = JSONObject(v)
                 notes[k.removePrefix("note_")] = NoteData(o.optString("t"), o.optString("c", "yellow"), o.optInt("s", 15))
-            } catch (e: Exception) { }
+            } catch (e: Exception) { AppLog.quiet("nota non leggibile", e) }
         }
     }
 
@@ -1785,64 +1767,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ---------- salvataggio ----------
 
-    private fun encodeRef(r: WidgetRef) = JSONObject().put("k", r.kind).put("w", r.widgetId).put("p", r.provider)
+    private fun encodeItems(list: List<HomeItem> = items): JSONArray = LayoutCodec.encode(list)
 
-    private fun decodeRef(o: JSONObject) = WidgetRef(o.getString("k"), o.optInt("w", -1), o.optString("p", ""))
-
-    private fun encodeItems(list: List<HomeItem> = items): JSONArray {
-        val arr = JSONArray()
-        for (it in list) {
-            val o = JSONObject().put("page", it.page).put("x", it.x).put("y", it.y)
-            when (it) {
-                is AppItem -> o.put("t", "app").put("app", it.appId)
-                is FolderItem -> o.put("t", "folder").put("fid", it.folderId)
-                    .put("name", it.name).put("apps", JSONArray(it.appIds)).put("big", it.big)
-                is WidgetItem -> o.put("t", "widget").put("uid", it.uid).put("ref", encodeRef(it.ref))
-                    .put("sx", it.spanX).put("sy", it.spanY)
-                is StackItem -> {
-                    val refs = JSONArray()
-                    it.refs.forEach { r -> refs.put(encodeRef(r)) }
-                    o.put("t", "stack").put("uid", it.uid).put("refs", refs)
-                        .put("sx", it.spanX).put("sy", it.spanY)
-                }
-            }
-            arr.put(o)
-        }
-        return arr
-    }
-
-    internal fun decodeItems(arr: JSONArray, skipExt: Boolean): List<HomeItem> {
-        val out = ArrayList<HomeItem>()
-        for (i in 0 until arr.length()) {
-            val o = arr.getJSONObject(i)
-            val page = o.getInt("page")
-            val x = o.getInt("x")
-            val y = o.getInt("y")
-            when (o.getString("t")) {
-                "app" -> out.add(AppItem(o.getString("app"), page, x, y))
-                "folder" -> {
-                    val a = o.getJSONArray("apps")
-                    val list = (0 until a.length()).map { a.getString(it) }
-                    out.add(FolderItem(o.getString("fid"), o.getString("name"), list, page, x, y, o.optBoolean("big", false)))
-                }
-                "widget" -> {
-                    val ref = decodeRef(o.getJSONObject("ref"))
-                    if (!(skipExt && ref.kind == "ext")) {
-                        out.add(WidgetItem(o.getString("uid"), ref, page, x, y, o.getInt("sx"), o.getInt("sy")))
-                    }
-                }
-                "stack" -> {
-                    val ra = o.getJSONArray("refs")
-                    var refs = (0 until ra.length()).map { decodeRef(ra.getJSONObject(it)) }
-                    if (skipExt) refs = refs.filter { it.kind != "ext" }
-                    val sx = o.getInt("sx")
-                    val sy = o.getInt("sy")
-                    out.add(StackItem(o.getString("uid"), refs, page, x, y, sx, sy))
-                }
-            }
-        }
-        return out
-    }
+    internal fun decodeItems(arr: JSONArray, skipExt: Boolean): List<HomeItem> = LayoutCodec.decode(arr, skipExt)
 
     private fun loadLayout(): Boolean {
         val s = sp.getString(lk("layout"), null) ?: return false
@@ -1898,41 +1825,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         AppLog.i("Orientamento: la Home orizzontale ora segue quella verticale")
     }
 
-    /** Posizione corrispondente tra due griglie: in alto a destra resta in alto a destra. */
-    private fun mapPos(v: Int, span: Int, fromN: Int, toSpan: Int, toN: Int): Int {
-        val f = if (fromN - span > 0) v.toFloat() / (fromN - span) else 0f
-        return (f * (toN - toSpan)).roundToInt().coerceIn(0, maxOf(0, toN - toSpan))
-    }
-
-    private fun freeIn(list: List<HomeItem>, page: Int, x: Int, y: Int, sx: Int, sy: Int, cols: Int, rows: Int, slots: Int, except: String?): Boolean {
-        if (page == -1) {
-            if (x < 0 || x >= slots) return false
-            return list.none { it.id != except && it.page == -1 && it.x == x }
-        }
-        if (x < 0 || y < 0 || x + sx > cols || y + sy > rows) return false
-        return list.none {
-            it.id != except && it.page == page &&
-                x < it.x + it.spanX && it.x < x + sx && y < it.y + it.spanY && it.y < y + sy
-        }
-    }
-
-    /** Posto libero più vicino a (tx,ty) nella pagina; se la pagina è piena, la prima libera dopo. */
-    private fun spotIn(list: List<HomeItem>, page: Int, tx: Int, ty: Int, sx: Int, sy: Int, cols: Int, rows: Int, slots: Int, except: String?, pages: Int): Triple<Int, Int, Int> {
-        var p = maxOf(page, 0)
-        while (p < pages + 20) {
-            var best: Pair<Int, Int>? = null
-            var bd = Int.MAX_VALUE
-            for (y in 0..(rows - sy)) for (x in 0..(cols - sx)) {
-                if (!freeIn(list, p, x, y, sx, sy, cols, rows, slots, except)) continue
-                val d = (x - tx) * (x - tx) + 2 * (y - ty) * (y - ty)
-                if (d < bd) { bd = d; best = x to y }
-            }
-            if (best != null) return Triple(p, best.first, best.second)
-            p++
-        }
-        return Triple(pages, 0, 0)
-    }
-
     /** Quello che è cambiato in orizzontale finisce anche nella disposizione verticale. */
     private fun writeBackToMaster() {
         // senza un punto di partenza non si sa cosa è cambiato: non tocco la disposizione verticale
@@ -1941,49 +1833,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
         val str = sp.getString("layout", null)
-        val master = ArrayList<HomeItem>()
-        if (str != null) try { master.addAll(decodeItems(JSONArray(str), false)) } catch (e: Exception) { return }
-        var mPages = sp.getInt("pages", 1).coerceAtLeast(1)
-        val pc = settings.colsOf(false)
-        val pr = settings.rowsOf(false)
-        val ps = settings.dockSlotsOf(false)
-        val lc = curCols
-        val lr = curRows
-        val now = items.associateBy { it.id }
-        var changed = false
-        // tolti in orizzontale
-        if (master.removeAll { it.id in landSnap && it.id !in now }) changed = true
-        // pagine aggiunte o tolte
-        val dp = pageCount - landSnapPages
-        if (dp != 0) { mPages = maxOf(1, mPages + dp); changed = true }
-        for (l in items) {
-            val snap = landSnap[l.id]
-            if (snap == l) continue
-            changed = true
-            val m = master.firstOrNull { it.id == l.id }
-            val moved = snap == null || m == null || snap.page != l.page || snap.x != l.x || snap.y != l.y ||
-                snap.spanX != l.spanX || snap.spanY != l.spanY
-            if (m != null && !moved) {
-                // cambiato solo il contenuto (nome della cartella, app dentro…): il posto resta quello verticale
-                master[master.indexOf(m)] = l.at(m.page, m.x, m.y).sized(m.spanX, m.spanY)
-                continue
-            }
-            if (m != null) master.remove(m)
-            val sx = if (m != null && snap != null && snap.spanX == l.spanX) m.spanX else minOf(l.spanX, pc)
-            val sy = if (m != null && snap != null && snap.spanY == l.spanY) m.spanY else minOf(l.spanY, pr)
-            val placed: HomeItem = if (l.page == -1 && freeIn(master, -1, l.x, 0, 1, 1, pc, pr, ps, l.id)) {
-                l.at(-1, l.x, 0)
-            } else {
-                val tx = if (l.page == -1) 0 else mapPos(l.x, l.spanX, lc, sx, pc)
-                val ty = if (l.page == -1) pr - 1 else mapPos(l.y, l.spanY, lr, sy, pr)
-                val (p, x, y) = spotIn(master, maxOf(l.page, 0), tx, ty, sx, sy, pc, pr, ps, l.id, mPages)
-                if (p + 1 > mPages) mPages = p + 1
-                l.at(p, x, y).sized(sx, sy)
-            }
-            master.add(placed)
+        val master: List<HomeItem> = if (str == null) emptyList() else try {
+            decodeItems(JSONArray(str), false)
+        } catch (e: Exception) {
+            AppLog.e("Disposizione verticale non leggibile: modifica in orizzontale non riportata", e)
+            return
         }
-        if (changed) {
-            sp.edit().putString("layout", encodeItems(master).toString()).putInt("pages", mPages).apply()
+        val res = LayoutLogic.mergeBack(
+            master, sp.getInt("pages", 1),
+            items.toList(), pageCount,
+            landSnap, landSnapPages,
+            derived = grid,
+            main = Grid(settings.colsOf(false), settings.rowsOf(false), settings.dockSlotsOf(false))
+        )
+        if (res != null) {
+            sp.edit().putString("layout", encodeItems(res.items).toString()).putInt("pages", res.pages).apply()
         }
         takeLandSnapshot()
     }
@@ -2025,7 +1889,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         try {
             val info = widgetMgr.getAppWidgetInfo(ref.widgetId)
             if (info != null && info.provider.flattenToString() == ref.provider) return ref
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("controllo di un widget salvato", e) }
         val cn = android.content.ComponentName.unflattenFromString(ref.provider) ?: return null
         return try {
             val id = widgetHost.allocateAppWidgetId()
@@ -2292,6 +2156,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         try {
             decodeItems(JSONArray(str), false).forEach { i -> refsOf(i).filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
         } catch (e: Exception) {
+            AppLog.quiet("vecchia disposizione non leggibile", e)
             // layout illeggibile
         }
     }
@@ -2412,6 +2277,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (n.page != o.page || n.x != o.x || n.y != o.y) moved[o.id] = Triple(n.page, n.x, n.y)
             }
         } catch (e: Exception) {
+            AppLog.quiet("anteprima dello spostamento", e)
             // anteprima non possibile
         } finally {
             items.clear()
@@ -2752,52 +2618,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             // anche i widget delle altre app: è lo stesso widget, se ne vede uno alla volta
             decodeItems(JSONArray(str), false)
         } catch (e: Exception) {
+            AppLog.e("Disposizione non leggibile: non posso ricavare quella per questo orientamento", e)
             return
         }
-        val oc = settings.colsOf(!layoutLand)
-        val orr = settings.rowsOf(!layoutLand)
-        val cols = curCols
-        val rows = curRows
-        val overflow = ArrayList<HomeItem>()
-        for (d in src.filter { it.page == -1 }.sortedBy { it.x }) {
-            if (d.x < curSlots && areaFree(-1, d.x, 0, 1, 1)) items.add(d) else overflow.add(d)
-        }
-        val grid = src.filter { it.page >= 0 }.sortedWith(
-            compareByDescending<HomeItem> { it.spanX * it.spanY }.thenBy { it.page }.thenBy { it.y }.thenBy { it.x }
-        )
-        for (it in grid) {
-            val n = it.sized(minOf(it.spanX, cols), minOf(it.spanY, rows))
-            val fx = if (oc - it.spanX > 0) it.x.toFloat() / (oc - it.spanX) else 0f
-            val fy = if (orr - it.spanY > 0) it.y.toFloat() / (orr - it.spanY) else 0f
-            val tx = (fx * (cols - n.spanX)).roundToInt().coerceIn(0, cols - n.spanX)
-            val ty = (fy * (rows - n.spanY)).roundToInt().coerceIn(0, rows - n.spanY)
-            val spot = nearestFree(n.page, tx, ty, n.spanX, n.spanY)
-            if (spot != null) {
-                items.add(n.at(n.page, spot.first, spot.second))
-                ensurePages(n.page)
-            } else {
-                overflow.add(n)
-            }
-        }
-        for (o in overflow) {
-            val (p, x, y) = findFree(maxOf(o.page, 0), o.spanX, o.spanY)
-            items.add(o.at(p, x, y))
-            ensurePages(p)
-        }
-    }
-
-    private fun nearestFree(page: Int, tx: Int, ty: Int, sx: Int, sy: Int): Pair<Int, Int>? {
-        var best: Pair<Int, Int>? = null
-        var bd = Int.MAX_VALUE
-        for (y in 0..(curRows - sy)) for (x in 0..(curCols - sx)) {
-            if (!areaFree(page, x, y, sx, sy)) continue
-            val d = (x - tx) * (x - tx) + 2 * (y - ty) * (y - ty)
-            if (d < bd) {
-                bd = d
-                best = x to y
-            }
-        }
-        return best
+        val from = Grid(settings.colsOf(!layoutLand), settings.rowsOf(!layoutLand), settings.dockSlotsOf(!layoutLand))
+        val res = LayoutLogic.project(src, pageCount, from, grid)
+        items.addAll(res.items)
+        pageCount = res.pages
     }
 
     /** La barra di ricerca fissa è diventata un widget: chi la usava la ritrova in Home, una volta sola per layout. */
@@ -3025,6 +2852,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 val a = list?.firstOrNull()
                 place = a?.locality ?: a?.subAdminArea ?: a?.adminArea ?: ""
             } catch (e: Exception) {
+                AppLog.quiet("nome del luogo per il meteo", e)
                 // senza nome del luogo
             }
             Triple(WeatherData(
@@ -3200,6 +3028,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val o = JSONObject(str)
             applyUpdate(UpdateInfo(o.getString("v"), o.getInt("c"), o.optString("u"), o.optString("p")))
         } catch (e: Exception) {
+            AppLog.quiet("dati dell'aggiornamento salvati", e)
             // cache non valida
         }
     }
@@ -3246,6 +3075,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 val o = JSONObject(it)
                 weatherCity = City(o.getString("n"), o.getDouble("la"), o.getDouble("lo"), o.optString("a"))
             } catch (e: Exception) {
+                AppLog.quiet("città del meteo salvata", e)
                 // città non valida
             }
         }
@@ -3253,6 +3083,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             try {
                 weatherDetail = parseDetail(JSONObject(it))
             } catch (e: Exception) {
+                AppLog.quiet("meteo salvato (dettaglio)", e)
                 // cache non valida
             }
         }
@@ -3264,6 +3095,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 o.getInt("h"), o.getInt("l"), o.optString("p", ""), o.optLong("time", 0L)
             )
         } catch (e: Exception) {
+            AppLog.quiet("meteo salvato", e)
             // cache non valida
         }
     }
@@ -3312,7 +3144,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             android.app.WallpaperManager.getInstance(ctx).addOnColorsChangedListener(
                 { _, _ -> readWallpaperHint() }, android.os.Handler(android.os.Looper.getMainLooper())
             )
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("ascolto dei colori dello sfondo", e) }
         startupLoad()
     }
 }

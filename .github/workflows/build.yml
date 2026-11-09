@@ -30,7 +30,7 @@ jobs:
             echo "::error::Segreto KEYSTORE_BASE64 mancante: impossibile firmare l'APK"
             exit 1
           fi
-      - name: Build release APK
+      - name: Test and build release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -38,11 +38,12 @@ jobs:
         run: |
           chmod +x gradlew
           set -o pipefail
-          ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
+          # prima i test automatici: se una regola della Home si rompe, l'APK non viene pubblicato
+          ./gradlew testReleaseUnitTest assembleRelease --no-daemon 2>&1 | tee build.log
       - name: Show errors
         if: failure()
         run: |
-          grep -E "^e: |error:|What went wrong|Execution failed" build.log | sed "s|file:///home/runner/work/Mlauncher/Mlauncher/app/src/main/java/com/marco/mlauncher/||" | head -9 | while IFS= read -r l; do echo "::error::${l:0:900}"; done
+          grep -E "^e: |error:|What went wrong|Execution failed| FAILED$|AssertionError|ComparisonFailure" build.log | sed -E "s#file:///home/runner/work/Mlauncher/Mlauncher/app/src/(main|test)/java/com/marco/mlauncher/##" | head -9 | while IFS= read -r l; do echo "::error::${l:0:900}"; done
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk MLauncher.apk
       - uses: actions/upload-artifact@v4

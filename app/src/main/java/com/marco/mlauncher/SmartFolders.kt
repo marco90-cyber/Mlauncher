@@ -198,7 +198,7 @@ class SmartFolders(private val ctx: Context) {
         for ((intent, cat) in actions) {
             try {
                 pm.queryIntentActivities(intent, 0).forEach { out.putIfAbsent(it.activityInfo.packageName, cat) }
-            } catch (e: Exception) { }
+            } catch (e: Exception) { AppLog.quiet("categorie delle app (azioni)", e) }
         }
         return out
     }
@@ -209,10 +209,10 @@ class SmartFolders(private val ctx: Context) {
         fun cat(c: String, folder: String) = try {
             pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(c), 0)
                 .forEach { out.putIfAbsent(it.activityInfo.packageName, folder) }
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("categorie delle app (categoria)", e) }
         fun act(i: Intent, folder: String) = try {
             pm.queryIntentActivities(i, 0).forEach { out.putIfAbsent(it.activityInfo.packageName, folder) }
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("categorie delle app (intent)", e) }
         cat(Intent.CATEGORY_APP_BROWSER, WEB)
         cat(Intent.CATEGORY_APP_EMAIL, COMM)
         cat(Intent.CATEGORY_APP_MESSAGING, COMM)

@@ -23,6 +23,7 @@ class MLNotificationListener : NotificationListenerService() {
                 map[n.packageName] = (map[n.packageName] ?: 0) + 1
             }
         } catch (e: Exception) {
+            AppLog.quiet("lettura delle notifiche", e)
             // servizio non pronto
         }
         android.os.Handler(mainLooper).post {

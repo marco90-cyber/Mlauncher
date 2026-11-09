@@ -464,8 +464,8 @@ private fun PageLog(vm: LauncherViewModel) {
     val allEntries = remember(log) { AppLog.entries(log) }
     val shown = remember(log, filter) {
         when (filter) {
-            1 -> allEntries.filter { logIsError(it) }
-            2 -> allEntries.filter { logIsSpeed(it) }
+            1 -> allEntries.filter { AppLog.isError(it) }
+            2 -> allEntries.filter { AppLog.isSpeed(it) }
             else -> allEntries
         }
     }
@@ -487,7 +487,7 @@ private fun PageLog(vm: LauncherViewModel) {
         androidx.compose.material3.FilledTonalButton(onClick = {
             val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
                 .putExtra(android.content.Intent.EXTRA_TEXT, text)
-            try { ctx.startActivity(android.content.Intent.createChooser(i, "Condividi registro")) } catch (e: Exception) { }
+            try { ctx.startActivity(android.content.Intent.createChooser(i, "Condividi registro")) } catch (e: Exception) { AppLog.quiet("condivisione del registro", e) }
         }) { Text("Invia") }
         androidx.compose.material3.FilledTonalButton(
             onClick = { askClear = true },
@@ -549,7 +549,7 @@ private fun PageLog(vm: LauncherViewModel) {
                 color = cs.onSurfaceVariant
             )
             entries.forEach { line ->
-                val lvl = line.drop(16).take(3).trim()
+                val lvl = AppLog.level(line)
                 Text(
                     line.trimEnd(),
                     fontSize = 11.sp,
@@ -579,21 +579,6 @@ private fun PageLog(vm: LauncherViewModel) {
         },
         dismissButton = { androidx.compose.material3.TextButton(onClick = { askClear = false }) { Text("Annulla") } }
     )
-}
-
-/** Evento del registro che riguarda un problema: errori, blocchi, chiusure anomale, memoria. */
-private fun logIsError(e: String): Boolean {
-    val lvl = e.drop(16).take(3).trim()
-    return lvl == "E" || lvl == "W"
-}
-
-/** Evento del registro che riguarda la velocità: scatti, tempi lenti, caricamenti, riepiloghi. */
-private fun logIsSpeed(e: String): Boolean {
-    val msg = e.drop(19)
-    return listOf(
-        "Scatti", "Lento", "Rallentamento", "Riepilogo velocità", "Avvio della Home", "Home mostrata dalla cache",
-        "App caricate", "Cache delle icone", "Home ridisposta", "Aggiornat", "Home sbloccata", "HOME BLOCCATA"
-    ).any { msg.startsWith(it) }
 }
 
 @Composable

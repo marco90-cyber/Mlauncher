@@ -115,33 +115,6 @@ private fun softBlur(src: Bitmap, amount: Float): Bitmap {
     return Bitmap.createScaledBitmap(out, src.width, src.height, true)
 }
 
-/** Media mobile orizzontale e verticale (bordi ripetuti). */
-internal fun boxBlur(px: IntArray, w: Int, h: Int, r: Int) {
-    val tmp = IntArray(px.size)
-    val div = 2 * r + 1
-    fun pass(srcA: IntArray, dst: IntArray, len: Int, lines: Int, stride: Int, step: Int) {
-        for (l in 0 until lines) {
-            val base = l * stride
-            var sa = 0; var sr = 0; var sg = 0; var sb = 0
-            for (k in -r..r) {
-                val c = srcA[base + k.coerceIn(0, len - 1) * step]
-                sa += c ushr 24; sr += (c shr 16) and 255; sg += (c shr 8) and 255; sb += c and 255
-            }
-            for (i in 0 until len) {
-                dst[base + i * step] = ((sa / div) shl 24) or ((sr / div) shl 16) or ((sg / div) shl 8) or (sb / div)
-                val out = srcA[base + (i - r).coerceIn(0, len - 1) * step]
-                val inn = srcA[base + (i + r + 1).coerceIn(0, len - 1) * step]
-                sa += (inn ushr 24) - (out ushr 24)
-                sr += ((inn shr 16) and 255) - ((out shr 16) and 255)
-                sg += ((inn shr 8) and 255) - ((out shr 8) and 255)
-                sb += (inn and 255) - (out and 255)
-            }
-        }
-    }
-    pass(px, tmp, w, h, w, 1)      // righe
-    pass(tmp, px, h, w, 1, w)      // colonne
-}
-
 /** Applica gli effetti a un'immagine già ritagliata (larghezza e altezza finali). */
 fun applyWallFx(src: Bitmap, fx: WallFx): Bitmap {
     if (fx.none) return src

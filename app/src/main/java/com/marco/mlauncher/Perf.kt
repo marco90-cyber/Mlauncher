@@ -202,6 +202,7 @@ object Perf {
             }
             p.edit().putString("stats", o.toString()).apply()
         } catch (e: Exception) {
+            AppLog.quiet("salvataggio delle statistiche di velocità", e)
             // niente
         }
     }
@@ -219,6 +220,7 @@ object Perf {
                 for (k in sc.keys()) sc.getJSONObject(k).let { scenes[k] = Scene(it.optInt("n"), it.optInt("w"), it.optInt("f"), it.optInt("j")) }
             }
         } catch (e: Exception) {
+            AppLog.quiet("statistiche di velocità salvate", e)
             // statistiche illeggibili: si riparte
         }
     }

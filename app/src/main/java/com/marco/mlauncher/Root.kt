@@ -223,7 +223,7 @@ private fun CrashDialog(text: String, vm: LauncherViewModel) {
                     .putExtra(android.content.Intent.EXTRA_TEXT, text)
                 try {
                     ctx.startActivity(android.content.Intent.createChooser(i, "Condividi errore"))
-                } catch (e: Exception) { }
+                } catch (e: Exception) { AppLog.quiet("condivisione dell'errore", e) }
             }) { androidx.compose.material3.Text("Condividi") }
         },
         dismissButton = {

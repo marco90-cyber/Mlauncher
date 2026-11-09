@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity(), Host {
         if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             vm.loadAutoName()
         } else {
-            try { contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS) } catch (e: Exception) { }
+            try { contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS) } catch (e: Exception) { AppLog.quiet("richiesta del permesso contatti", e) }
         }
     }
 
@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity(), Host {
         syncOrientation(resources.configuration)
         try {
             registerReceiver(unlockReceiver, android.content.IntentFilter(Intent.ACTION_USER_PRESENT))
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("ascolto dello sblocco", e) }
         vm.checkUpdate(auto = true)
         vm.loadCrash()
         AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
@@ -254,7 +254,7 @@ class MainActivity : ComponentActivity(), Host {
         // e all'avvio costava oltre 100 ms sul thread principale
         try {
             getSystemService(android.view.contentcapture.ContentCaptureManager::class.java)?.setContentCaptureEnabled(false)
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("spegnimento del content capture", e) }
         setContent {
             MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null) {
                 Root(vm, this@MainActivity)
@@ -529,6 +529,7 @@ class MainActivity : ComponentActivity(), Host {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         } catch (e: Exception) {
+            AppLog.quiet("apertura delle informazioni dell'app", e)
             // niente
         }
     }
@@ -553,6 +554,7 @@ class MainActivity : ComponentActivity(), Host {
                 startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
             }
         } catch (e: Exception) {
+            AppLog.quiet("scelta della Home predefinita", e)
             // niente
         }
     }
@@ -561,6 +563,7 @@ class MainActivity : ComponentActivity(), Host {
         try {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "Sfondo"))
         } catch (e: Exception) {
+            AppLog.quiet("scelta dello sfondo di sistema", e)
             // niente
         }
     }
@@ -617,13 +620,13 @@ class MainActivity : ComponentActivity(), Host {
     override fun openListenerSettings() {
         try {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("apertura dell'accesso alle notifiche", e) }
     }
 
     override fun openAccessibilitySettings() {
         try {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("apertura dell'accessibilità", e) }
     }
 
     override fun restartLauncher() {
@@ -649,7 +652,7 @@ class MainActivity : ComponentActivity(), Host {
                 Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(query)))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("ricerca sul web", e) }
     }
 
     override fun requestBluetooth() {
@@ -659,7 +662,7 @@ class MainActivity : ComponentActivity(), Host {
     override fun openClockApp() {
         try {
             startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (e: Exception) { }
+        } catch (e: Exception) { AppLog.quiet("apertura dell'orologio", e) }
     }
 
     companion object {
