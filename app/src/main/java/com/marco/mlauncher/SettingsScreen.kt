@@ -45,7 +45,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.draw.drawBehind
@@ -96,10 +96,6 @@ private class Cat(val key: String, val title: String, val summary: String, val i
 private val shapeNames = mapOf(
     "original" to "Predefinita", "ios" to "iOS", "circle" to "Cerchio", "square" to "Quadrato arrotondato"
 )
-private val effectNames = mapOf(
-    "slide" to "Scorrimento", "fade" to "Dissolvenza", "cube" to "Cubo", "cascade" to "Cascata"
-)
-private val folderNames = mapOf("grid" to "Griglia 3\u00d73", "grid2" to "Griglia 2\u00d72", "stack" to "Ventaglio")
 private val orderOptions = listOf(
     "name" to "Per nome (A-Z)",
     "name_desc" to "Per nome (Z-A)",
@@ -114,7 +110,6 @@ private val smartModes = listOf(
     "letter" to "Lettera iniziale"
 )
 private val themeNames = mapOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro")
-private val dockNames = mapOf("ios" to "iOS", "samsung" to "Samsung", "hyperos" to "HyperOS", "none" to "Nessuno")
 
 private fun pageTitle(key: String?) = when (key) {
     "home" -> "Schermata Home"
@@ -344,7 +339,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         "Home" to listOf(
             Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home"), Icons.Default.Home),
             Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 grandezza ${(s.dockSize * 100).toInt()}%", Icons.Default.Menu),
-            Cat("folders", "Cartelle", "Posizione, grandezza, colonne", Icons.Default.List),
+            Cat("folders", "Cartelle", "Posizione, grandezza, colonne", Icons.AutoMirrored.Filled.List),
             *(if (s.homeMode == "drawer") arrayOf(
                 Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
             ) else arrayOf(
@@ -1651,91 +1646,6 @@ private fun GridPreview(cols: Int, rows: Int) {
 private val previewWallpaper = Brush.linearGradient(
     listOf(Color(0xFF0B1B3A), Color(0xFF1E88C8), Color(0xFF0A2A52), Color(0xFF16A6E0))
 )
-
-@Composable
-internal fun DockPreview(style: String, slots: Int, opacity: Int, glass: Boolean, corner: Int) {
-    val cs = MaterialTheme.colorScheme
-    Box(
-        Modifier.size(width = 64.dp, height = 40.dp).clip(RoundedCornerShape(8.dp)).background(previewWallpaper),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        val c = (corner * 0.4f).dp
-        val bar = style == "bar"
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = if (bar) 0.dp else 4.dp, vertical = if (bar) 0.dp else 4.dp)
-                .height(16.dp)
-                .dockLook(style, opacity, glass, c),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            repeat(minOf(slots, 5)) {
-                Box(
-                    Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(Color.White)
-                        .then(if (style == "tiles") Modifier.dockTile(opacity, glass, 4.dp) else Modifier)
-                )
-            }
-        }
-    }
-}
-
-/** Anteprima grande: sfondo, qualche icona e la dock con le impostazioni attuali. */
-@Composable
-private fun DockLivePreview(s: LauncherSettings) {
-    val cs = MaterialTheme.colorScheme
-    Box(
-        Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-            .height(190.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(previewWallpaper)
-    ) {
-        // onde dello sfondo
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
-                    center = androidx.compose.ui.geometry.Offset(260f, 120f),
-                    radius = 520f
-                )
-            )
-        )
-        Row(
-            Modifier.align(Alignment.TopCenter).padding(top = 18.dp).fillMaxWidth().padding(horizontal = 22.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            repeat(4) {
-                Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.85f)))
-            }
-        }
-        val h = 66.dp * s.dockSize
-        val bar = s.dockStyle == "bar"
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = if (bar) 0.dp else 14.dp, vertical = if (bar) 0.dp else 12.dp)
-                .height(h)
-                .dockLook(s.dockStyle, s.dockOpacity, s.dockGlass, (s.dockCorner * 0.8f).dp)
-        ) {
-            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                repeat(s.dockSlots) {
-                    Box(Modifier.weight(1f).fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
-                        .then(if (s.dockStyle == "tiles") Modifier.dockTile(s.dockOpacity, s.dockGlass, 14.dp) else Modifier),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            Modifier.size(40.dp * s.dockSize).clip(RoundedCornerShape(12.dp * s.dockSize))
-                                .background(cs.primaryContainer)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun EffectPreview(key: String) {

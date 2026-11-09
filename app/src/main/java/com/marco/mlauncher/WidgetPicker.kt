@@ -371,22 +371,6 @@ private fun EmptyStackCard(vm: LauncherViewModel, sx: Int, sy: Int) {
 }
 
 @Composable
-private fun StackCard(vm: LauncherViewModel, host: Host, title: String, sx: Int, sy: Int, kinds: List<String>) {
-    CardFrame(
-        width = if (sx >= 4) 190 else 130,
-        onClick = { vm.addStackPreset(sx, sy, kinds) },
-        title = title,
-        size = "${sx}x$sy · scorrevole"
-    ) {
-        val pw = (sx * 40).coerceAtMost(170)
-        val ph = sy * 40
-        Box(Modifier.size(pw.dp, ph.dp)) {
-            WidgetContent(WidgetRef(kinds.first()), vm, host, {}, Modifier.fillMaxSize(), sample = true)
-        }
-    }
-}
-
-@Composable
 private fun ExtCard(vm: LauncherViewModel, host: Host, info: AppWidgetProviderInfo) {
     val ctx = LocalContext.current
     val density = ctx.resources.displayMetrics.density

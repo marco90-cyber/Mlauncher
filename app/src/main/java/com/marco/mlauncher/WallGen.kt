@@ -524,11 +524,6 @@ private val PALETTE = listOf(
 ).map { it.toInt() }
 
 @Composable
-private fun GenLabel(t: String) {
-    Text(t, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
-}
-
-@Composable
 private fun GenSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float> = 0f..1f, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(96.dp))

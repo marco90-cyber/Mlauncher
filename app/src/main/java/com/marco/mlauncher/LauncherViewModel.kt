@@ -184,11 +184,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var wallEditSrc by mutableStateOf<Bitmap?>(null)
         private set
 
-    private fun maxWallSide(): Int {
-        val m = ctx.resources.displayMetrics
-        return (max(m.widthPixels, m.heightPixels) * 1.35f).toInt().coerceIn(1280, 3200)
-    }
-
     /** Carica lo sfondo salvato e ne ricava colore principale e testo chiaro/scuro. */
     fun loadWallpaper() {
         val f = wallFile(ctx)
@@ -375,17 +370,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         true
     } catch (e: Throwable) {
         AppLog.e("Sfondo di Android non impostato", e)
-        false
-    }
-
-    /** Mette l'immagine attuale anche sulla schermata di blocco di Android. */
-    fun wallpaperToLockScreen(): Boolean = try {
-        val f = wallFile(ctx)
-        val bm = BitmapFactory.decodeFile(f.path)
-        android.app.WallpaperManager.getInstance(ctx).setBitmap(bm, null, true, android.app.WallpaperManager.FLAG_LOCK)
-        true
-    } catch (e: Throwable) {
-        AppLog.e("Sfondo della schermata di blocco non impostato", e)
         false
     }
 
@@ -951,11 +935,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Un pacchetto cambiato si ricarica da solo (insieme agli altri in arrivo); null = ricarica tutte le app. */
     fun refresh(pkg: String?) {
-        if (pkg != null) {
-            queuePkg(pkg)
-            return
-        }
+        if (pkg != null) queuePkg(pkg) else refreshAll()
+    }
+
+    private fun refreshAll() {
         val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             val packName = settings.iconPack
@@ -964,31 +949,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 // ruoli delle app (browser, galleria…) possono cambiare con installazioni e rimozioni
                 try { smart.prepare(); smartReady = true } catch (e: Exception) { AppLog.e("Categorie non pronte", e) }
                 val pack = loadIconPack(packName)
-                if (pkg == null) iconPacks = findIconPacks()
-                queryApps(pkg, pack)
+                iconPacks = findIconPacks()
+                queryApps(null, pack)
             }
-            val map = HashMap(apps)
-            if (pkg == null) {
-                map.clear()
-            } else {
-                val old = map.values.filter { it.pkg == pkg }
-                old.forEach { map.remove(it.id) }
-                // durante una disinstallazione tengo l'icona per l'animazione
-                val pend = pendingUninstall
-                if (fresh.isEmpty() && pend != null && pend.pkg == pkg) {
-                    old.forEach { map[it.id] = it }
-                }
-            }
+            val map = HashMap<String, AppEntry>()
             fresh.forEach { map[it.id] = it }
             apps = map
             sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
             reconcile()
             loaded = true
-            if (pkg == null) {
-                AppLog.i("App caricate: ${map.size} in ${System.currentTimeMillis() - t0} ms")
-                Perf.time("Caricamento completo di app e icone", System.currentTimeMillis() - t0)
-            }
-            else AppLog.i("Aggiornato il pacchetto $pkg")
+            AppLog.i("App caricate: ${map.size} in ${System.currentTimeMillis() - t0} ms")
+            Perf.time("Caricamento completo di app e icone", System.currentTimeMillis() - t0)
             saveAppCache(map.values.toList(), packName)
         }
     }
@@ -1326,16 +1297,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveLayout()
     }
 
-    /** Ricarica app, icone, meteo e layout. */
-    fun restartHome() {
-        editMode = false
-        openFolderId = null
-        overlay = Overlay.NONE
-        refresh(null)
-        refreshWeather(true)
-        homeSignal += 1
-    }
-
     fun addStackPreset(sx: Int, sy: Int, kinds: List<String>) {
         val (p, x, y) = findFree(currentPage, minOf(sx, curCols), minOf(sy, curRows))
         items.add(
@@ -1422,7 +1383,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** la schermata di ricerca (Home con tutte le app) ha l'aspetto della pagina −1 */
     val searchMinusLook: Boolean get() = settings.homeMode == "all" && settings.searchLook == "minus"
-    val searchStyleEff: String get() = if (settings.searchSame) settings.minusStyle else settings.searchStyle
     val searchBlurEff: Int get() = if (settings.searchSame) settings.minusBlur else settings.searchBlur
     val searchDimEff: Int get() = if (settings.searchSame) settings.minusDim else settings.searchDim
 
@@ -1615,14 +1575,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addEmptyStack(sx: Int, sy: Int) = addStackPreset(sx, sy, emptyList())
-
-    fun resizeItem(item: HomeItem, sx: Int, sy: Int) {
-        val cur = items.firstOrNull { it.id == item.id } ?: return
-        if (sx == cur.spanX && sy == cur.spanY) return
-        if (!areaFree(cur.page, cur.x, cur.y, sx, sy, cur.id)) return
-        replace(cur, cur.sized(sx, sy))
-        saveLayout()
-    }
 
     fun setFolderBig(folderId: String, big: Boolean) {
         val f = items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem ?: return
@@ -2363,20 +2315,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             replace(f, f.copy(name = n))
             saveLayout()
         }
-    }
-
-    fun removeFromFolder(folderId: String, appId: String) {
-        val f = items.firstOrNull { it is FolderItem && it.folderId == folderId } as? FolderItem ?: return
-        val rest = f.appIds - appId
-        if (rest.size <= 1) {
-            items.remove(f)
-            rest.firstOrNull()?.let { items.add(AppItem(it, f.page, f.x, f.y)) }
-            if (openFolderId == folderId) openFolderId = null
-        } else {
-            replace(f, f.copy(appIds = rest))
-        }
-        addApp(appId, maxOf(f.page, 0))
-        saveLayout()
     }
 
     fun startDrawerDrag(appId: String, pos: androidx.compose.ui.geometry.Offset) {

@@ -13,17 +13,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-val DOCK_STYLES = listOf(
-    "liquid" to "Liquid Glass",
-    "glass" to "Vetro",
-    "tinted" to "Vetro colorato",
-    "dark" to "Vetro scuro",
-    "pill" to "Capsula tonale",
-    "bar" to "Barra a tutta larghezza",
-    "tiles" to "Tessere singole",
-    "none" to "Nessuno"
-)
-
 fun dockShape(style: String, corner: Dp): Shape =
     if (style == "bar") RoundedCornerShape(topStart = corner, topEnd = corner) else RoundedCornerShape(corner)
 

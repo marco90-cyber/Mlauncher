@@ -240,7 +240,9 @@ class SmartFolders(private val ctx: Context) {
         playMap?.get(a.pkg)?.let { return it }
         val info = try { pm.getApplicationInfo(a.pkg, 0) } catch (e: Exception) { null }
         if (info != null) {
-            if (info.flags and ApplicationInfo.FLAG_IS_GAME != 0) return GAMES
+            @Suppress("DEPRECATION") // alcune app dichiarano ancora il gioco solo così
+            val oldGameFlag = info.flags and ApplicationInfo.FLAG_IS_GAME != 0
+            if (oldGameFlag) return GAMES
             when (info.category) {
                 ApplicationInfo.CATEGORY_GAME -> return GAMES
                 ApplicationInfo.CATEGORY_AUDIO -> return MUSIC

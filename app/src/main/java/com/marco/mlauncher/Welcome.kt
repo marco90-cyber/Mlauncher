@@ -203,18 +203,6 @@ private fun Hello(onStart: () -> Unit, onBackup: () -> Unit) {
     TextButton(onClick = onBackup) { Text("Ho già un backup di MLauncher") }
 }
 
-@Composable
-private fun BigOption(title: String, text: String, onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(cs.surfaceContainerHigh)
-            .clickable(onClick = onClick).padding(20.dp)
-    ) {
-        Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
-        Text(text, color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
 /** Due anteprime affiancate: si tocca quella preferita e la scelta si applica subito (si va avanti con "Avanti"). */
 @Composable
 private fun AB(

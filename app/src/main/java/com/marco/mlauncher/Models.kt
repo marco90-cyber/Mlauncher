@@ -191,13 +191,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var iconScaleL by mutableStateOf(sp.getFloat("iconScale_l", sp.getFloat("iconScale", 1f)))
     val iconScale: Float get() = if (landscape) iconScaleL else iconScaleP
     private var showLabelsP by mutableStateOf(sp.getBoolean("showLabels", true))
-    private var showLabelsL by mutableStateOf(sp.getBoolean("showLabels_l", true))
     val showLabels: Boolean get() = showLabelsP
     var themedIcons by mutableStateOf(sp.getBoolean("themedIcons", false))
         private set
     // l'effetto "Rotazione" è stato tolto: chi l'aveva passa a Scorrimento
     private var pageEffectP by mutableStateOf((sp.getString("pageEffect", "slide") ?: "slide").let { if (it == "rotate") "slide" else it })
-    private var pageEffectL by mutableStateOf((sp.getString("pageEffect_l", sp.getString("pageEffect", "slide")) ?: "slide").let { if (it == "rotate") "slide" else it })
     val pageEffect: String get() = pageEffectP
     var animSpeed by mutableIntStateOf(sp.getInt("animSpeed", 1))
         private set
@@ -215,19 +213,15 @@ class LauncherSettings(private val sp: SharedPreferences) {
     fun dockSlotsOf(l: Boolean) = if (l) dockSlotsL else dockSlotsP
     private fun dockStyleOk(it: String) = if (it in listOf("liquid", "glass", "tinted", "dark", "pill", "bar", "tiles", "none")) it else "glass"
     private var dockStyleP by mutableStateOf(dockStyleOk(sp.getString("dockStyle", "glass") ?: "glass"))
-    private var dockStyleL by mutableStateOf(dockStyleOk(sp.getString("dockStyle_l", sp.getString("dockStyle", "glass")) ?: "glass"))
     val dockStyle: String get() = dockStyleP
     private var dockOpacityP by mutableStateOf(sp.getInt("dockOpacity", 60))
-    private var dockOpacityL by mutableStateOf(sp.getInt("dockOpacity_l", sp.getInt("dockOpacity", 60)))
     val dockOpacity: Int get() = dockOpacityP
     private var dockGlassP by mutableStateOf(sp.getBoolean("dockGlass", true))
-    private var dockGlassL by mutableStateOf(sp.getBoolean("dockGlass_l", sp.getBoolean("dockGlass", true)))
     val dockGlass: Boolean get() = dockGlassP
     private var dockSizeP by mutableStateOf(sp.getFloat("dockSize", 1f))
     private var dockSizeL by mutableStateOf(sp.getFloat("dockSize_l", sp.getFloat("dockSize", 1f)))
     val dockSize: Float get() = if (landscape) dockSizeL else dockSizeP
     private var dockCornerP by mutableStateOf(sp.getInt("dockCorner", 30))
-    private var dockCornerL by mutableStateOf(sp.getInt("dockCorner_l", sp.getInt("dockCorner", 30)))
     val dockCorner: Int get() = dockCornerP
     var haptics by mutableStateOf(sp.getBoolean("haptics", true))
     var hapPress by mutableStateOf(sp.getBoolean("hapPress", true))
@@ -359,13 +353,10 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var drIconL by mutableStateOf(sp.getFloat("drIcon_l", sp.getFloat("drIcon", 1f)))
     val drIcon: Float get() = if (landscape) drIconL else drIconP
     private var drLabelsP by mutableStateOf(sp.getBoolean("drLabels", true))
-    private var drLabelsL by mutableStateOf(sp.getBoolean("drLabels_l", sp.getBoolean("drLabels", true)))
     val drLabels: Boolean get() = drLabelsP
     private var drLabelSizeP by mutableStateOf(sp.getInt("drLabelSize", 11))
-    private var drLabelSizeL by mutableStateOf(sp.getInt("drLabelSize_l", sp.getInt("drLabelSize", 11)))
     val drLabelSize: Int get() = drLabelSizeP
     private var drTwoLineP by mutableStateOf(sp.getBoolean("drTwoLine", false))
-    private var drTwoLineL by mutableStateOf(sp.getBoolean("drTwoLine_l", sp.getBoolean("drTwoLine", false)))
     val drTwoLine: Boolean get() = drTwoLineP
     var drBg by mutableStateOf(sp.getString("drBg", "surface") ?: "surface")
     var drOpacity by mutableStateOf(sp.getInt("drOpacity", 97))
@@ -395,10 +386,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var folderCols by mutableStateOf(sp.getInt("folderCols", 3))
         private set
     private var pageIndicatorP by mutableStateOf(sp.getString("pageIndicator", "pill") ?: "pill")
-    private var pageIndicatorL by mutableStateOf(sp.getString("pageIndicator_l", sp.getString("pageIndicator", "pill")) ?: "pill")
     val pageIndicator: String get() = pageIndicatorP
     private var searchBarP by mutableStateOf(sp.getString("searchBar", "home") ?: "home")
-    private var searchBarL by mutableStateOf(sp.getString("searchBar_l", sp.getString("searchBar", "home")) ?: "home")
     val searchBar: String get() = searchBarP
     var badges by mutableStateOf(sp.getString("badges", "off") ?: "off")
         private set

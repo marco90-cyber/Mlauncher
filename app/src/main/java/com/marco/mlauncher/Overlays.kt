@@ -72,7 +72,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.DropdownMenu
@@ -260,7 +260,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val dockSpec = vm.settings.matOf("menus").let { m -> if (m.plain) null else DockLookSpec(m.style, m.opacity, m.glass, m.corner) }
                 val followDock = dockSpec != null && dockSpec.style != "none" && dockSpec.style != "tiles"
                 val csF = MaterialTheme.colorScheme
-                val fgColor = if (followDock && dockSpec != null) {
+                val fgColor = if (dockSpec != null && followDock) {
                     val st = if (dockSpec.style == "bar") "pill" else dockSpec.style
                     val base = when (st) {
                         "tinted" -> csF.primary
@@ -289,7 +289,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                             clip = false
                         }
                         .then(
-                            if (followDock && dockSpec != null)
+                            if (dockSpec != null && followDock)
                                 // base opaca sotto il vetro: la cartella resta leggibile anche con la dock molto trasparente
                                 Modifier
                                     .clip(RoundedCornerShape(28.dp))
@@ -537,7 +537,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Ordina A-Z") },
-                                        leadingIcon = { Icon(Icons.Default.List, null) },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null) },
                                         onClick = { folderMenu = false; vm.sortFolder(folderId) }
                                     )
                                     if (fItem != null) DropdownMenuItem(

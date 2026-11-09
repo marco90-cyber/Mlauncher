@@ -369,7 +369,8 @@ class MainActivity : ComponentActivity(), Host {
         vm.accessibilityEnabled = acc.contains(packageName)
     }
 
-    @Deprecated("Deprecated in Java")
+    // serve così: l'API dei widget di Android risponde solo qui
+    @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_CONFIGURE) {
@@ -512,6 +513,7 @@ class MainActivity : ComponentActivity(), Host {
     }
 
     override fun uninstall(app: AppEntry) {
+        @Suppress("DEPRECATION") // l'unica azione che restituisce l'esito della disinstallazione
         val i = Intent(Intent.ACTION_UNINSTALL_PACKAGE, Uri.parse("package:${app.pkg}"))
             .putExtra(Intent.EXTRA_RETURN_RESULT, true)
         vm.beginUninstall(app)

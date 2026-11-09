@@ -611,7 +611,7 @@ fun ExtWidget(ref: WidgetRef, vm: LauncherViewModel, onLongPress: () -> Unit, mo
                 }
             },
             update = { v ->
-                (v as? AppWidgetHostView)?.updateAppWidgetSize(null, wDp, hDp, wDp, hDp)
+                (v as? AppWidgetHostView)?.setSizeDp(wDp, hDp)
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -886,6 +886,7 @@ fun BatteryWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
             override fun onReceive(c: android.content.Context, i: android.content.Intent) {
                 try {
                     if (i.action == ACTION_BT_BATTERY) {
+                        @Suppress("DEPRECATION") // la versione nuova esiste solo da Android 13
                         val dev = i.getParcelableExtra<android.bluetooth.BluetoothDevice>(
                             android.bluetooth.BluetoothDevice.EXTRA_DEVICE
                         )
@@ -1040,3 +1041,7 @@ fun BatteryWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
         }
     }
 }
+
+/** Dice al widget quanto spazio ha (in dp). */
+@Suppress("DEPRECATION") // la versione nuova vuole un elenco di grandezze: per un posto fisso basta questa
+private fun AppWidgetHostView.setSizeDp(w: Int, h: Int) = updateAppWidgetSize(null, w, h, w, h)

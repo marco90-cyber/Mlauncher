@@ -67,7 +67,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Home
@@ -954,20 +954,6 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
 }
 
 @Composable
-private fun SettingsButton(onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Surface(
-        shape = CircleShape,
-        color = cs.surfaceContainerHigh.copy(alpha = 0.85f),
-        modifier = Modifier.size(46.dp).clickable(onClick = onClick)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = cs.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
 private fun PageDots(count: Int, state: PagerState, style: String, st: LauncherSettings, darkText: Boolean = false, onSearch: () -> Unit) {
     val scope = rememberCoroutineScope()
     val view = androidx.compose.ui.platform.LocalView.current
@@ -1792,7 +1778,7 @@ private fun WidgetCell(
                     Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (canConfig && extId != null) {
+                    if (extId != null && canConfig) {
                         Box(
                             Modifier.size(40.dp).shadow(3.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
                                 .background(cs.primary).clickable { host.reconfigureWidget(extId) },
@@ -1955,7 +1941,7 @@ internal fun QuickMenu(
                             vm.folderAnchor = rect
                             vm.openFolderId = item.folderId
                         }
-                        row("Ordina A-Z", Icons.Default.List) { vm.sortFolder(item.folderId) }
+                        row("Ordina A-Z", Icons.AutoMirrored.Filled.List) { vm.sortFolder(item.folderId) }
                         row(if (item.big) "Riduci" else "Ingrandisci (2x2)", Icons.Default.Add) { vm.setFolderBig(item.folderId, !item.big) }
                         row("Elimina cartella", Icons.Default.Delete, danger = true) { vm.dissolveFolder(item.folderId) }
                         row("Modifica", Icons.Default.Edit) { vm.editMode = true }
@@ -2027,25 +2013,6 @@ internal fun MenuSurface(vm: LauncherViewModel, corner: Dp, modifier: Modifier =
                 androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides fg) { content() }
             }
         }
-    }
-}
-
-@Composable
-private fun HomeMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(40.dp).clip(CircleShape).background(cs.primaryContainer),
-            contentAlignment = Alignment.Center
-        ) { Icon(icon, null, tint = cs.onPrimaryContainer, modifier = Modifier.size(22.dp)) }
-        Spacer(Modifier.width(14.dp))
-        Text(text, color = cs.onSurface, fontSize = 15.sp, maxLines = 1)
     }
 }
 
