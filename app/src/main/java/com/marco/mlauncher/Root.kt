@@ -102,6 +102,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
                 val homeLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
                 var blurred by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
                 var blurTarget by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+                // la Home passa dal livello della foto solo per il fotogramma della foto: altrimenti si disegna
+                // normalmente (un livello tenuto sempre poteva restare vuoto dopo lo schermo spento: solo sfondo)
+                var capture by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     androidx.compose.runtime.snapshotFlow {
@@ -120,7 +123,18 @@ fun Root(vm: LauncherViewModel, host: Host) {
                             else 0.dp
                         )
                         blurTarget = with(density) { target.toPx() }.coerceAtLeast(1f)
-                        val shot = try { homeLayer.toImageBitmap() } catch (e: Exception) { null } ?: return@collect
+                        capture = true
+                        val shot = try {
+                            androidx.compose.runtime.withFrameNanos { }
+                            androidx.compose.runtime.withFrameNanos { }
+                            homeLayer.toImageBitmap()
+                        } catch (e: Exception) {
+                            AppLog.quiet("foto della Home per la sfocatura", e)
+                            null
+                        } finally {
+                            capture = false
+                        }
+                        if (shot == null) return@collect
                         val sigma = blurTarget * 0.577f
                         val img = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                             blurSnapshot(shot.asAndroidBitmap(), sigma)?.asImageBitmap()
@@ -131,27 +145,36 @@ fun Root(vm: LauncherViewModel, host: Host) {
                 }
                 Box(
                     Modifier.fillMaxSize().drawWithContent {
-                        homeLayer.record { this@drawWithContent.drawContent() }
+                        // sopra la Home (che sfuma via) la foto sfocata che compare
+                        drawContent()
+                        val img = blurred ?: return@drawWithContent
                         val r = maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur).toPx()
                         val f = (r / blurTarget).coerceIn(0f, 1f)
-                        val img = blurred
-                        if (img == null || f <= 0f) {
-                            homeLayer.alpha = 1f
-                            drawLayer(homeLayer)
-                        } else {
-                            // la Home nitida sfuma via e la foto sfocata compare
-                            if (f < 1f) {
-                                homeLayer.alpha = 1f - f
-                                drawLayer(homeLayer)
-                            }
-                            drawImage(
-                                img,
-                                dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
-                                alpha = f,
-                                filterQuality = androidx.compose.ui.graphics.FilterQuality.Low
-                            )
-                        }
+                        if (f > 0f) drawImage(
+                            img,
+                            dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
+                            alpha = f,
+                            filterQuality = androidx.compose.ui.graphics.FilterQuality.Low
+                        )
                     }
+                ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            val r = maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur).toPx()
+                            val f = (r / blurTarget).coerceIn(0f, 1f)
+                            // tutta sfocata: la Home nitida non serve disegnarla
+                            alpha = if (blurred != null && !capture) 1f - f else 1f
+                        }
+                        .drawWithContent {
+                            if (capture) {
+                                homeLayer.record { this@drawWithContent.drawContent() }
+                                drawLayer(homeLayer)
+                            } else {
+                                drawContent()
+                            }
+                        }
                 ) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
                     if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm)) {
@@ -159,6 +182,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
                         WallpaperLayer(wall, 0f, 0.dp)
                     }
                     if (vm.loaded) HomeScreen(vm, host)
+                }
                 }
                 if (vm.loaded) MinusPage(vm, host)
                 FolderOverlay(vm, host)
