@@ -267,35 +267,19 @@ private fun PickTheme(vm: LauncherViewModel) {
         onClick = { vm.setSetting("theme", "auto") },
         label = { Text("Segui il telefono (automatico)") }
     )
-    Label("Stile degli interruttori")
-    val cs = MaterialTheme.colorScheme
-    // un interruttore di prova: si accende e si spegne da solo per far vedere lo stile
-    var demo by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(1400)
-            demo = !demo
-        }
+    Label("Il tema")
+    Text(
+        "Materiale della Home, forma delle icone e interruttori, tutto insieme. Poi puoi cambiare ogni dettaglio in Stile \u2192 Tema.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(bottom = 12.dp)
+    )
+    // le schede hanno già il loro margine laterale: qui si annulla quello del benvenuto
+    Box(Modifier.fillMaxWidth().padding(horizontal = 0.dp)) {
+        ThemeCards(s.launcherTheme, s, previewHeight = 120.dp) { vm.applyLauncherTheme(it.key) }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SWITCH_STYLES.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { (k, l) ->
-                    val on = s.switchStyle == k
-                    Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).clickable { vm.setSetting("switchStyle", k) }
-                            .background(if (on) cs.primaryContainer else cs.surfaceContainerHigh)
-                            .border(if (on) 2.dp else 0.dp, if (on) cs.primary else Color.Transparent, RoundedCornerShape(18.dp))
-                            .padding(vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        MLSwitch(checked = demo, onCheckedChange = null, style = k)
-                        Text(l.substringBefore(" ("), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
-                    }
-                }
-            }
-        }
-    }
+    Spacer(Modifier.height(8.dp))
 }
 
 @Composable
@@ -432,36 +416,13 @@ private fun PickDock(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val dark = isDarkPreview(s.theme)
-    Headline("La dock", "Il materiale della dock (e degli altri elementi della Home) e l'indicatore delle pagine.")
-    // il materiale scelto qui è quello generale: la dock lo segue
-    fun pickDock(k: String) {
-        vm.setSetting("matStyle", k)
-        vm.setElFollow("dock", true)
-        if (k == "liquid") listOf("folder", "indicator", "widgets", "panels").forEach { vm.setElFollow(it, true) }
-    }
-    val cur = s.matOf("dock")
+    Headline("La dock", "La forma della dock e l'indicatore delle pagine. Il materiale lo decide il tema scelto prima.")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf("liquid" to "Liquid\nGlass", "glass" to "Vetro", "pill" to "Tonale").forEach { (k, l) ->
-            PickCard(cur.style == k, l, Modifier.weight(1f), { pickDock(k) }) { MiniPhone(mini(vm, dark).copy(dock = k)) }
+        listOf("float" to "Fluttuante", "bar" to "Barra", "tiles" to "Tessere").forEach { (k, l) ->
+            PickCard(s.dockForm == k, l, Modifier.weight(1f), { vm.setSetting("dockForm", k) }) {
+                MiniPhone(mini(vm, dark).copy(dock = if (k == "tiles") "tiles" else s.matOf("dock").style))
+            }
         }
-    }
-    if (cur.style == "liquid") Text(
-        "Tema Liquid Glass: anche cartelle, indicatore e widget diventano di vetro liquido.",
-        color = cs.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 10.dp)
-    )
-    Row(
-        Modifier.fillMaxWidth().padding(top = 16.dp).clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh)
-            .clickable { vm.setSetting("matGlass", !s.matGlass) }.padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Effetto glass")
-            Text("Riflesso e bordo luminoso come il vetro", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-        }
-        MLSwitch(checked = s.matGlass, onCheckedChange = { vm.setSetting("matGlass", it) })
     }
     Label("Indicatore di pagina")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -485,7 +446,7 @@ private fun PickDock(vm: LauncherViewModel) {
             }
     }
     Text(
-        "Altri materiali (Fluent, nessuno…), la forma della dock e i singoli elementi in Impostazioni → Stile → Materiale",
+        "Il materiale dei singoli elementi (dock, cartelle, widget\u2026) si cambia in Impostazioni \u2192 Stile \u2192 Personalizza tema",
         color = cs.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
         textAlign = TextAlign.Center,
@@ -915,12 +876,12 @@ private fun Summary(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val rows = listOf(
-        "Tema" to when (s.theme) { "light" -> "Chiaro"; "dark" -> "Scuro"; else -> "Automatico" },
+        "Modalità" to when (s.theme) { "light" -> "Chiaro"; "dark" -> "Scuro"; else -> "Automatico" },
+        "Tema" to (LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"),
         "Colori" to (ACCENTS.firstOrNull { it.first == s.accent }?.second ?: ""),
         "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
         "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
         "Interruttori" to (SWITCH_STYLES.firstOrNull { it.first == s.switchStyle }?.second?.substringBefore(" (") ?: ""),
-        "Materiale" to (MATERIALS.firstOrNull { it.first == s.matStyle }?.second ?: ""),
         "Pagina \u22121" to (if (s.minusOn) "Attiva" else "Spenta"),
         "Ritorno alla Home" to (RETURN_ANIMS.firstOrNull { it.first == s.returnAnim }?.second?.substringBefore(" (") ?: "")
     )

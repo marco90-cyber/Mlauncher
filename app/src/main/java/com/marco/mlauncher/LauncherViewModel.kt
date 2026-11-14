@@ -104,19 +104,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** scheda delle impostazioni: 0 Impostazioni, 1 Stile */
     var settingsTab by mutableIntStateOf(0)
 
-    /** Indietro nelle impostazioni: dai sottomenu dei materiali si torna a "Materiale degli elementi". */
+    /** Indietro nelle impostazioni: dai sottomenu dei materiali si torna a "Personalizza tema". */
     fun settingsBack() {
         val p = settingsPage
         settingsPage = if (p != null && p.startsWith("mat_")) "material" else null
     }
 
-    /** Un elemento smette (o riprende) di seguire il materiale generale: la prima volta parte da quello generale. */
+    /** Un elemento smette (o riprende) di seguire il tema: la prima volta parte dal materiale del tema. */
     /**
      * Applica uno dei temi della Home (Stile → Tema), come in Expressive Launcher:
      *  - "liquid": vetro liquido ovunque, icone squircola con riflessi, interruttori iOS;
      *  - "expressive": Material 3 Expressive, pannelli tonali, icone Material You a forma di biscotto;
-     *  - "lite": Material You leggero, pannelli pieni, icone rotonde, niente effetti.
-     * Tutti gli elementi tornano a seguire il materiale generale; i dettagli si cambiano poi a mano.
+     *  - "lite": Material You leggero, pannelli tonali, icone rotonde, niente effetti;
+     *  - "glass": vetro semplice con riflesso, icone squircole normali, interruttori HyperOS;
+     *  - "tonal": pannelli tonali, icone Material You squircole;
+     *  - "fluent": come Windows 11 (e MLMeteo), anche nelle impostazioni; interruttori Fluent;
+     *  - "none": niente pannelli, icone predefinite.
+     * Tutti gli elementi tornano a seguire il tema; i dettagli si cambiano poi in Personalizza tema.
      */
     fun applyLauncherTheme(key: String) {
         when (key) {
@@ -144,6 +148,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 setSetting("iconShape", "circle")
                 setSetting("themedIcons", false)
                 setSetting("switchStyle", "material")
+            }
+            "glass" -> {
+                setSetting("matStyle", "glass")
+                setSetting("matGlass", true)
+                setSetting("matOpacity", 60)
+                setSetting("matCorner", 26)
+                setSetting("iconShape", "ios")
+                setSetting("themedIcons", false)
+                setSetting("switchStyle", "hyperos")
+            }
+            "tonal" -> {
+                setSetting("matStyle", "pill")
+                setSetting("matGlass", false)
+                setSetting("matOpacity", 60)
+                setSetting("matCorner", 24)
+                setSetting("iconShape", "ios")
+                setSetting("themedIcons", true)
+                setSetting("themedIconColor", "secondary")
+                setSetting("switchStyle", "android16")
+            }
+            "fluent" -> {
+                setSetting("matStyle", "fluent")
+                setSetting("matGlass", false)
+                setSetting("matOpacity", 60)
+                setSetting("matCorner", 8)
+                setSetting("iconShape", "square")
+                setSetting("themedIcons", false)
+                setSetting("switchStyle", "fluent")
+            }
+            "none" -> {
+                setSetting("matStyle", "none")
+                setSetting("matGlass", false)
+                setSetting("matCorner", 24)
+                setSetting("iconShape", "original")
+                setSetting("themedIcons", false)
+                setSetting("switchStyle", "android16")
             }
         }
         if (key != "custom") MAT_ELEMENTS.forEach { (e, _) -> if (!settings.elFollow(e)) setElFollow(e, true) }

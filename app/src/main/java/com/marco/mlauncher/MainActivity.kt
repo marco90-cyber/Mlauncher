@@ -256,7 +256,7 @@ class MainActivity : ComponentActivity(), Host {
             getSystemService(android.view.contentcapture.ContentCaptureManager::class.java)?.setContentCaptureEnabled(false)
         } catch (e: Exception) { AppLog.quiet("spegnimento del content capture", e) }
         setContent {
-            MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null) {
+            MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null, fluent = vm.settings.launcherTheme == "fluent") {
                 Root(vm, this@MainActivity)
                 AppUpdateHost()
                 val hideSb = vm.settings.hideStatusBar

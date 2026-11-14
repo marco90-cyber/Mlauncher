@@ -53,7 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /*
- * Schermata «Tema»: tre temi con una mini Home di anteprima ciascuno, come in Expressive Launcher
+ * Schermata «Tema»: sette temi con una mini Home di anteprima ciascuno, come in Expressive Launcher
  * (github.com/kotlalipopus/expressive-launcher, licenza MIT).
  */
 
@@ -70,7 +70,11 @@ class ThemeSpec(
     /** grafica semplificata: angoli tutti uguali, niente effetti */
     val lite: Boolean
 ) {
-    val uniformCorner: Dp? get() = if (lite) 16.dp else null
+    val uniformCorner: Dp? get() = when {
+        key == "fluent" -> 8.dp
+        lite -> 16.dp
+        else -> null
+    }
 }
 
 private fun glyph(name: String, d: String): ImageVector =
@@ -93,6 +97,21 @@ val BoltIcon = glyph(
     "M11,21h-1l1,-7H7.5c-0.58,0 -0.57,-0.32 -0.38,-0.66c0.19,-0.34 0.05,-0.08 0.07,-0.12C8.48,10.94 10.42,7.54 13,3h1l-1,7h3.5c0.49,0 0.56,0.33 0.47,0.51l-0.07,0.15C12.96,17.55 11,21 11,21z"
 )
 
+/** Quadrato (Material Symbols "square", angoli piccoli): Fluent. */
+val FluentIcon = glyph("Fluent", "M4,4h7.2v7.2H4zM12.8,4H20v7.2h-7.2zM4,12.8h7.2V20H4zM12.8,12.8H20V20h-7.2z")
+
+/** Cerchio pieno (Material Symbols "circle"): Tonale. */
+val TonalIcon = glyph("Tonal", "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10s10,-4.48 10,-10S17.53,2 12,2z")
+
+/** Riquadro trasparente (Material Symbols "crop_free"): Nessuno. */
+val NoneIcon = glyph(
+    "NoneTheme",
+    "M3,5v4h2V5h4V3H5C3.9,3 3,3.9 3,5zM5,15H3v4c0,1.1 0.9,2 2,2h4v-2H5V15zM19,19h-4v2h4c1.1,0 2,-0.9 2,-2v-4h-2V19zM19,3h-4v2h4v4h2V5C21,3.9 20.1,3 19,3z"
+)
+
+/** Rombo (Material Symbols "diamond", semplificato): Vetro. */
+val GlassIcon = glyph("GlassTheme", "M12,2L2,10l10,12l10,-12L12,2z")
+
 object LauncherThemes {
     val LiquidGlass = ThemeSpec(
         "liquid", "Liquid Glass", "Vetro liquido come iOS 26: lente, bordi arcobaleno, riflessi",
@@ -106,11 +125,27 @@ object LauncherThemes {
         "lite", "Material You Lite", "Semplice e leggero: pannelli tonali, niente effetti",
         BoltIcon, glass = false, expressive = false, lite = true
     )
-    val all = listOf(LiquidGlass, Expressive, Lite)
+    val Glass = ThemeSpec(
+        "glass", "Vetro", "Vetro semplice: pannelli trasparenti con riflesso, senza lente",
+        GlassIcon, glass = false, expressive = false, lite = false
+    )
+    val Tonal = ThemeSpec(
+        "tonal", "Tonale", "Pannelli nei colori del tema, icone Material You squircole",
+        TonalIcon, glass = false, expressive = false, lite = false
+    )
+    val Fluent = ThemeSpec(
+        "fluent", "Fluent", "Come Windows 11: angoli piccoli, bordo sottile, grigi neutri",
+        FluentIcon, glass = false, expressive = false, lite = false
+    )
+    val Plain = ThemeSpec(
+        "none", "Nessuno", "Niente pannelli: icone e widget direttamente sullo sfondo",
+        NoneIcon, glass = false, expressive = false, lite = false
+    )
+    val all = listOf(LiquidGlass, Glass, Expressive, Tonal, Lite, Fluent, Plain)
     fun of(key: String): ThemeSpec? = all.firstOrNull { it.key == key }
 }
 
-/** Le schede dei tre temi, ognuna con la sua mini Home; quella scelta è evidenziata. */
+/** Le schede dei temi, ognuna con la sua mini Home; quella scelta è evidenziata. */
 @Composable
 fun ThemeCards(selected: String, s: LauncherSettings, previewHeight: Dp = 150.dp, onSelect: (ThemeSpec) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -126,11 +161,11 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     // la scheda cambia forma alla pressione e quando è scelta (tranne nel tema Lite)
-    val morph = LauncherThemes.of(s.launcherTheme)?.lite != true
+    val morph = LauncherThemes.of(s.launcherTheme)?.uniformCorner == null
     val springDp = spring<Dp>(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow)
     val corner by animateDpAsState(
         when {
-            !morph -> 16.dp
+            !morph -> LauncherThemes.of(s.launcherTheme)?.uniformCorner ?: 16.dp
             pressed -> 40.dp
             selected -> 32.dp
             else -> 24.dp
@@ -148,7 +183,11 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape)
             .background(if (selected) cs.primaryContainer else cs.surfaceContainerHigh)
-            .border(if (selected) 3.dp else 0.dp, if (selected) cs.primary else Color.Transparent, shape)
+            .border(
+                if (selected) (if (LocalFluent.current) 2.dp else 3.dp) else if (LocalFluent.current) 1.dp else 0.dp,
+                if (selected) cs.primary else if (LocalFluent.current) cs.outlineVariant else Color.Transparent,
+                shape
+            )
             .clickable(interactionSource = interaction, indication = ripple()) { onClick() }
             .padding(10.dp)
     ) {
@@ -193,7 +232,7 @@ fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modif
     }
     val wallpaper = Brush.linearGradient(listOf(cs.primaryContainer, cs.tertiaryContainer, cs.secondaryContainer))
     Box(modifier.clip(outer).background(wallpaper)) {
-        if (spec.glass) {
+        if (spec.glass || spec.key == "glass") {
             // macchie morbide dello "sfondo": sotto il vetro si vede che è trasparente
             Box(Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp).size(70.dp).clip(CircleShape).background(cs.tertiary.copy(alpha = 0.55f)))
             Box(Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(54.dp).clip(CircleShape).background(cs.primary.copy(alpha = 0.45f)))
@@ -229,7 +268,9 @@ fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modif
 private fun MiniClock(spec: ThemeSpec, modifier: Modifier) {
     val cs = MaterialTheme.colorScheme
     when {
-        spec.glass -> Text("9:41", modifier, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light)
+        spec.glass || spec.key == "glass" || spec.key == "none" ->
+            Text("9:41", modifier, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light)
+        spec.key == "fluent" -> Text("9:41", modifier, color = cs.onPrimaryContainer, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
         spec.expressive -> Row(modifier, verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).clip(iconShapeOf("cookie9")).background(cs.primary), contentAlignment = Alignment.Center) {
                 Text("9", color = cs.onPrimary, fontSize = 19.sp, fontWeight = FontWeight.Black)
@@ -253,6 +294,20 @@ private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp) 
     val fg: Color
     when {
         spec.glass -> { shape = RoundedCornerShape(size * 0.3f); bg = Color.White.copy(alpha = 0.22f); fg = Color.White }
+        // Vetro e Nessuno: icone normali, colorate, squircole
+        spec.key == "glass" || spec.key == "none" -> {
+            shape = IosShape
+            bg = listOf(Color(0xFF4285F4), Color(0xFFEA4335), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFF8E5CF7))[index % 5]
+            fg = Color.White
+        }
+        // Tonale: icone Material You squircole, tutte nei colori del tema
+        spec.key == "tonal" -> { shape = IosShape; bg = cs.secondaryContainer; fg = cs.onSecondaryContainer }
+        // Fluent: tessere quadrate con angoli piccoli, grigio neutro e glifo colorato
+        spec.key == "fluent" -> {
+            shape = RoundedCornerShape(size * 0.2f)
+            bg = fluentBase(fluentDark())
+            fg = listOf(Color(0xFF0078D4), Color(0xFFD13438), Color(0xFF107C10), Color(0xFFFFB900))[index % 4]
+        }
         // Lite: come le icone di serie dei Pixel, cerchi bianchi con il disegno colorato
         spec.lite -> {
             shape = CircleShape; bg = Color.White
@@ -267,7 +322,13 @@ private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp) 
     }
     Box(
         Modifier.size(size).clip(shape).background(bg)
-            .then(if (spec.glass) Modifier.border(1.dp, Color.White.copy(alpha = 0.45f), shape) else Modifier),
+            .then(
+                when {
+                    spec.glass -> Modifier.border(1.dp, Color.White.copy(alpha = 0.45f), shape)
+                    spec.key == "fluent" -> Modifier.border(1.dp, fluentOutline(fluentDark()), shape)
+                    else -> Modifier
+                }
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(glyph, null, tint = fg, modifier = Modifier.size(size * 0.55f))
@@ -281,12 +342,22 @@ private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<Ima
     val bg = when {
         spec.glass -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.16f)))
         // Lite: la dock non ha un pannello, le icone stanno direttamente sullo sfondo
-        spec.lite -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+        spec.lite || spec.key == "none" -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+        spec.key == "glass" -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.40f), Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.22f)))
+        spec.key == "fluent" -> fluentBase(fluentDark()).copy(alpha = 0.9f).let { Brush.verticalGradient(listOf(it, it)) }
+        spec.key == "tonal" -> Brush.verticalGradient(listOf(cs.surfaceContainer, cs.surfaceContainer))
         else -> Brush.verticalGradient(listOf(cs.surfaceContainerHigh, cs.surfaceContainerHigh))
     }
     Row(
         Modifier.fillMaxWidth().clip(shape).background(bg)
-            .then(if (spec.glass) Modifier.border(1.dp, Color.White.copy(alpha = 0.5f), shape) else Modifier)
+            .then(
+                when {
+                    spec.glass -> Modifier.border(1.dp, Color.White.copy(alpha = 0.5f), shape)
+                    spec.key == "glass" -> Modifier.border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.1f))), shape)
+                    spec.key == "fluent" -> Modifier.border(1.dp, fluentOutline(fluentDark()), shape)
+                    else -> Modifier
+                }
+            )
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {

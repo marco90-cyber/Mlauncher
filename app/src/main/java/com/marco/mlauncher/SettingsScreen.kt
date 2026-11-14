@@ -116,7 +116,7 @@ private fun pageTitle(key: String?) = when (key) {
     "dock" -> "Dock"
     "icons" -> "Notifiche e app nascoste"
     "theme" -> "Tema"
-    "material" -> "Materiale degli elementi"
+    "material" -> "Personalizza tema"
     "iconstyle" -> "Icone"
     "clock" -> "Orologio"
     "anim" -> "Animazioni"
@@ -260,8 +260,9 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
 private fun Dashboard(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
-    // ricerca tra tutte le voci delle impostazioni
-    androidx.compose.material3.TextField(
+    // ricerca tra tutte le voci delle impostazioni (si può nascondere in Informazioni → Impostazioni)
+    androidx.compose.runtime.LaunchedEffect(s.settingsSearch) { if (!s.settingsSearch) vm.settingsQuery = "" }
+    if (s.settingsSearch) androidx.compose.material3.TextField(
         value = vm.settingsQuery,
         onValueChange = { vm.settingsQuery = it },
         singleLine = true,
@@ -272,7 +273,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
                 Icon(Icons.Default.Close, contentDescription = "Cancella")
             }
         },
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(if (LocalFluent.current) 8.dp else 28.dp),
         colors = androidx.compose.material3.TextFieldDefaults.colors(
             focusedContainerColor = cs.surfaceContainerHigh,
             unfocusedContainerColor = cs.surfaceContainerHigh,
@@ -330,7 +331,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         "Aspetto" to listOf(
             Cat("theme", "Tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 ${(themeNames[s.theme] ?: "").lowercase()} \u00b7 colori ${(ACCENTS.firstOrNull { it.first == s.accent }?.second ?: "").lowercase()} \u00b7 interruttori", Icons.Default.Create),
             Cat("wallpaper", "Sfondo", "Immagine, Crea il tuo sfondo, effetti, Android", Icons.Default.Create),
-            Cat("material", "Materiale degli elementi", "${matName(s.matStyle)} \u00b7 dock, cartelle, widget, menu e altro", Icons.Default.Star),
+            Cat("material", "Personalizza tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 dock, cartelle, widget, menu e altro", Icons.Default.Star),
             Cat("iconstyle", "Icone", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 nomi" + (if (s.themedIcons) " \u00b7 Material You" else ""), Icons.Default.Star),
             Cat("clock", "Orologio", "Widget orologio: " + (CLOCK_STYLES.firstOrNull { it.first == s.clockStyle }?.second ?: ""), Icons.Default.DateRange),
             Cat("anim", "Animazioni", "Ritorno alla Home, cambio pagina, velocità", Icons.Default.Refresh)
@@ -1222,7 +1223,7 @@ private fun SectionTitle(text: String) {
 
 /**
  * Stile → Tema, come la pagina «Temi» di Expressive Launcher: tre schede con la mini Home
- * (Liquid Glass, Material 3 Expressive, Material You Lite), poi le impostazioni del tema scelto
+ * (Liquid Glass, Vetro, Material 3 Expressive, Tonale, Material You Lite, Fluent, Nessuno), poi le impostazioni del tema scelto
  * e la modalità chiara o scura.
  */
 @Composable
@@ -1271,7 +1272,43 @@ private fun PageTheme(vm: LauncherViewModel) {
             "lite" -> {
                 SwitchRow("Icone Material You", "Icone con i colori del tema", s.themedIcons) { vm.setSetting("themedIcons", it) }
                 Text(
-                    "Material You Lite: pannelli pieni, angoli tutti uguali e nessun effetto di vetro. Il più leggero per la batteria.",
+                    "Material You Lite: pannelli tonali, angoli tutti uguali e nessun effetto di vetro. Il più leggero per la batteria.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+            "glass" -> {
+                SliderRow("Trasparenza del vetro", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
+                    val v = (it / 5f).roundToInt() * 5
+                    if (v != s.matOpacity) vm.setSetting("matOpacity", v)
+                }
+                SwitchRow("Riflesso", "Velo luminoso in alto e bordo chiaro, come il vetro", s.matGlass) { vm.setSetting("matGlass", it) }
+            }
+            "tonal" -> {
+                SwitchRow("Icone Material You", "Tutte le icone con i colori del tema", s.themedIcons) { vm.setSetting("themedIcons", it) }
+                Dependent(s.themedIcons) {
+                    ChoiceRow("Colore delle icone", THEMED_ICON_COLORS, s.themedIconColor, preview = { IconShapeSwatch(s.iconShape, colorKey = it) }) {
+                        vm.setSetting("themedIconColor", it)
+                    }
+                }
+            }
+            "fluent" -> {
+                SliderRow("Trasparenza (acrilico)", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
+                    val v = (it / 5f).roundToInt() * 5
+                    if (v != s.matOpacity) vm.setSetting("matOpacity", v)
+                }
+                Text(
+                    "Fluent: grigi neutri, bordo sottile e angoli piccoli come Windows 11 (e MLMeteo), anche qui nelle impostazioni.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+            "none" -> {
+                Text(
+                    "Nessuno: dock, cartelle, indicatore e widget senza pannello, direttamente sullo sfondo. " +
+                        "Puoi ridare un materiale a un singolo elemento in Personalizza tema.",
                     style = MaterialTheme.typography.bodySmall,
                     color = cs.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp)
@@ -1312,7 +1349,7 @@ private fun PageTheme(vm: LauncherViewModel) {
             s.switchStyle,
             preview = { SwitchStylePreview(it) }
         ) { vm.setSetting("switchStyle", it) }
-        StyleLink(vm, "Materiale degli elementi (vetro, Liquid Glass\u2026)", "material")
+        StyleLink(vm, "Personalizza tema", "material")
     }
 }
 
@@ -1621,6 +1658,13 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
             colors = prefColors()
         )
     }
+    Group("Impostazioni") {
+        SwitchRow(
+            "Barra di ricerca",
+            "\u00abCerca nelle impostazioni\u00bb in cima all'elenco",
+            vm.settings.settingsSearch
+        ) { vm.setSetting("settingsSearch", it) }
+    }
     Group("Guida") {
         ListItem(
             headlineContent = { Text("Rivedi il benvenuto") },
@@ -1839,7 +1883,27 @@ private fun Dependent(enabled: Boolean, content: @Composable () -> Unit) =
 
 /** Gruppo a elementi separati da un filo di spazio, con gli angoli esterni molto arrotondati. */
 @Composable
-private fun Group(title: String?, content: @Composable () -> Unit) = com.marco.mltheme.MLGroup(title, content = content)
+private fun Group(title: String?, content: @Composable () -> Unit) {
+    if (!LocalFluent.current) return com.marco.mltheme.MLGroup(title, content = content)
+    // Fluent (come le Impostazioni di Windows 11): angoli piccoli e bordo sottile attorno al gruppo
+    val cs = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(8.dp)
+    Column {
+        if (title != null) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = cs.onSurface,
+                modifier = Modifier.padding(start = 20.dp, top = 6.dp, bottom = 8.dp)
+            )
+        }
+        Column(
+            Modifier.padding(horizontal = 12.dp).clip(shape).border(1.dp, cs.outlineVariant, shape),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) { content() }
+    }
+}
 
 /** Freccia che indica un sottomenu (stile Android 16). */
 @Composable
@@ -1847,11 +1911,27 @@ internal fun Chevron() = com.marco.mltheme.MLChevron()
 
 /** Riga che apre un sottomenu e ha anche un interruttore: freccia | separatore | interruttore. */
 @Composable
-internal fun NavSwitch(checked: Boolean, onChange: (Boolean) -> Unit) = com.marco.mltheme.MLNavSwitch(checked, onChange)
+internal fun NavSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    if (SwitchLook.style != "fluent") return com.marco.mltheme.MLNavSwitch(checked, onChange)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        com.marco.mltheme.MLChevron()
+        com.marco.mltheme.MLSeparator()
+        MLSwitch(checked, onChange)
+    }
+}
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) =
-    com.marco.mltheme.MLSwitchRow(title, subtitle, checked, modifier = Modifier.hl(title), onChange = onChange)
+private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    if (SwitchLook.style != "fluent") return com.marco.mltheme.MLSwitchRow(title, subtitle, checked, modifier = Modifier.hl(title), onChange = onChange)
+    // l'interruttore Fluent è di MLauncher: la riga si ricompone qui, uguale a quella di MLTheme
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = if (subtitle != null) ({ Text(subtitle) }) else null,
+        trailingContent = { MLSwitch(checked, onChange) },
+        colors = prefColors(),
+        modifier = Modifier.hl(title).clickable { onChange(!checked) }
+    )
+}
 
 @Composable
 private fun SliderRow(
@@ -2037,8 +2117,8 @@ private fun MatEditor(vm: LauncherViewModel, el: String, standard: String?, show
     val s = vm.settings
     val follow = s.elFollow(el)
     Group("Materiale") {
-        val general = "Generale: " + matName(s.matStyle)
-        SwitchRow("Segue il materiale generale", general, follow) { vm.setElFollow(el, it) }
+        val general = "Tema: " + (LauncherThemes.of(s.launcherTheme)?.title ?: matName(s.matStyle))
+        SwitchRow("Segue il tema", general, follow) { vm.setElFollow(el, it) }
         Dependent(!follow) {
             val st = s.elStyle(el)
             ChoiceRow(
@@ -2071,23 +2151,9 @@ private fun PageMaterial(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     MaterialLivePreview(vm, null)
-    Group("Materiale generale") {
-        ChoiceRow("Materiale", MATERIALS, s.matStyle, preview = { MaterialPreview(it) }) { vm.setSetting("matStyle", it) }
-        Dependent(s.matStyle != "none") {
-            SwitchRow("Effetto glass", "Riflesso e bordo luminoso come il vetro", s.matGlass) { vm.setSetting("matGlass", it) }
-            SliderRow("Trasparenza", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
-                val v = (it / 5f).roundToInt() * 5
-                if (v != s.matOpacity) vm.setSetting("matOpacity", v)
-            }
-            SliderRow("Arrotondamento", "${s.matCorner} dp", s.matCorner.toFloat(), 0f..40f, 0) {
-                val v = it.roundToInt()
-                if (v != s.matCorner) vm.setSetting("matCorner", v)
-            }
-        }
-    }
     Group("Elementi della Home") {
         Text(
-            "Ognuno segue il materiale generale oppure ne ha uno suo: toccalo per cambiarlo.",
+            "Ognuno segue il tema scelto oppure ha un materiale suo: toccalo per cambiarlo. Il tema si sceglie in Stile \u2192 Tema.",
             style = MaterialTheme.typography.bodySmall,
             color = cs.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)
@@ -2096,7 +2162,7 @@ private fun PageMaterial(vm: LauncherViewModel) {
             val m = s.matOf(k)
             ListItem(
                 headlineContent = { Text(l) },
-                supportingContent = { Text(if (s.elFollow(k)) "Segue il generale" else "Proprio: " + matName(s.elStyle(k))) },
+                supportingContent = { Text(if (s.elFollow(k)) "Segue il tema" else "Proprio: " + matName(s.elStyle(k))) },
                 leadingContent = { MaterialPreview(m.style) },
                 trailingContent = { Chevron() },
                 colors = prefColors(),

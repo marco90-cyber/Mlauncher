@@ -381,8 +381,10 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var smartMode by mutableStateOf(sp.getString("smartMode", "genre_plus") ?: "genre_plus")
     var homeOrder by mutableStateOf(sp.getString("homeOrder", "name") ?: "name")
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
-    /** tema della Home (Stile → Tema): "liquid", "expressive", "lite" o "custom" (scelte fatte a mano) */
+    /** tema (Stile → Tema): "liquid", "glass", "expressive", "tonal", "lite", "fluent", "none" o "custom" (scelte fatte a mano) */
     var launcherTheme by mutableStateOf(sp.getString("launcherTheme", "custom") ?: "custom")
+    /** barra "Cerca nelle impostazioni" in cima all'elenco delle impostazioni */
+    var settingsSearch by mutableStateOf(sp.getBoolean("settingsSearch", true))
     /** colori delle icone Material You: "primary", "secondary", "tertiary" */
     var themedIconColor by mutableStateOf(sp.getString("themedIconColor", "secondary") ?: "secondary")
     /** icone nel tema Liquid Glass: "normal", "clear" (logo su vetro), "tinted" (glifo colorato su vetro scuro) */
@@ -545,6 +547,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "homeOrder" -> homeOrder = value as String
             "iconShape" -> iconShape = value as String
             "launcherTheme" -> launcherTheme = value as String
+            "settingsSearch" -> settingsSearch = value as Boolean
             "themedIconColor" -> themedIconColor = value as String
             "glassIconStyle" -> glassIconStyle = value as String
             "glassIconHighlight" -> glassIconHighlight = value as String
