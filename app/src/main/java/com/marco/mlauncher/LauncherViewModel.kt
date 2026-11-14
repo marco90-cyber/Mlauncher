@@ -111,6 +111,45 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Un elemento smette (o riprende) di seguire il materiale generale: la prima volta parte da quello generale. */
+    /**
+     * Applica uno dei temi della Home (Stile → Tema), come in Expressive Launcher:
+     *  - "liquid": vetro liquido ovunque, icone squircola con riflessi, interruttori iOS;
+     *  - "expressive": Material 3 Expressive, pannelli tonali, icone Material You a forma di biscotto;
+     *  - "lite": Material You leggero, pannelli pieni, icone rotonde, niente effetti.
+     * Tutti gli elementi tornano a seguire il materiale generale; i dettagli si cambiano poi a mano.
+     */
+    fun applyLauncherTheme(key: String) {
+        when (key) {
+            "liquid" -> {
+                setSetting("matStyle", "liquid")
+                setSetting("matGlass", true)
+                setSetting("matCorner", 28)
+                setSetting("iconShape", "ios")
+                setSetting("themedIcons", false)
+                setSetting("switchStyle", "ios")
+            }
+            "expressive" -> {
+                setSetting("matStyle", "pill")
+                setSetting("matGlass", false)
+                setSetting("matCorner", 28)
+                setSetting("iconShape", "cookie9")
+                setSetting("themedIcons", true)
+                setSetting("themedIconColor", "primary")
+                setSetting("switchStyle", "android16")
+            }
+            "lite" -> {
+                setSetting("matStyle", "solid")
+                setSetting("matGlass", false)
+                setSetting("matCorner", 16)
+                setSetting("iconShape", "circle")
+                setSetting("themedIcons", false)
+                setSetting("switchStyle", "material")
+            }
+        }
+        if (key != "custom") MAT_ELEMENTS.forEach { (e, _) -> if (!settings.elFollow(e)) setElFollow(e, true) }
+        setSetting("launcherTheme", key)
+    }
+
     fun setElFollow(e: String, follow: Boolean) {
         val s = settings
         if (!follow && s.elStyle(e) == "standard" && e != "dock") {
