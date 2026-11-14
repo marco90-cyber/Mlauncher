@@ -157,3 +157,27 @@ fun matContentColor(m: Mat): Color = when (m.style) {
     "solid" -> MaterialTheme.colorScheme.onSurface
     else -> dockContentColor(m.style, m.opacity)
 }
+
+/** Colore (stimato) del fondo su cui stanno i testi del pannello corrente: null = non noto. */
+val LocalPanelBg = androidx.compose.runtime.staticCompositionLocalOf<Color?> { null }
+
+/** [c] se si legge sul fondo del pannello corrente, altrimenti la stessa tinta schiarita o scurita quanto basta. */
+@Composable
+fun onPanel(c: Color, min: Double = 4.5): Color = LocalPanelBg.current?.let { readableOn(c, it, min) } ?: c
+
+/** Colore risultante di un materiale (stile e opacità) appoggiato su [under]. */
+@Composable
+fun matPanelColor(style: String, opacity: Int, glass: Boolean, under: Color): Color {
+    val cs = MaterialTheme.colorScheme
+    val (base, a0) = when (style) {
+        "tinted" -> cs.primary to 0.50f
+        "dark" -> Color.Black to 0.38f
+        "pill" -> cs.surfaceContainer to 0.85f
+        "bar" -> cs.surfaceContainerHigh to 0.70f
+        "solid" -> cs.surfaceContainerHigh to 0.96f
+        else -> Color.White to 0.28f
+    }
+    var c = overColor(base, (a0 * opacity / 60f).coerceIn(0f, 1f), under)
+    if (glass) c = overColor(Color.White, 0.12f * (0.4f + opacity / 100f).coerceIn(0.4f, 1.2f), c)
+    return c
+}

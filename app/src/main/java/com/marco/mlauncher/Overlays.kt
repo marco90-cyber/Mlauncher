@@ -817,6 +817,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
     }
     val fg = if (minusLook || contrastOf(fgTheme, panel) >= 4.5) fgTheme else bestTextOn(panel)
     val focusMgr = androidx.compose.ui.platform.LocalFocusManager.current
+    androidx.compose.runtime.CompositionLocalProvider(LocalPanelBg provides panel) {
     Surface(Modifier.fillMaxSize(), color = surfaceColor, contentColor = fg) {
         Column(
             Modifier
@@ -838,7 +839,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
             // (NullPointerException in LegacyCursorAnchorInfoController).
             if (minusLook) Text(
                 "Cerca",
-                color = cs.onSurface,
+                color = onPanel(cs.onSurface),
                 fontSize = 30.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 2.dp)
@@ -937,6 +938,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
             }
         }
     }
+}
 }
 
 /** Barra laterale: indicatore di posizione, striscia A-Z con ingrandimento e bolla della lettera. */
@@ -1324,7 +1326,7 @@ private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: Strin
                 Text(
                     "Migliore corrispondenza",
                     style = MaterialTheme.typography.labelLarge,
-                    color = cs.primary,
+                    color = onPanel(cs.primary, 3.0),
                     modifier = Modifier.padding(start = 8.dp, top = 4.dp)
                 )
             }
@@ -1334,7 +1336,7 @@ private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: Strin
                     Text(
                         "Altre app",
                         style = MaterialTheme.typography.labelLarge,
-                        color = cs.primary,
+                        color = onPanel(cs.primary, 3.0),
                         modifier = Modifier.padding(start = 8.dp, top = 8.dp)
                     )
                 }
@@ -1346,11 +1348,11 @@ private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: Strin
                     Modifier.fillMaxWidth().padding(vertical = 28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Nessuna app trovata", style = MaterialTheme.typography.titleMedium, color = cs.onSurface)
+                    Text("Nessuna app trovata", style = MaterialTheme.typography.titleMedium, color = onPanel(cs.onSurface))
                     Text(
                         "Prova con un altro nome",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = cs.onSurfaceVariant
+                        color = onPanel(cs.onSurfaceVariant)
                     )
                 }
             }
@@ -1392,7 +1394,7 @@ private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: 
     val cs = MaterialTheme.colorScheme
     @Composable
     fun label(t: String) = Text(
-        t, style = MaterialTheme.typography.labelLarge, color = cs.primary,
+        t, style = MaterialTheme.typography.labelLarge, color = onPanel(cs.primary, 3.0),
         modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
     )
     LazyColumn(
@@ -1421,8 +1423,8 @@ private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: 
             item(key = "none") {
                 GlassContainer(vm) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Nessuna app trovata", style = MaterialTheme.typography.titleMedium, color = cs.onSurface)
-                        Text("Prova con un altro nome", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        Text("Nessuna app trovata", style = MaterialTheme.typography.titleMedium, color = onPanel(cs.onSurface))
+                        Text("Prova con un altro nome", style = MaterialTheme.typography.bodyMedium, color = onPanel(cs.onSurfaceVariant))
                     }
                 }
             }
@@ -1435,9 +1437,9 @@ private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: 
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = cs.primary)
+                    Icon(Icons.Default.Search, contentDescription = null, tint = onPanel(cs.primary, 3.0))
                     Spacer(Modifier.width(14.dp))
-                    Text("Cerca \u201c${query.trim()}\u201d sul web", color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Cerca \u201c${query.trim()}\u201d sul web", color = onPanel(cs.onSurface), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -1469,7 +1471,7 @@ private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: H
                         Text(
                             title,
                             style = MaterialTheme.typography.labelLarge,
-                            color = cs.primary,
+                            color = onPanel(cs.primary, 3.0),
                             modifier = Modifier.padding(start = 8.dp, bottom = 6.dp)
                         )
                         val grid: @Composable () -> Unit = {
@@ -1505,10 +1507,10 @@ private fun EmptySearch(modifier: Modifier) {
         Icon(
             Icons.Default.Search,
             contentDescription = null,
-            tint = cs.onSurfaceVariant.copy(alpha = 0.4f),
+            tint = onPanel(cs.onSurfaceVariant, 3.0).copy(alpha = 0.4f),
             modifier = Modifier.size(64.dp)
         )
         Spacer(Modifier.height(12.dp))
-        Text("Cerca un'app", style = MaterialTheme.typography.titleMedium, color = cs.onSurfaceVariant)
+        Text("Cerca un'app", style = MaterialTheme.typography.titleMedium, color = onPanel(cs.onSurfaceVariant))
     }
 }

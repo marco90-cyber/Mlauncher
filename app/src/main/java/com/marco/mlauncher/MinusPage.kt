@@ -248,6 +248,18 @@ internal fun GlassContainer(vm: LauncherViewModel, pad: androidx.compose.ui.unit
     val cs = MaterialTheme.colorScheme
     val m = vm.settings.matOf("panels")
     val shape = RoundedCornerShape(32.dp)
+    // fondo stimato sotto i testi del contenitore: i testi lo usano per restare leggibili
+    val parent = LocalPanelBg.current ?: backdropTone()
+    val liquidVeil = if (m.style == "liquid") readableVeilAlpha(cs.onSurface, cs.surface, 0f) else 0f
+    val est = when {
+        m.plain -> overColor(cs.surfaceContainer, 0.94f, parent)
+        m.style == "liquid" -> overColor(
+            cs.surface, liquidVeil,
+            // senza sfondo disegnato dal vetro (ricerca) c'è un velo bianco leggero sopra la Home velata
+            if (LocalWall.current == null) overColor(Color.White, 0.2f, parent) else backdropTone()
+        )
+        else -> matPanelColor(m.style, maxOf(m.opacity, 40), m.glass, overColor(cs.surfaceContainerHigh, 0.45f, parent))
+    }
     val look = if (m.plain) Modifier.clip(shape).background(cs.surfaceContainer.copy(alpha = 0.94f))
     else Modifier.clip(shape)
         .background(if (m.style == "liquid") Color.Transparent else cs.surfaceContainerHigh.copy(alpha = 0.45f))
@@ -255,10 +267,16 @@ internal fun GlassContainer(vm: LauncherViewModel, pad: androidx.compose.ui.unit
         // il vetro liquido mostra lo sfondo così com'è (senza il velo della pagina): un velo del tema
         // sopra il vetro, solo quanto serve, perché i testi del tema si leggano
         .then(
-            if (m.style == "liquid") Modifier.background(cs.surface.copy(alpha = readableVeilAlpha(cs.onSurface, cs.surface, 0f)))
+            if (m.style == "liquid") Modifier.background(cs.surface.copy(alpha = liquidVeil))
             else Modifier
         )
-    Box(Modifier.fillMaxWidth().then(look).animateContentSize().padding(pad)) { content() }
+    val fgNow = androidx.compose.material3.LocalContentColor.current
+    Box(Modifier.fillMaxWidth().then(look).animateContentSize().padding(pad)) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalPanelBg provides est,
+            androidx.compose.material3.LocalContentColor provides readableOn(fgNow, est)
+        ) { content() }
+    }
 }
 
 @Composable

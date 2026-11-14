@@ -2000,9 +2000,11 @@ internal fun MenuSurface(vm: LauncherViewModel, corner: Dp, modifier: Modifier =
         return
     }
     // base sotto il vetro: il menu resta leggibile anche sopra icone colorate
+    // colore risultante (fondo quasi pieno + materiale sopra lo sfondo vero): testo con il contrasto migliore
+    val panel = matPanelColor(m.style, maxOf(m.opacity, 70), m.glass, overColor(cs.surfaceContainerHigh, 0.9f, backdropTone()))
     val fg = when (m.style) {
-        "pill", "solid" -> cs.onSurface
-        else -> folderTextColor(m.style, m.opacity, if (m.style == "tinted") cs.primary else cs.surfaceContainer, cs.surfaceContainerHigh, cs.onSurface)
+        "pill", "solid" -> readableOn(cs.onSurface, panel)
+        else -> bestTextOn(panel)
     }
     // fondo quasi pieno: le icone sotto il menu non devono trasparire e confondere le voci
     Surface(shape = shape, color = cs.surfaceContainerHigh.copy(alpha = 0.9f), shadowElevation = 8.dp, modifier = modifier) {
