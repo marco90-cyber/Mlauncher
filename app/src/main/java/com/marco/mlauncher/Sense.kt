@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -254,20 +255,8 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
             val t = 1f - 2f * ((left + w / 2) / barW)
             return arc * (t * t)
         }
-        // linguetta d'argento al centro del bordo curvo: si tocca (o si tira su) per il cassetto
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-4).dp)
-                .size(50.dp, 10.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFFF2F3F5), Color(0xFFB9BCC1), Color(0xFF7E8187))))
-                .border(1.dp, Color(0xFF44474C), RoundedCornerShape(5.dp))
-                .clickable(remember { MutableInteractionSource() }, null) { openDrawer() },
-            contentAlignment = Alignment.Center
-        ) {
-            Box(Modifier.size(22.dp, 2.dp).clip(CircleShape).background(Color(0xFF6A6D72)))
-        }
+        // linguetta d'argento al centro del bordo curvo: è l'indicatore delle pagine (tocca un segno per andarci)
+        SensePageHandle(vm, Modifier.align(Alignment.TopCenter).offset(y = (-5).dp))
         for (i in 0..2) {
             val shape = remember(barW, i) { SenseKeyShape(barW, lefts[i], arc, 14.dp) }
             val mod = Modifier
@@ -292,6 +281,47 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
                 else -> SenseKey(mod, onClick = personalize, shape = shape, contentTop = drop) {
                     Icon(Icons.Rounded.Add, "Aggiungi widget", tint = SenseText, modifier = Modifier.size(28.dp))
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Linguetta d'argento in cima alla barra: dentro ci sono i segni delle pagine, quello della pagina
+ * aperta è verde lime e più lungo. Toccando un segno si va a quella pagina.
+ */
+@Composable
+private fun SensePageHandle(vm: LauncherViewModel, modifier: Modifier) {
+    val pages = vm.pageCount.coerceAtLeast(1)
+    val cur = vm.currentPage.coerceIn(0, pages - 1)
+    val shape = RoundedCornerShape(7.dp)
+    Row(
+        modifier
+            .height(14.dp)
+            .widthIn(min = 54.dp)
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0xFFF4F5F7), Color(0xFFC2C5CA), Color(0xFF7E8187))))
+            .border(1.dp, Color(0xFF44474C), shape)
+            .padding(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (i in 0 until pages) {
+            val on = i == cur
+            Box(
+                Modifier
+                    .height(14.dp)
+                    .clickable(remember { MutableInteractionSource() }, null) { vm.goToPage(i) }
+                    .padding(horizontal = 2.5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(if (on) 14.dp else 6.dp, 5.dp)
+                        .clip(CircleShape)
+                        .background(if (on) SENSE_GREEN else Color(0xFF55585D))
+                        .border(0.5.dp, if (on) Color(0xFF3E6E0C) else Color(0xFF2E3034), CircleShape)
+                )
             }
         }
     }
