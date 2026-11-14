@@ -138,7 +138,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 setSetting("switchStyle", "android16")
             }
             "lite" -> {
-                setSetting("matStyle", "solid")
+                setSetting("matStyle", "pill")
                 setSetting("matGlass", false)
                 setSetting("matCorner", 16)
                 setSetting("iconShape", "circle")

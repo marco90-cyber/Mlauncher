@@ -103,7 +103,7 @@ object LauncherThemes {
         SparkleIcon, glass = false, expressive = true, lite = false
     )
     val Lite = ThemeSpec(
-        "lite", "Material You Lite", "Semplice e leggero: pannelli pieni, niente effetti",
+        "lite", "Material You Lite", "Semplice e leggero: pannelli tonali, niente effetti",
         BoltIcon, glass = false, expressive = false, lite = true
     )
     val all = listOf(LiquidGlass, Expressive, Lite)
