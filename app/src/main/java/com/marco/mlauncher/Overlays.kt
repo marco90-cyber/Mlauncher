@@ -274,6 +274,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                     val st = if (dockSpec.style == "bar") "pill" else dockSpec.style
                     val base = when (st) {
                         "fluent" -> fluentBase(fluentDark())
+                        "sense" -> SENSE_BASE
                         "pill" -> csF.surfaceContainer
                         else -> Color.White
                     }
@@ -796,6 +797,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         matDrawer -> {
             val (base, a0) = when (dm.style) {
                 "fluent" -> fluentBase(fluentDark()) to FLUENT_ALPHA
+                "sense" -> SENSE_BASE to SENSE_ALPHA
                 "pill" -> cs.surfaceContainer to 0.85f
                 else -> Color.White to 0.22f
             }

@@ -365,7 +365,8 @@ fun Modifier.liquidGlass(corner: Dp, shape: Shape? = null, tint: Color = Color.U
 @Composable
 fun GlassWidgetFrame(kind: String, content: @Composable () -> Unit) {
     val m = LocalWidgetMat.current
-    if (m.plain || kind == "ext" || kind == "notes") {
+    // gli orologi Sense hanno la loro grafica (anello scuro, cartellini), senza pannello sotto
+    if (m.plain || kind == "ext" || kind == "notes" || kind == "senseClock" || kind == "senseFlip") {
         content()
         return
     }

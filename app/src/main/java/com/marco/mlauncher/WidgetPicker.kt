@@ -101,6 +101,8 @@ private class WidgetGroup(val pkg: String, val label: String, val list: List<App
 private val INTERNAL_WIDGETS = listOf(
     Triple("Orologio", "clock", 2 to 1), Triple("Orologio", "clock", 2 to 2), Triple("Orologio", "clock", 4 to 2),
     Triple("Orologio analogico", "analog", 2 to 2), Triple("Orologio analogico", "analog", 4 to 2),
+    Triple("Orologio Sense", "senseClock", 2 to 2), Triple("Orologio Sense", "senseClock", 3 to 3),
+    Triple("Orologio a cartellini Sense", "senseFlip", 4 to 2),
     Triple("Batteria", "battery", 1 to 1), Triple("Batteria", "battery", 2 to 1), Triple("Batteria", "battery", 2 to 2), Triple("Batteria", "battery", 4 to 2),
     Triple("Nota veloce", "notes", 2 to 2), Triple("Nota veloce", "notes", 4 to 2), Triple("Nota veloce", "notes", 4 to 3),
     Triple("Barra di ricerca", "search", 4 to 1), Triple("Barra di ricerca", "search", 3 to 1), Triple("Ricerca (icona)", "search", 1 to 1),

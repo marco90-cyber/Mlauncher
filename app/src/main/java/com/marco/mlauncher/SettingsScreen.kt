@@ -179,6 +179,9 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
         containerColor = cs.surface,
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
+            if (LocalSense.current) SenseTitleBar(if (page == null && vm.settingsTab == 1) "Stile" else pageTitle(page)) {
+                if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
+            } else
             LargeTopAppBar(
                 title = { Text(if (page == null && vm.settingsTab == 1) "Stile" else pageTitle(page), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
@@ -273,7 +276,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
                 Icon(Icons.Default.Close, contentDescription = "Cancella")
             }
         },
-        shape = RoundedCornerShape(if (LocalFluent.current) 8.dp else 28.dp),
+        shape = RoundedCornerShape(if (LocalSense.current) 6.dp else if (LocalFluent.current) 8.dp else 28.dp),
         colors = androidx.compose.material3.TextFieldDefaults.colors(
             focusedContainerColor = cs.surfaceContainerHigh,
             unfocusedContainerColor = cs.surfaceContainerHigh,
@@ -1222,9 +1225,41 @@ private fun SectionTitle(text: String) {
 
 /**
  * Stile → Tema, come la pagina «Temi» di Expressive Launcher: tre schede con la mini Home
- * (Liquid Glass, Vetro, Material 3 Expressive, Tonale, Material You Lite, Fluent, Nessuno), poi le impostazioni del tema scelto
+ * (Liquid Glass, Vetro, Material 3 Expressive, Tonale, Material You Lite, Fluent, Sensation, Nessuno), poi le impostazioni del tema scelto
  * e la modalità chiara o scura.
  */
+/** Impostazioni del tema Sensation (come HTC Sense): tasto centrale della barra, nomi su pillola, orologio. */
+@Composable
+private fun SensationSettings(vm: LauncherViewModel) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    var picker by remember { mutableStateOf(false) }
+    if (picker) {
+        SenseAppPicker(vm, s.senseCenter, onDismiss = { picker = false }) { id ->
+            vm.setSetting("senseCenter", id)
+            picker = false
+        }
+    }
+    ListItem(
+        headlineContent = { Text("Tasto centrale della barra") },
+        supportingContent = { Text(senseCenterLabel(vm) + " \u00b7 puoi cambiarla anche tenendo premuto il tasto") },
+        colors = prefColors(),
+        modifier = Modifier.hl("Tasto centrale della barra").clickable { picker = true }
+    )
+    SwitchRow("Nomi su pillola scura", "I nomi delle app in Home su una pillola grafite, come HTC Sense", s.labelPills) {
+        vm.setSetting("labelPills", it)
+    }
+    SwitchRow("Lancetta dei secondi", "Nell'orologio analogico Sense", s.senseSeconds) { vm.setSetting("senseSeconds", it) }
+    Text(
+        "Sensation: la barra a tre tasti prende il posto della dock (le sue app sono nella prima pagina e tornano " +
+            "nella dock se cambi tema), pannelli grafite col bordo d'argento e caselle di spunta verdi anche qui " +
+            "nelle impostazioni. Nei widget trovi l'Orologio Sense e l'Orologio a cartellini con il meteo.",
+        style = MaterialTheme.typography.bodySmall,
+        color = cs.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp)
+    )
+}
+
 @Composable
 private fun PageTheme(vm: LauncherViewModel) {
     val s = vm.settings
@@ -1311,6 +1346,7 @@ private fun PageTheme(vm: LauncherViewModel) {
                     modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp)
                 )
             }
+            "sensation" -> SensationSettings(vm)
             "none" -> {
                 Text(
                     "Nessuno: dock, cartelle, indicatore e widget senza pannello, direttamente sullo sfondo. " +
@@ -1890,6 +1926,7 @@ private fun Dependent(enabled: Boolean, content: @Composable () -> Unit) =
 /** Gruppo a elementi separati da un filo di spazio, con gli angoli esterni molto arrotondati. */
 @Composable
 private fun Group(title: String?, content: @Composable () -> Unit) {
+    if (LocalSense.current) return SenseGroup(title, content)
     if (!LocalFluent.current) return com.marco.mltheme.MLGroup(title, content = content)
     // Fluent (come le Impostazioni di Windows 11): angoli piccoli e bordo sottile attorno al gruppo
     val cs = MaterialTheme.colorScheme
@@ -1918,7 +1955,7 @@ internal fun Chevron() = com.marco.mltheme.MLChevron()
 /** Riga che apre un sottomenu e ha anche un interruttore: freccia | separatore | interruttore. */
 @Composable
 internal fun NavSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
-    if (SwitchLook.style != "fluent") return com.marco.mltheme.MLNavSwitch(checked, onChange)
+    if (SwitchLook.style !in OWN_SWITCHES) return com.marco.mltheme.MLNavSwitch(checked, onChange)
     Row(verticalAlignment = Alignment.CenterVertically) {
         com.marco.mltheme.MLChevron()
         com.marco.mltheme.MLSeparator()
@@ -1928,8 +1965,8 @@ internal fun NavSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    if (SwitchLook.style != "fluent") return com.marco.mltheme.MLSwitchRow(title, subtitle, checked, modifier = Modifier.hl(title), onChange = onChange)
-    // l'interruttore Fluent è di MLauncher: la riga si ricompone qui, uguale a quella di MLTheme
+    if (SwitchLook.style !in OWN_SWITCHES) return com.marco.mltheme.MLSwitchRow(title, subtitle, checked, modifier = Modifier.hl(title), onChange = onChange)
+    // gli interruttori Fluent e Sense sono di MLauncher: la riga si ricompone qui, uguale a quella di MLTheme
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = if (subtitle != null) ({ Text(subtitle) }) else null,

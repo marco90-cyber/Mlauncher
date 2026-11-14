@@ -812,6 +812,7 @@ private fun BoxScope.MiniPhone(m: Mini) {
         val dockMod = when (m.dock) {
             "pill" -> Modifier.clip(shape).background(if (dark) Color(0xFF2B3140) else Color(0xFFF3F5F9))
             "fluent" -> Modifier.clip(shape).background(fluentBase(dark).copy(alpha = 0.9f)).border(1.dp, fluentOutline(dark), shape)
+            "sense" -> Modifier.senseLook(shape)
             "none", "tiles" -> Modifier
             "liquid" -> Modifier.clip(shape).background(Color.White.copy(alpha = 0.14f))
                 .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent, Color.White.copy(alpha = 0.15f))))

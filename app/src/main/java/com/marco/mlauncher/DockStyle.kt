@@ -28,6 +28,24 @@ fun fluentBase(dark: Boolean): Color = if (dark) Color(0xFF2B2B2B) else Color(0x
 /** Bordo sottile delle schede Fluent. */
 fun fluentOutline(dark: Boolean): Color = if (dark) Color(0xFF3D3D3D) else Color(0xFFE3E3E3)
 
+// ---------- Sense (come i telefoni HTC: grafite lucida con il bordo d'argento) ----------
+/** grafite dei pannelli Sense: sempre scura, come i widget dei telefoni HTC */
+val SENSE_BASE = Color(0xFF1F2023)
+const val SENSE_ALPHA = 0.90f
+
+/** Pannello Sense: grafite con la luce in alto, filo d'argento sul bordo (più chiaro in alto). */
+fun Modifier.senseLook(shape: Shape, opacity: Int = 60): Modifier {
+    val a = (SENSE_ALPHA * opacity / 60f).coerceIn(0.35f, 1f)
+    return this.clip(shape)
+        .background(
+            Brush.verticalGradient(
+                listOf(Color(0xFF4A4D52).copy(alpha = a), Color(0xFF26282B).copy(alpha = a), SENSE_BASE.copy(alpha = a), Color(0xFF111214).copy(alpha = a))
+            )
+        )
+        .background(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.10f), 0.45f to Color.Transparent))
+        .border(1.dp, Brush.verticalGradient(listOf(Color(0xFFB9BCC1), Color(0xFF55585D), Color(0xFF0A0A0B))), shape)
+}
+
 fun dockShape(style: String, corner: Dp): Shape =
     if (style == "bar") RoundedCornerShape(topStart = corner, topEnd = corner) else RoundedCornerShape(corner)
 
@@ -36,6 +54,7 @@ fun dockShape(style: String, corner: Dp): Shape =
 fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, shapeOverride: Shape? = null): Modifier {
     if (style == "none" || style == "tiles" || style == "standard") return this
     if (style == "liquid") return this.liquidGlass(corner, shapeOverride ?: RoundedCornerShape(corner), opacity = opacity / 100f)
+    if (style == "sense") return this.senseLook(shapeOverride ?: dockShape(style, corner), opacity)
     val cs = MaterialTheme.colorScheme
     val fDark = fluentDark()
     val (base, a) = when (style) {
@@ -76,6 +95,7 @@ fun dockContentColor(style: String, opacity: Int): Color {
     if (style == "liquid") return if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White
     val (base, a0) = when (style) {
         "fluent" -> fluentBase(fluentDark()) to FLUENT_ALPHA
+        "sense" -> SENSE_BASE to SENSE_ALPHA
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
         "tiles" -> cs.surfaceContainerHighest to 0.30f
@@ -144,6 +164,7 @@ val LocalFolderDock = androidx.compose.runtime.compositionLocalOf<DockLookSpec?>
 fun folderPanelColor(style: String, opacity: Int, glass: Boolean, base: Color, surface: Color, backdrop: Color): Color {
     val tint = when (style) {
         "fluent" -> base to FLUENT_ALPHA
+        "sense" -> SENSE_BASE to SENSE_ALPHA
         "pill" -> base to 0.85f
         "bar" -> base to 0.70f
         else -> Color.White to 0.28f
@@ -180,6 +201,7 @@ fun matPanelColor(style: String, opacity: Int, glass: Boolean, under: Color): Co
     val cs = MaterialTheme.colorScheme
     val (base, a0) = when (style) {
         "fluent" -> fluentBase(fluentDark()) to FLUENT_ALPHA
+        "sense" -> SENSE_BASE to SENSE_ALPHA
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
         else -> Color.White to 0.28f

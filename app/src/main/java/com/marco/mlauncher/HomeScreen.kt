@@ -122,6 +122,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -754,7 +756,11 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             val seascape = androidx.compose.ui.platform.LocalView.current.display?.rotation ==
                 android.view.Surface.ROTATION_270
             val dockContent: @Composable () -> Unit = {
-                Dock(
+                // tema Sensation: la barra a tre tasti al posto della dock (non riceve icone)
+                if (s.launcherTheme == "sensation") {
+                    SideEffect { dockRect = Rect.Zero }
+                    SenseBar(vm, host, vertical = true)
+                } else Dock(
                     vm = vm, host = host, dragId = hiddenIds, cb = cb, onMenu = onMenu,
                     onRect = { dockRect = it }, vertical = true
                 )
@@ -784,7 +790,10 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
             ovHide { PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER } }
-            if (!s.hideDock || edit) ovHide {
+            if ((!s.hideDock || edit) && s.launcherTheme == "sensation") ovHide {
+                SideEffect { dockRect = Rect.Zero }
+                SenseBar(vm, host)
+            } else if (!s.hideDock || edit) ovHide {
                 Dock(
                     vm = vm,
                     host = host,
@@ -1526,6 +1535,22 @@ private fun GridItem(
                 }
                 // nomi bianchi o scuri in base allo sfondo (o alla scelta nelle impostazioni)
                 val darkText = vm.labelDark
+                if (s.labelPills) {
+                    // come HTC Sense: nome bianco su una pillola scura, si legge su qualunque sfondo
+                    Text(
+                        text = label,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .padding(top = 3.dp, start = 1.dp, end = 1.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Brush.verticalGradient(listOf(Color(0xCC3A3C40), Color(0xCC17181A))))
+                            .padding(horizontal = 7.dp, vertical = 1.dp)
+                    )
+                } else
                 Text(
                     text = label,
                     color = if (darkText) Color(0xFF15171C) else Color.White,
@@ -1829,6 +1854,8 @@ private fun StackManage(stack: StackItem, vm: LauncherViewModel, modifier: Modif
                                 when (r.kind) {
                                     "clock" -> "Orologio"
                                     "analog" -> "Orologio analogico"
+                                    "senseClock" -> "Orologio Sense"
+                                    "senseFlip" -> "Orologio a cartellini Sense"
                                     "battery" -> "Batteria"
                                     "search" -> "Ricerca"
                                     "notes" -> "Nota"
@@ -1964,6 +1991,7 @@ private fun MenuArrow(vm: LauncherViewModel, x: Dp, up: Boolean) {
     val m = vm.settings.matOf("menus")
     val color = if (m.plain) cs.surfaceContainerHigh else when (m.style) {
         "fluent" -> fluentBase(fluentDark())
+        "sense" -> SENSE_BASE
         "pill" -> cs.surfaceContainer
         else -> androidx.compose.ui.graphics.lerp(cs.surfaceContainerHigh, Color.White, 0.2f)
     }

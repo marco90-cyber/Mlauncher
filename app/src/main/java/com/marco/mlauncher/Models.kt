@@ -153,6 +153,7 @@ val MATERIALS = listOf(
     "glass" to "Vetro",
     "pill" to "Tonale",
     "fluent" to "Fluent",
+    "sense" to "Sense (grafite)",
     "none" to "Nessuno"
 )
 
@@ -211,7 +212,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var dockSlotsL by mutableIntStateOf(sp.getInt("dockSlots_l", sp.getInt("dockSlots", 4)))
     val dockSlots: Int get() = if (landscape) dockSlotsL else dockSlotsP
     fun dockSlotsOf(l: Boolean) = if (l) dockSlotsL else dockSlotsP
-    private fun dockStyleOk(it: String) = if (it in listOf("liquid", "glass", "pill", "fluent", "bar", "tiles", "none")) it else "glass"
+    private fun dockStyleOk(it: String) = if (it in listOf("liquid", "glass", "pill", "fluent", "sense", "bar", "tiles", "none")) it else "glass"
     private var dockStyleP by mutableStateOf(dockStyleOk(sp.getString("dockStyle", "glass") ?: "glass"))
     val dockStyle: String get() = dockStyleP
     private var dockOpacityP by mutableStateOf(sp.getInt("dockOpacity", 60))
@@ -237,7 +238,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private fun legacyMat(st: String) = when (st) {
         "bar" -> "pill"; "tiles" -> "glass"; "tinted", "dark" -> "glass"; "solid" -> "fluent"; else -> st
     }
-    /** materiale generale: liquid, glass, pill (tonale), fluent, none */
+    /** materiale generale: liquid, glass, pill (tonale), fluent, sense, none */
     var matStyle by mutableStateOf(legacyMat(sp.getString("matStyle", null) ?: dockStyleP))
     var matOpacity by mutableStateOf(sp.getInt("matOpacity", dockOpacityP))
     var matGlass by mutableStateOf(sp.getBoolean("matGlass", dockGlassP))
@@ -383,8 +384,14 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var smartMode by mutableStateOf(sp.getString("smartMode", "genre_plus") ?: "genre_plus")
     var homeOrder by mutableStateOf(sp.getString("homeOrder", "name") ?: "name")
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
-    /** tema (Stile → Tema): "liquid", "glass", "expressive", "tonal", "lite", "fluent", "none" o "custom" (scelte fatte a mano) */
+    /** tema (Stile → Tema): "liquid", "glass", "expressive", "tonal", "lite", "fluent", "sensation", "none" o "custom" (scelte fatte a mano) */
     var launcherTheme by mutableStateOf(sp.getString("launcherTheme", "custom") ?: "custom")
+    /** nomi delle app in Home su una pillola scura (come HTC Sense) */
+    var labelPills by mutableStateOf(sp.getBoolean("labelPills", false))
+    /** tema Sensation: app del tasto centrale della barra ("pacchetto/classe"; vuoto = Telefono) */
+    var senseCenter by mutableStateOf(sp.getString("senseCenter", "") ?: "")
+    /** tema Sensation: lancetta dei secondi nell'orologio Sense */
+    var senseSeconds by mutableStateOf(sp.getBoolean("senseSeconds", true))
     /** barra "Cerca nelle impostazioni" in cima all'elenco delle impostazioni */
     var settingsSearch by mutableStateOf(sp.getBoolean("settingsSearch", true))
     /** colori delle icone Material You: "primary", "secondary", "tertiary" */
@@ -550,6 +557,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "homeOrder" -> homeOrder = value as String
             "iconShape" -> iconShape = value as String
             "launcherTheme" -> launcherTheme = value as String
+            "labelPills" -> labelPills = value as Boolean
+            "senseCenter" -> senseCenter = value as String
+            "senseSeconds" -> senseSeconds = value as Boolean
             "settingsSearch" -> settingsSearch = value as Boolean
             "themedIconColor" -> themedIconColor = value as String
             "glassIconStyle" -> glassIconStyle = value as String

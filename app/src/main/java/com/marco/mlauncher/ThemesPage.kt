@@ -72,6 +72,7 @@ class ThemeSpec(
 ) {
     val uniformCorner: Dp? get() = when {
         key == "fluent" -> 8.dp
+        key == "sensation" -> 6.dp
         lite -> 16.dp
         else -> null
     }
@@ -109,6 +110,12 @@ val NoneIcon = glyph(
     "M3,5v4h2V5h4V3H5C3.9,3 3,3.9 3,5zM5,15H3v4c0,1.1 0.9,2 2,2h4v-2H5V15zM19,19h-4v2h4c1.1,0 2,-0.9 2,-2v-4h-2V19zM19,3h-4v2h4v4h2V5C21,3.9 20.1,3 19,3z"
 )
 
+/** Telefono con i tre tasti in basso: Sensation (come HTC Sense). */
+val SensationIcon = glyph(
+    "Sensation",
+    "M7,2h10c1.1,0 2,0.9 2,2v16c0,1.1 -0.9,2 -2,2H7c-1.1,0 -2,-0.9 -2,-2V4c0,-1.1 0.9,-2 2,-2zM7,5v11h10V5H7zM7,17.5v2h2.5v-2H7zM10.5,17.5v2h3v-2h-3zM14.5,17.5v2H17v-2h-2.5z"
+)
+
 /** Rombo (Material Symbols "diamond", semplificato): Vetro. */
 val GlassIcon = glyph("GlassTheme", "M12,2L2,10l10,12l10,-12L12,2z")
 
@@ -137,11 +144,15 @@ object LauncherThemes {
         "fluent", "Fluent", "Come Windows 11: angoli piccoli, bordo sottile, grigi neutri",
         FluentIcon, glass = false, expressive = false, lite = false
     )
+    val Sensation = ThemeSpec(
+        "sensation", "Sensation", "Come i telefoni HTC con Sense: barra a tre tasti, grafite e argento",
+        SensationIcon, glass = false, expressive = false, lite = false
+    )
     val Plain = ThemeSpec(
         "none", "Nessuno", "Niente pannelli: icone e widget direttamente sullo sfondo",
         NoneIcon, glass = false, expressive = false, lite = false
     )
-    val all = listOf(LiquidGlass, Glass, Expressive, Tonal, Lite, Fluent, Plain)
+    val all = listOf(LiquidGlass, Glass, Expressive, Tonal, Lite, Fluent, Sensation, Plain)
     fun of(key: String): ThemeSpec? = all.firstOrNull { it.key == key }
 }
 
@@ -254,12 +265,18 @@ fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modif
                         MiniIcon(spec, i, glyphs[i % glyphs.size], iconSize)
                         if (s.showLabels) {
                             Spacer(Modifier.height(3.dp))
-                            Box(Modifier.size(iconSize * 0.8f, 3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.7f)))
+                            if (spec.key == "sensation") {
+                                Box(
+                                    Modifier.size(iconSize * 0.95f, 7.dp).clip(CircleShape).background(Color(0xCC1F2023)),
+                                    contentAlignment = Alignment.Center
+                                ) { Box(Modifier.size(iconSize * 0.6f, 2.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.85f))) }
+                            } else Box(Modifier.size(iconSize * 0.8f, 3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.7f)))
                         }
                     }
                 }
             }
-            if (!s.hideDock) MiniDock(spec, columns.coerceAtMost(5), iconSize, glyphs)
+            if (spec.key == "sensation") MiniSenseBar()
+            else if (!s.hideDock) MiniDock(spec, columns.coerceAtMost(5), iconSize, glyphs)
         }
     }
 }
@@ -271,6 +288,7 @@ private fun MiniClock(spec: ThemeSpec, modifier: Modifier) {
         spec.glass || spec.key == "glass" || spec.key == "none" ->
             Text("9:41", modifier, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light)
         spec.key == "fluent" -> Text("9:41", modifier, color = cs.onPrimaryContainer, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+        spec.key == "sensation" -> MiniSenseClock(modifier)
         spec.expressive -> Row(modifier, verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(34.dp).clip(iconShapeOf("cookie9")).background(cs.primary), contentAlignment = Alignment.Center) {
                 Text("9", color = cs.onPrimary, fontSize = 19.sp, fontWeight = FontWeight.Black)
@@ -294,6 +312,12 @@ private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp) 
     val fg: Color
     when {
         spec.glass -> { shape = RoundedCornerShape(size * 0.3f); bg = Color.White.copy(alpha = 0.22f); fg = Color.White }
+        // Sensation: icone normali con gli angoli piccoli, come quelle dei telefoni HTC
+        spec.key == "sensation" -> {
+            shape = RoundedCornerShape(size * 0.22f)
+            bg = listOf(Color(0xFF3B82C4), Color(0xFFE0A030), Color(0xFF4CAF50), Color(0xFFD84B3C), Color(0xFF7E57C2))[index % 5]
+            fg = Color.White
+        }
         // Vetro e Nessuno: icone normali, colorate, squircole
         spec.key == "glass" || spec.key == "none" -> {
             shape = IosShape
@@ -378,5 +402,42 @@ fun IconShapeSwatch(key: String, size: Dp = 34.dp, colorKey: String? = null) {
     val (bg, fg) = if (colorKey != null) themedIconColors(colorKey) else themedIconColors()
     Box(Modifier.size(size).clip(iconShapeOf(key)).background(bg), contentAlignment = Alignment.Center) {
         Icon(Icons.Rounded.Star, null, tint = fg, modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+/** Orologio Sense in piccolo per l'anteprima del tema: anello scuro e quadrante d'argento. */
+@Composable
+private fun MiniSenseClock(modifier: Modifier) {
+    androidx.compose.foundation.Canvas(modifier.size(44.dp)) {
+        val r = size.minDimension / 2f
+        val c = center
+        drawCircle(Brush.linearGradient(listOf(Color(0xFF73777D), Color(0xFF1A1C1F)), start = c.copy(x = 0f, y = 0f), end = c * 2f), r, c)
+        drawCircle(Color(0xFFC3C6CB), r, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+        drawCircle(Brush.radialGradient(listOf(Color.White, Color(0xFFC4C8CD)), center = c, radius = r * 0.7f), r * 0.62f, c)
+        drawLine(Color(0xFF3B3E43), c, c.copy(y = c.y - r * 0.42f), strokeWidth = r * 0.10f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(Color(0xFF3B3E43), c, c.copy(x = c.x + r * 0.55f), strokeWidth = r * 0.07f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+}
+
+/** Barra a tre tasti di Sense in piccolo per l'anteprima. */
+@Composable
+private fun MiniSenseBar() {
+    val key = Brush.verticalGradient(listOf(Color(0xFF5E6166), Color(0xFF232427)))
+    val shape = RoundedCornerShape(3.dp)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF8A8D92), Color(0xFF2E3034), Color(0xFF0E0E0F))))
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Box(Modifier.weight(1f).height(16.dp).clip(shape).background(key).border(0.5.dp, Color(0xFF8E9196), shape))
+        Box(
+            Modifier.weight(2.3f).height(16.dp).clip(shape).background(key).border(0.5.dp, Color(0xFF8E9196), shape),
+            contentAlignment = Alignment.Center
+        ) { Icon(Icons.Rounded.Call, null, tint = Color.White, modifier = Modifier.size(10.dp)) }
+        Box(
+            Modifier.weight(1f).height(16.dp).clip(shape).background(key).border(0.5.dp, Color(0xFF8E9196), shape),
+            contentAlignment = Alignment.Center
+        ) { Text("+", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
 }

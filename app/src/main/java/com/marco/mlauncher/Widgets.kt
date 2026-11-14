@@ -134,6 +134,8 @@ fun WidgetContent(
     when (ref.kind) {
         "clock" -> ClockWidget(vm, host, onLongPress, modifier)
         "analog" -> AnalogClockWidget(host, onLongPress, modifier)
+        "senseClock" -> SenseClockWidget(vm, host, onLongPress, modifier, sample)
+        "senseFlip" -> SenseFlipWidget(vm, host, onLongPress, modifier, sample)
         "battery" -> BatteryWidget(host, onLongPress, modifier)
         "search" -> SearchWidget(vm, onLongPress, modifier, sample)
         "notes" -> NotesWidget(ref, vm, onLongPress, modifier, sample)

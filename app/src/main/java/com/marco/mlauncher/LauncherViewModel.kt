@@ -119,10 +119,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      *  - "glass": vetro semplice con riflesso, icone squircole normali, interruttori HyperOS;
      *  - "tonal": pannelli tonali, icone Material You squircole;
      *  - "fluent": come Windows 11 (e MLMeteo), anche nelle impostazioni; interruttori Fluent;
+     *  - "sensation": come i telefoni HTC con Sense, anche nelle impostazioni: barra a tre tasti al posto della
+     *    dock (le sue app vanno nella prima pagina), grafite lucida, nomi su pillole scure, caselle di spunta verdi;
      *  - "none": niente pannelli, icone predefinite.
      * Tutti gli elementi tornano a seguire il tema; i dettagli si cambiano poi in Personalizza tema.
      */
     fun applyLauncherTheme(key: String) {
+        val wasSense = settings.launcherTheme == "sensation"
         when (key) {
             "liquid" -> {
                 setSetting("matStyle", "liquid")
@@ -177,6 +180,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 setSetting("themedIcons", false)
                 setSetting("switchStyle", "fluent")
             }
+            "sensation" -> {
+                setSetting("matStyle", "sense")
+                setSetting("matGlass", false)
+                setSetting("matOpacity", 60)
+                setSetting("matCorner", 8)
+                setSetting("iconShape", "original")
+                setSetting("themedIcons", false)
+                setSetting("switchStyle", "sense")
+            }
             "none" -> {
                 setSetting("matStyle", "none")
                 setSetting("matGlass", false)
@@ -186,8 +198,58 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 setSetting("switchStyle", "android16")
             }
         }
-        if (key != "custom") MAT_ELEMENTS.forEach { (e, _) -> if (!settings.elFollow(e)) setElFollow(e, true) }
+        if (key != "custom") {
+            MAT_ELEMENTS.forEach { (e, _) -> if (!settings.elFollow(e)) setElFollow(e, true) }
+            setSetting("labelPills", key == "sensation")
+        }
         setSetting("launcherTheme", key)
+        if (key == "sensation") moveDockToHome()
+        else if (wasSense) restoreDockFromHome()
+    }
+
+    /**
+     * Tema Sensation: la barra a tre tasti prende il posto della dock e le sue app vanno nella prima pagina,
+     * nell'ultima riga al centro (come le quattro app sopra la barra dei telefoni HTC); se lì non c'è posto,
+     * nel primo posto libero. Si ricorda dove stavano, per rimetterle nella dock cambiando tema.
+     */
+    private fun moveDockToHome() {
+        val dock = items.filter { it.page == -1 }.sortedBy { it.x }
+        if (dock.isEmpty()) return
+        val moved = try { org.json.JSONArray(sp.getString("senseDock", "[]") ?: "[]") } catch (e: Exception) { org.json.JSONArray() }
+        val g = grid
+        val start = ((g.cols - dock.size) / 2).coerceAtLeast(0)
+        val row = g.rows - 1
+        dock.forEachIndexed { i, d ->
+            val x = start + i
+            val cur = items.firstOrNull { it.id == d.id } ?: return@forEachIndexed
+            val (p, nx, ny) = if (x < g.cols && areaFree(0, x, row, 1, 1, d.id)) Triple(0, x, row) else findFree(0)
+            replace(cur, cur.at(p, nx, ny))
+            ensurePages(p)
+            moved.put(org.json.JSONObject().put("id", d.id).put("x", d.x))
+        }
+        sp.edit().putString("senseDock", moved.toString()).apply()
+        AppLog.i("Sensation: ${dock.size} app della dock spostate nella prima pagina")
+        saveLayout()
+    }
+
+    /** Lasciando il tema Sensation le app tornano nella dock, nei loro posti (se sono ancora libere). */
+    private fun restoreDockFromHome() {
+        val raw = sp.getString("senseDock", null) ?: return
+        sp.edit().remove("senseDock").apply()
+        val arr = try { org.json.JSONArray(raw) } catch (e: Exception) { return }
+        var n = 0
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val cur = items.firstOrNull { it.id == o.optString("id") } ?: continue
+            if (cur.page == -1 || cur.spanX != 1 || cur.spanY != 1) continue
+            val want = o.optInt("x")
+            val x = if (want < curSlots && areaFree(-1, want, 0, 1, 1, cur.id)) want
+            else (0 until curSlots).firstOrNull { areaFree(-1, it, 0, 1, 1, cur.id) } ?: continue
+            replace(cur, cur.at(-1, x, 0))
+            n++
+        }
+        AppLog.i("Sensation: $n app tornate nella dock")
+        saveLayout()
     }
 
     fun setElFollow(e: String, follow: Boolean) {

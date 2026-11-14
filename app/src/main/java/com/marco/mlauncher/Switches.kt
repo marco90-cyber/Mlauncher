@@ -25,7 +25,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
 /** Stili degli interruttori: quelli della libreria MLTheme più Fluent (Windows 11), disegnato qui. */
-val SWITCH_STYLES = com.marco.mltheme.SWITCH_STYLES + ("fluent" to "Fluent (Windows 11)")
+val SWITCH_STYLES = com.marco.mltheme.SWITCH_STYLES + ("fluent" to "Fluent (Windows 11)") + ("sense" to "Sense (casella di spunta)")
+
+/** Stili disegnati da MLauncher (non dalla libreria MLTheme). */
+val OWN_SWITCHES = setOf("fluent", "sense")
 
 /** false = la voce dipende da un'altra impostazione spenta: si vede in grigio e non si tocca. */
 val LocalPrefEnabled = com.marco.mltheme.LocalPrefEnabled
@@ -46,7 +49,11 @@ fun MLSwitch(
     modifier: Modifier = Modifier,
     style: String = SwitchLook.style
 ) {
-    if (style != "fluent") return com.marco.mltheme.MLSwitch(checked, onCheckedChange, modifier, style)
+    if (style !in OWN_SWITCHES) return com.marco.mltheme.MLSwitch(checked, onCheckedChange, modifier, style)
+    if (style == "sense") {
+        if (!LocalPrefEnabled.current) SenseCheckDisabled(checked, modifier) else SenseCheck(checked, onCheckedChange, modifier)
+        return
+    }
     if (!LocalPrefEnabled.current) {
         Box(modifier.alpha(0.38f)) { FluentSwitch(checked, null, Modifier) }
         return
@@ -80,5 +87,9 @@ fun FluentSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifi
 /** Anteprima nell'elenco delle scelte. */
 @Composable
 fun SwitchStylePreview(key: String) {
-    if (key == "fluent") FluentSwitch(true, null) else com.marco.mltheme.SwitchStylePreview(key)
+    when (key) {
+        "fluent" -> FluentSwitch(true, null)
+        "sense" -> SenseCheck(true, null)
+        else -> com.marco.mltheme.SwitchStylePreview(key)
+    }
 }
