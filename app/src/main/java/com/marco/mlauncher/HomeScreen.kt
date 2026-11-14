@@ -1165,8 +1165,9 @@ private fun HomePage(
                     onVerticalDrag = { _, dy -> total += dy },
                     onDragEnd = {
                         if (!vm.editMode && vm.openFolderId == null) {
-                            if (total < -swipePx) {
+                            if (total < -swipePx && vm.settings.swipeUp != "none") {
                                 Haptics.tick(view)
+                                if (vm.settings.swipeUp == "search") vm.searchFocus = true
                                 vm.overlay = Overlay.DRAWER
                             } else if (total > swipePx) {
                                 if (vm.settings.swipeDown == "search") vm.overlay = Overlay.DRAWER

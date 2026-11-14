@@ -1153,13 +1153,12 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
             listOf("notifications" to "Apri le notifiche", "search" to "Cerca app"),
             s.swipeDown
         ) { vm.setSetting("swipeDown", it) }
-        ListItem(
-            headlineContent = { Text("Scorri su nella Home") },
-            supportingContent = {
-                Text(if (s.homeMode == "drawer") "Apre il cassetto app" else "Apre la ricerca")
-            },
-            colors = prefColors()
-        )
+        ChoiceRow(
+            "Scorri su nella Home",
+            if (s.homeMode == "drawer") listOf("open" to "Apri il cassetto app", "search" to "Cerca app (con la tastiera)", "none" to "Niente")
+            else listOf("open" to "Apri la ricerca", "search" to "Apri la ricerca con la tastiera", "none" to "Niente"),
+            s.swipeUp
+        ) { vm.setSetting("swipeUp", it) }
         SwitchRow(
             "Doppio tocco per bloccare",
             "Tocca due volte uno spazio vuoto della Home",

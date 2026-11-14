@@ -202,6 +202,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var theme by mutableStateOf(sp.getString("theme", "auto") ?: "auto")
         private set
     var swipeDown by mutableStateOf(sp.getString("swipeDown", "notifications") ?: "notifications")
+    /** scorri su nella Home: "open" (cassetto o ricerca, secondo la modalità), "search" (ricerca con tastiera), "none" */
+    var swipeUp by mutableStateOf(sp.getString("swipeUp", "open") ?: "open")
         private set
     var autoAddNew by mutableStateOf(sp.getBoolean("autoAddNew", false))
         private set
@@ -457,6 +459,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "uninstallAnim" -> uninstallAnim = value as String
             "theme" -> theme = value as String
             "swipeDown" -> swipeDown = value as String
+            "swipeUp" -> swipeUp = value as String
             "autoAddNew" -> autoAddNew = value as Boolean
             "dockSlots" -> if (landscape) dockSlotsL = value as Int else dockSlotsP = value as Int
             "dockStyle" -> dockStyleP = value as String
