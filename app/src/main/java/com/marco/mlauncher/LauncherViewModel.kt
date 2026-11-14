@@ -643,6 +643,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         returnSignal += 1
     }
 
+    /**
+     * Prepara la Home al punto di partenza dell'animazione dello sblocco, senza farla partire: così dietro
+     * la schermata di blocco è già "pronta" e allo sblocco non si vede per un attimo la Home piena che poi
+     * sparisce e rientra (il «flash»). Restituisce false se l'animazione non è prevista.
+     */
+    fun armReturn(): Boolean {
+        val s = settings
+        if (!s.returnOnUnlock || s.returnAnim == "none") return false
+        if (overlay != Overlay.NONE || openFolderId != null || editMode) return false
+        returnAppId = null
+        returnOrigin = (gridCols / 2f) to (gridRows / 2f)
+        returnP = 0f
+        return true
+    }
+
+    /** Animazione preparata ma non più necessaria: la Home torna ferma. */
+    fun disarmReturn() {
+        returnP = 1f
+    }
+
     /** true se la Home è bloccata (e avvisa l'utente) */
     fun blockedByLock(): Boolean {
         if (!settings.lockHome) return false

@@ -290,8 +290,52 @@ class MainActivity : ComponentActivity(), Host {
     /** Sblocco del telefono: animazione di ritorno se la Home è quella che si vede. */
     private val unlockReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(c: android.content.Context?, i: Intent?) {
-            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) vm.playReturn(fromApp = false)
+            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) playUnlock()
         }
+    }
+
+    /** la Home aspetta lo sblocco già al punto di partenza dell'animazione (vedi [LauncherViewModel.armReturn]) */
+    private var unlockArmed = false
+    private var unlockPlayedAt = 0L
+
+    private fun keyguardLocked(): Boolean = try {
+        getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * Fa partire l'animazione dello sblocco, una volta sola: l'avviso del sistema arriva spesso in ritardo,
+     * quando la Home si vede già (da lì il «flash»), quindi parte al primo segnale utile tra finestra
+     * tornata attiva e avviso di sblocco.
+     */
+    private fun playUnlock() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (!unlockArmed && now - unlockPlayedAt < 2000L) return
+        unlockArmed = false
+        unlockPlayedAt = now
+        lateH.removeCallbacks(unlockFallback)
+        val before = vm.returnSignal
+        vm.playReturn(fromApp = false)
+        // non partita (es. qualcosa di aperto): la Home non resta al punto di partenza
+        if (vm.returnSignal == before) vm.disarmReturn()
+    }
+
+    /** sicurezza: la Home non deve mai restare ferma al punto di partenza dell'animazione */
+    private val unlockFallback = object : Runnable {
+        override fun run() {
+            if (!unlockArmed) return
+            if (keyguardLocked() && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                lateH.postDelayed(this, 1000L)
+            } else {
+                playUnlock()
+            }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && unlockArmed && !keyguardLocked()) playUnlock()
     }
 
     override fun onStart() {
@@ -301,6 +345,18 @@ class MainActivity : ComponentActivity(), Host {
         //  lì niente animazione, altrimenti si sovrappone a quella del sistema)
         val away = android.os.SystemClock.uptimeMillis() - stoppedAt
         if (wasStopped && !stoppedByScreenOff && (launchedSinceStart || away > 1500)) vm.playReturn(fromApp = true)
+        // tornato dallo schermo spento con il blocco ancora attivo: la Home si mette già al punto di partenza
+        // dell'animazione, che parte allo sblocco
+        if (wasStopped && stoppedByScreenOff) {
+            if (!keyguardLocked()) {
+                // già sbloccato quando la Home ricompare: l'animazione parte subito, dal primo fotogramma
+                playUnlock()
+            } else if (vm.armReturn()) {
+                unlockArmed = true
+                lateH.removeCallbacks(unlockFallback)
+                lateH.postDelayed(unlockFallback, 1000L)
+            }
+        }
         wasStopped = false
         launchedSinceStart = false
         vm.widgetHost.listen(true)
@@ -315,6 +371,12 @@ class MainActivity : ComponentActivity(), Host {
             !getSystemService(android.os.PowerManager::class.java).isInteractive
         } catch (e: Exception) {
             false
+        }
+        if (unlockArmed) {
+            // schermo rispento senza sbloccare
+            unlockArmed = false
+            lateH.removeCallbacks(unlockFallback)
+            vm.disarmReturn()
         }
         vm.widgetHost.listen(false)
         AppLog.i("Home in background")
