@@ -177,7 +177,8 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
     androidx.compose.runtime.CompositionLocalProvider(LocalSettingsHighlight provides vm.settingsHighlight) {
     Scaffold(
         containerColor = cs.surface,
-        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        // la barra Sense non si richiude: senza la barra grande lo scorrimento non va collegato (lo bloccherebbe)
+        modifier = if (LocalSense.current) Modifier else Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             if (LocalSense.current) SenseTitleBar(if (page == null && vm.settingsTab == 1) "Stile" else pageTitle(page)) {
                 if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
