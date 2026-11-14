@@ -68,6 +68,10 @@ fun Root(vm: LauncherViewModel, host: Host) {
 
     androidx.compose.runtime.CompositionLocalProvider(
         LocalIconShape provides vm.settings.iconShape,
+        // tema Liquid Glass: icone di vetro con i riflessi; Material You: colori delle icone a tema
+        LocalIconGlass provides (if (vm.settings.launcherTheme == "liquid") IconGlass(vm.settings.glassIconStyle, vm.settings.glassIconHighlight, vm.settings.glassHighlight / 100f) else null),
+        LocalThemedIconColor provides vm.settings.themedIconColor,
+        LocalGlassStrength provides vm.settings.glassHighlight / 100f,
         LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg),
         LocalFolderShape provides vm.settings.folderShape,
         // cartelle, widget: il materiale scelto in Stile (generale o proprio dell'elemento)

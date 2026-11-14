@@ -381,6 +381,16 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var smartMode by mutableStateOf(sp.getString("smartMode", "genre_plus") ?: "genre_plus")
     var homeOrder by mutableStateOf(sp.getString("homeOrder", "name") ?: "name")
     var iconShape by mutableStateOf(sp.getString("iconShape", "original") ?: "original")
+    /** tema della Home (Stile → Tema): "liquid", "expressive", "lite" o "custom" (scelte fatte a mano) */
+    var launcherTheme by mutableStateOf(sp.getString("launcherTheme", "custom") ?: "custom")
+    /** colori delle icone Material You: "primary", "secondary", "tertiary" */
+    var themedIconColor by mutableStateOf(sp.getString("themedIconColor", "secondary") ?: "secondary")
+    /** icone nel tema Liquid Glass: "normal", "clear" (logo su vetro), "tinted" (glifo colorato su vetro scuro) */
+    var glassIconStyle by mutableStateOf(sp.getString("glassIconStyle", "normal") ?: "normal")
+    /** riflessi sul bordo delle icone (Liquid Glass): "off", "corners", "full" */
+    var glassIconHighlight by mutableStateOf(sp.getString("glassIconHighlight", "corners") ?: "corners")
+    /** forza dei riflessi del vetro, in percentuale */
+    var glassHighlight by mutableIntStateOf(sp.getInt("glassHighlight", 70))
     var folderPreview by mutableStateOf(sp.getString("folderPreview", "grid") ?: "grid")
     var folderBg by mutableStateOf(sp.getString("folderBg", "tonal") ?: "tonal")
     var folderShape by mutableStateOf(sp.getString("folderShape", "squircle") ?: "squircle")
@@ -534,6 +544,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "smartMode" -> smartMode = value as String
             "homeOrder" -> homeOrder = value as String
             "iconShape" -> iconShape = value as String
+            "launcherTheme" -> launcherTheme = value as String
+            "themedIconColor" -> themedIconColor = value as String
+            "glassIconStyle" -> glassIconStyle = value as String
+            "glassIconHighlight" -> glassIconHighlight = value as String
+            "glassHighlight" -> glassHighlight = value as Int
             "folderPreview" -> folderPreview = value as String
             "folderBg" -> folderBg = value as String
             "folderShape" -> folderShape = value as String

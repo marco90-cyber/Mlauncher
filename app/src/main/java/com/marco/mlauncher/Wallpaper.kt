@@ -2,6 +2,9 @@ package com.marco.mlauncher
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
+import android.graphics.RectF
+import android.graphics.RuntimeShader
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -19,31 +22,29 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import java.io.File
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 // =====================================================================
@@ -166,128 +167,194 @@ fun WallpaperLayer(w: WallRender, dim: Float, blur: Dp) {
 //  Liquid Glass
 // =====================================================================
 
-/** Lente sui bordi con leggera dispersione dei colori (AGSL, Android 13+). */
-private const val LENS_AGSL = """
-uniform shader content;
+/** Forza dei riflessi del vetro liquido (Stile → Tema → Liquid Glass). */
+val LocalGlassStrength = staticCompositionLocalOf { 0.7f }
+
+/**
+ * Vetro liquido (Android 13+, AGSL), come in iOS 26 — portato da Expressive Launcher
+ * (github.com/kotlalipopus/expressive-launcher, licenza MIT). Attraverso il vetro lo sfondo si vede NITIDO:
+ *  - il centro ingrandisce un poco quello che c'è sotto (zoom < 1);
+ *  - verso il bordo l'immagine si piega come in una lente spessa (la prende da fuori dal pannello);
+ *  - la piega separa i colori: rosso, verde e blu si spostano diversamente, bordo arcobaleno;
+ *  - riflessi solo negli angoli: forte in alto a sinistra, più debole in basso a destra.
+ * Senza uno sfondo di MLauncher (sfondo di Android) il vetro resta trasparente: lo spessore lo danno
+ * il bordo, una leggera ombra dal lato lontano dalla luce e i riflessi.
+ */
+private const val LIQUID_AGSL = """
+uniform shader image;
 uniform float2 size;
 uniform float radius;
-uniform float depth;
-
-float sdRound(float2 p, float2 b, float r) {
-    float2 q = abs(p) - b + r;
-    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
-}
+uniform float band;
+uniform float bendPx;
+uniform float zoom;
+uniform float chroma;
+uniform float spec;
+uniform float useImage;
+uniform float4 tint;
+uniform float dp;
 
 half4 main(float2 fc) {
-    float2 c = size * 0.5;
-    float2 p = fc - c;
-    float d = sdRound(p, c, radius);
-    float band = min(min(size.x, size.y) * 0.5, radius * 1.4 + 10.0);
+    float2 hb = size * 0.5;
+    float2 p = fc - hb;
+    float r = min(radius, min(hb.x, hb.y));
+    float2 q = abs(p) - hb + r;
+    float2 qm = max(q, 0.0);
+    float d = min(max(q.x, q.y), 0.0) + length(qm) - r;
+    // lontano dal bordo: vetro piatto, un solo campione
+    if (d < -band - 2.0 * dp) {
+        if (useImage > 0.5) {
+            half4 c = image.eval(hb + p * zoom);
+            float ca = float(c.a) * (1.0 - tint.a) + tint.a;
+            return half4(half3(min(float3(c.rgb) * (1.0 - tint.a) + tint.rgb * tint.a, float3(ca))), half(ca));
+        }
+        return half4(half3(tint.rgb * tint.a), half(tint.a));
+    }
+    float2 sg = float2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0);
+    float2 n;
+    if (qm.x + qm.y > 0.0) n = normalize(qm) * sg;
+    else n = q.x > q.y ? float2(sg.x, 0.0) : float2(0.0, sg.y);
     float t = clamp(1.0 + d / band, 0.0, 1.0);
-    float2 g = float2(
-        sdRound(p + float2(1.0, 0.0), c, radius) - sdRound(p - float2(1.0, 0.0), c, radius),
-        sdRound(p + float2(0.0, 1.0), c, radius) - sdRound(p - float2(0.0, 1.0), c, radius)
-    );
-    float2 n = g / max(length(g), 0.0001);
-    float2 off = -n * depth * t * t;
-    half4 col;
-    col.r = content.eval(fc + off).r;
-    col.g = content.eval(fc + off * 0.9).g;
-    col.b = content.eval(fc + off * 0.8).b;
-    col.a = 1.0;
-    return col;
+    float bend = 1.0 - sqrt(max(1.0 - t * t, 0.0));
+    float facing = dot(n, float2(-0.7071, -0.7071));
+    float3 col;
+    float a;
+    if (useImage > 0.5) {
+        float2 base = hb + p * zoom;
+        float2 off = n * bend * bendPx;
+        half4 mid = image.eval(base + off);
+        float3 img = float3(
+            image.eval(base + off * (1.0 + chroma)).r,
+            mid.g,
+            image.eval(base + off * (1.0 - chroma)).b);
+        img *= 1.0 + 0.12 * bend * facing;
+        float ia = mid.a;
+        a = ia * (1.0 - tint.a) + tint.a;
+        col = (img * (1.0 - tint.a) + tint.rgb * tint.a) / max(a, 0.0001);
+    } else {
+        float shade = bend * max(-facing, 0.0);
+        a = clamp(tint.a + bend * 0.10 + shade * 0.10, 0.0, 1.0);
+        col = mix(tint.rgb, float3(0.0), clamp(shade * 0.7, 0.0, 1.0));
+    }
+    float rim = clamp(1.0 + d / (1.6 * dp), 0.0, 1.0);
+    float corner = pow(max(facing, 0.0), 5.0) + 0.65 * pow(max(-facing, 0.0), 5.0);
+    float glow = spec * (rim * (0.06 + 1.3 * corner) + bend * 0.32 * pow(max(facing, 0.0), 3.0)
+        + bend * 0.14 * pow(max(-facing, 0.0), 3.0));
+    float outA = clamp(a + glow, 0.0, 1.0);
+    float3 outC = min(col * a + float3(glow), float3(outA));
+    return half4(half3(outC), half(outA));
 }
 """
 
+/** Posizione dell'elemento sullo schermo: cambia di rado e si legge solo mentre si disegna. */
+private class GlassPos {
+    var offset by mutableStateOf(Offset.Zero)
+}
+
 /**
- * Vetro liquido: dietro l'elemento si vede lo sfondo sfocato e piegato ai bordi come da una lente,
- * con riflesso in alto e bordo luminoso. Senza uno sfondo di MLauncher (o prima di Android 12)
- * resta un vetro imitato con riflessi e bordo.
+ * Vetro liquido: dietro l'elemento si vede lo sfondo nitido, piegato verso il bordo come da una lente,
+ * con bordo arcobaleno e riflessi agli angoli. Senza uno sfondo di MLauncher il vetro è trasparente con
+ * bordo e riflessi; prima di Android 13 (niente AGSL) resta un vetro disegnato con velo, bagliore e bordo.
  */
 fun Modifier.liquidGlass(corner: Dp, shape: Shape? = null, tint: Color = Color.Unspecified, opacity: Float = 1f): Modifier = composed {
     val wall = LocalWall.current
-    val dark = LocalGlassDarkText.current
-    val density = LocalDensity.current
-    val dir = LocalLayoutDirection.current
-    var pos by remember { mutableStateOf(Offset.Zero) }
-    val layer = rememberGraphicsLayer()
-    val shader = remember {
-        if (Build.VERSION.SDK_INT >= 33) try { android.graphics.RuntimeShader(LENS_AGSL) } catch (e: Exception) { null } else null
-    }
-    val cornerPx = with(density) { corner.toPx() }
-    val blurPx = with(density) { 14.dp.toPx() }
-    val depthPx = with(density) { 10.dp.toPx() }
-    val rim = with(density) { 1.2.dp.toPx() }
+    val lightBack = LocalGlassDarkText.current
+    val strength = LocalGlassStrength.current
+    val pos = remember { GlassPos() }
     this
-        .onGloballyPositioned { pos = it.positionInRoot() }
-        .drawWithContent {
-            val r = cornerPx.coerceAtMost(size.minDimension / 2f)
-            val outline: Path = Path().apply {
-                if (shape != null) {
-                    when (val o = shape.createOutline(size, dir, density)) {
-                        is androidx.compose.ui.graphics.Outline.Rectangle -> addRect(o.rect)
-                        is androidx.compose.ui.graphics.Outline.Rounded -> addRoundRect(o.roundRect)
-                        is androidx.compose.ui.graphics.Outline.Generic -> addPath(o.path)
-                    }
-                } else {
-                    addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, size.width, size.height, CornerRadius(r)))
-                }
+        .then(if (wall != null) Modifier.onGloballyPositioned { pos.offset = it.positionInRoot() } else Modifier)
+        .drawWithCache {
+            val w = size.width
+            val h = size.height
+            val outline = (shape ?: RoundedCornerShape(corner)).createOutline(size, layoutDirection, this)
+            val rounded = (outline as? Outline.Rounded)?.roundRect
+            val radius = rounded?.topLeftCornerRadius?.x
+                ?: if (outline is Outline.Rectangle) 0f else corner.toPx().coerceAtMost(size.minDimension / 2f)
+            val path = Path().apply { addOutline(outline) }.asAndroidPath()
+            val rect = RectF(0f, 0f, w, h)
+            fun android.graphics.Canvas.shape(paint: Paint) {
+                if (rounded != null) drawRoundRect(rect, radius, radius, paint) else drawPath(path, paint)
             }
-            clipPath(outline) {
-                if (wall != null && size.width > 1f && size.height > 1f) {
-                    // il pezzo di sfondo che sta dietro l'elemento
-                    val sx = ((pos.x - wall.offX()) / wall.scale)
-                    val sy = ((pos.y - wall.offY) / wall.scale)
-                    val sw = (size.width / wall.scale)
-                    val sh = (size.height / wall.scale)
-                    val left = sx.roundToInt().coerceIn(0, max(0, wall.bmp.width - 1))
-                    val top = sy.roundToInt().coerceIn(0, max(0, wall.bmp.height - 1))
-                    val w = sw.roundToInt().coerceIn(1, wall.bmp.width - left)
-                    val h = sh.roundToInt().coerceIn(1, wall.bmp.height - top)
-                    val isz = IntSize(size.width.roundToInt(), size.height.roundToInt())
-                    var effect: android.graphics.RenderEffect = android.graphics.RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP)
-                    if (shader != null && Build.VERSION.SDK_INT >= 33) {
-                        shader.setFloatUniform("size", size.width, size.height)
-                        shader.setFloatUniform("radius", r)
-                        shader.setFloatUniform("depth", depthPx)
-                        effect = android.graphics.RenderEffect.createChainEffect(
-                            android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"), effect
-                        )
-                    }
-                    layer.renderEffect = effect.asComposeRenderEffect()
-                    layer.record(size = isz) {
-                        drawImage(wall.bmp, srcOffset = IntOffset(left, top), srcSize = IntSize(w, h), dstSize = isz)
-                    }
-                    drawLayer(layer)
-                    // leggera velatura per leggere bene icone e testi
-                    drawRect((if (dark) Color.White else Color.Black).copy(alpha = 0.06f + 0.10f * (1f - opacity)))
-                } else {
-                    drawRect(Color.White.copy(alpha = 0.10f + 0.12f * opacity))
-                }
-                if (tint != Color.Unspecified) drawRect(tint.copy(alpha = 0.18f * opacity))
-                // riflesso in alto
-                drawRect(
-                    Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.28f),
-                        0.45f to Color.White.copy(alpha = 0.04f),
-                        1f to Color.White.copy(alpha = 0.10f)
-                    )
+            // velo appena percettibile, solo per leggere icone e testi; con "Trasparenza" più bassa è più denso
+            val base = if (tint != Color.Unspecified) tint else if (lightBack) Color.White else Color(0xFF0C0D10)
+            val fill = base.copy(alpha = (opacity * 0.3f).coerceIn(0.03f, 0.5f))
+            val stroke = 1.dp.toPx()
+            // ombra morbida sotto il vetro
+            val shadowH = 8.dp.toPx()
+            val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, h, 0f, h + shadowH,
+                    android.graphics.Color.argb(if (lightBack) 28 else 60, 0, 0, 0), 0, Shader.TileMode.CLAMP
                 )
             }
-            // bordo luminoso, più forte in alto a sinistra e in basso a destra
-            drawPath(
-                outline,
-                Brush.linearGradient(
-                    0f to Color.White.copy(alpha = 0.85f),
-                    0.35f to Color.White.copy(alpha = 0.12f),
-                    0.7f to Color.White.copy(alpha = 0.08f),
-                    1f to Color.White.copy(alpha = 0.55f),
-                    start = Offset.Zero,
-                    end = Offset(size.width, size.height)
-                ),
-                style = Stroke(rim)
-            )
-            drawContent()
+            val shadowRect = RectF(radius * 0.5f, h - shadowH * 0.2f, w - radius * 0.5f, h + shadowH)
+            val wallMatrix = android.graphics.Matrix()
+            val wallShader = wall?.let { BitmapShader(it.bmp.asAndroidBitmap(), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
+            val half = min(w, h) / 2f
+            val liquid = if (Build.VERSION.SDK_INT >= 33 && w > 1f && h > 1f) runCatching {
+                RuntimeShader(LIQUID_AGSL).apply {
+                    setInputShader("image", wallShader ?: LinearGradient(0f, 0f, 1f, 0f, 0, 0, Shader.TileMode.CLAMP))
+                    setFloatUniform("size", w, h)
+                    setFloatUniform("radius", radius)
+                    setFloatUniform("band", min(48.dp.toPx(), half * 0.95f).coerceAtLeast(1f))
+                    setFloatUniform("bendPx", min(26.dp.toPx(), half * 0.85f))
+                    setFloatUniform("zoom", 0.86f)
+                    setFloatUniform("chroma", 0.5f)
+                    setFloatUniform("spec", strength.coerceIn(0f, 1.5f))
+                    setFloatUniform("useImage", if (wallShader != null) 1f else 0f)
+                    setFloatUniform("tint", fill.red, fill.green, fill.blue, fill.alpha)
+                    setFloatUniform("dp", 1.dp.toPx())
+                }
+            }.getOrNull() else null
+            val liquidPaint = liquid?.let { Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = it } }
+            // senza AGSL: sfondo, velo, bagliore e bordo con i riflessi agli angoli
+            val imagePaint = if (liquidPaint == null) wallShader?.let { Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.shader = it } } else null
+            val fillPaint = if (liquidPaint == null) Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = fill.copy(alpha = (fill.alpha + if (wall == null) 0.10f else 0f).coerceAtMost(1f)).toArgb()
+            } else null
+            val glossPaint = if (liquidPaint == null) Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = Specular.innerGloss(w, h, strength) } else null
+            val rimPaint = if (liquidPaint == null) Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = stroke
+                this.shader = Specular.cornerRim(w, h, strength, rim = if (lightBack) 0.1f else 0.05f)
+            } else null
+            val inner = RectF(stroke / 2f, stroke / 2f, w - stroke / 2f, h - stroke / 2f)
+            var lastX = Float.NaN
+            var lastY = Float.NaN
+            var lastWall = Float.NaN
+            onDrawWithContent {
+                drawIntoCanvas { cv ->
+                    val c = cv.nativeCanvas
+                    c.drawRoundRect(shadowRect, radius, radius, shadowPaint)
+                    if (wall != null && wallShader != null) {
+                        val p = pos.offset
+                        val ox = wall.offX()
+                        // la matrice si aggiorna solo se l'elemento o lo sfondo si sono mossi
+                        if (p.x != lastX || p.y != lastY || ox != lastWall) {
+                            lastX = p.x
+                            lastY = p.y
+                            lastWall = ox
+                            // pixel dello sfondo b ↔ punto dell'elemento: b · scala + posizione dello sfondo − posizione dell'elemento
+                            wallMatrix.setScale(wall.scale, wall.scale)
+                            wallMatrix.postTranslate(ox - p.x, wall.offY - p.y)
+                            wallShader.setLocalMatrix(wallMatrix)
+                            if (liquid != null && Build.VERSION.SDK_INT >= 33) liquid.setInputShader("image", wallShader)
+                        }
+                    }
+                    if (liquidPaint != null) {
+                        c.shape(liquidPaint)
+                    } else {
+                        imagePaint?.let { c.shape(it) }
+                        fillPaint?.let { c.shape(it) }
+                        glossPaint?.let { c.shape(it) }
+                    }
+                }
+                drawContent()
+                // il bordo sta sopra al contenuto: i riflessi prendono luce anche lì
+                if (rimPaint != null) drawIntoCanvas { cv ->
+                    if (rounded != null) cv.nativeCanvas.drawRoundRect(inner, radius, radius, rimPaint)
+                    else cv.nativeCanvas.drawPath(path, rimPaint)
+                }
+            }
         }
 }
 

@@ -95,7 +95,7 @@ private class Cat(val key: String, val title: String, val summary: String, val i
 
 private val shapeNames = mapOf(
     "original" to "Predefinita", "ios" to "iOS", "circle" to "Cerchio", "square" to "Quadrato arrotondato"
-)
+) + EXPRESSIVE_SHAPES
 private val orderOptions = listOf(
     "name" to "Per nome (A-Z)",
     "name_desc" to "Per nome (Z-A)",
@@ -328,7 +328,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     val matName = { st: String -> MATERIALS.firstOrNull { it.first == st }?.second ?: "" }
     val sections = if (vm.settingsTab == 1) listOf(
         "Aspetto" to listOf(
-            Cat("theme", "Tema", "${themeNames[s.theme] ?: ""} \u00b7 colori ${(ACCENTS.firstOrNull { it.first == s.accent }?.second ?: "").lowercase()} \u00b7 interruttori", Icons.Default.Create),
+            Cat("theme", "Tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 ${(themeNames[s.theme] ?: "").lowercase()} \u00b7 colori ${(ACCENTS.firstOrNull { it.first == s.accent }?.second ?: "").lowercase()} \u00b7 interruttori", Icons.Default.Create),
             Cat("wallpaper", "Sfondo", "Immagine, Crea il tuo sfondo, effetti, Android", Icons.Default.Create),
             Cat("material", "Materiale degli elementi", "${matName(s.matStyle)} \u00b7 dock, cartelle, widget, menu e altro", Icons.Default.Star),
             Cat("iconstyle", "Icone", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 nomi" + (if (s.themedIcons) " \u00b7 Material You" else ""), Icons.Default.Star),
@@ -1208,30 +1208,110 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
     } }
 }
 
+/** Titolo di una sezione fuori dai gruppi (es. sopra le schede dei temi). */
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 8.dp, bottom = 2.dp)
+    )
+}
+
+/**
+ * Stile → Tema, come la pagina «Temi» di Expressive Launcher: tre schede con la mini Home
+ * (Liquid Glass, Material 3 Expressive, Material You Lite), poi le impostazioni del tema scelto
+ * e la modalità chiara o scura.
+ */
 @Composable
 private fun PageTheme(vm: LauncherViewModel) {
     val s = vm.settings
-    Group("Tema") {
+    val cs = MaterialTheme.colorScheme
+    val spec = LauncherThemes.of(s.launcherTheme)
+    SectionTitle("Scegli il tema")
+    ThemeCards(s.launcherTheme, s) { vm.applyLauncherTheme(it.key) }
+    if (spec == null) {
+        Text(
+            "Ora usi una combinazione tua (materiale, icone e interruttori scelti a mano). Tocca un tema per applicarlo: " +
+                "poi puoi cambiare ancora ogni dettaglio.",
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 32.dp)
+        )
+    }
+    Group(if (spec != null) "Impostazioni del tema ${spec.title}" else "Colori") {
+        ChoiceRow("Colori", ACCENTS, s.accent, preview = { AccentPreview(it) }) { vm.setSetting("accent", it) }
+        when (spec?.key) {
+            "liquid" -> {
+                // si mostra la trasparenza, si salva la densità del velo
+                SliderRow("Trasparenza del vetro", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
+                    val v = (it / 5f).roundToInt() * 5
+                    if (v != s.matOpacity) vm.setSetting("matOpacity", v)
+                }
+                SliderRow("Forza dei riflessi", "${s.glassHighlight}%", s.glassHighlight.toFloat(), 20f..120f, 9) {
+                    val v = (it / 10f).roundToInt() * 10
+                    if (v != s.glassHighlight) vm.setSetting("glassHighlight", v)
+                }
+            }
+            "expressive" -> {
+                ChoiceRow("Forma delle icone", EXPRESSIVE_SHAPES, s.iconShape, preview = { IconShapeSwatch(it) }) { vm.setSetting("iconShape", it) }
+                SwitchRow(
+                    "Icone Material You",
+                    "Tutte le icone con i colori del tema: il glifo monocromatico dove l'app lo ha, le altre ricolorate in due toni",
+                    s.themedIcons
+                ) { vm.setSetting("themedIcons", it) }
+                Dependent(s.themedIcons) {
+                    ChoiceRow("Colore delle icone", THEMED_ICON_COLORS, s.themedIconColor, preview = { IconShapeSwatch(s.iconShape, colorKey = it) }) {
+                        vm.setSetting("themedIconColor", it)
+                    }
+                }
+            }
+            "lite" -> {
+                SwitchRow("Icone Material You", "Icone con i colori del tema", s.themedIcons) { vm.setSetting("themedIcons", it) }
+                Text(
+                    "Material You Lite: pannelli pieni, angoli tutti uguali e nessun effetto di vetro. Il più leggero per la batteria.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+        }
+    }
+    if (spec?.key == "liquid") {
+        Group("Icone") {
+            ChoiceRow(
+                "Riflessi sulle icone",
+                listOf("off" to "Nessuno", "corners" to "Agli angoli (come iOS 26)", "full" to "Su tutto il bordo"),
+                s.glassIconHighlight
+            ) { vm.setSetting("glassIconHighlight", it) }
+            ChoiceRow(
+                "Stile delle icone",
+                listOf("normal" to "Normali", "clear" to "Trasparenti (logo su vetro)", "tinted" to "Colorate (glifo su vetro scuro)"),
+                s.glassIconStyle
+            ) { vm.setSetting("glassIconStyle", it) }
+            ChoiceRow("Maschera delle icone", ICON_SHAPES.filter { it.first != "original" }, s.iconShape, preview = { ShapePreview(it, 30.dp) }) {
+                vm.setSetting("iconShape", it)
+            }
+            StyleLink(vm, "Pacchetto icone e nomi delle app", "iconstyle")
+        }
+    }
+    Group("Modalità") {
         ChoiceRow(
-            "Tema",
+            "Chiaro o scuro",
             listOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro"),
             s.theme,
             preview = { ThemePreview(it) }
         ) { vm.setSetting("theme", it) }
-        ChoiceRow(
-            "Colori",
-            ACCENTS,
-            s.accent,
-            preview = { AccentPreview(it) }
-        ) { vm.setSetting("accent", it) }
+    }
+    Group("Altro") {
         ChoiceRow(
             "Stile degli interruttori",
             SWITCH_STYLES,
             s.switchStyle,
             preview = { SwitchStylePreview(it) }
         ) { vm.setSetting("switchStyle", it) }
-    }
-    Group("Altro") {
         StyleLink(vm, "Materiale degli elementi (vetro, Liquid Glass\u2026)", "material")
     }
 }
@@ -1614,7 +1694,7 @@ private fun Credit(title: String, text: String) {
 @Composable
 internal fun ShapePreview(key: String, size: Dp) {
     val cs = MaterialTheme.colorScheme
-    val shape = when (key) {
+    val shape = expressiveShape(key) ?: when (key) {
         "circle" -> CircleShape
         "square" -> RoundedCornerShape(size * 0.22f)
         "ios" -> IosShape
@@ -2187,12 +2267,7 @@ private fun PageIconStyle(vm: LauncherViewModel) {
     Group("Icone") {
         ChoiceRow(
             "Forma",
-            listOf(
-                "original" to "Predefinita (come sono sempre state)",
-                "ios" to "iOS (squircola)",
-                "circle" to "Cerchio",
-                "square" to "Quadrato arrotondato"
-            ),
+            ICON_SHAPES,
             s.iconShape,
             preview = { ShapePreview(it, 34.dp) }
         ) { vm.setSetting("iconShape", it) }
@@ -2203,9 +2278,14 @@ private fun PageIconStyle(vm: LauncherViewModel) {
         ) { vm.setSetting("iconPack", it) }
         SwitchRow(
             "Icone Material You",
-            "Icone monocromatiche con i colori dello sfondo, dove l'app le supporta",
+            "Tutte le icone con i colori del tema: il glifo monocromatico dove l'app lo ha, le altre ricolorate in due toni",
             s.themedIcons
         ) { vm.setSetting("themedIcons", it) }
+        Dependent(s.themedIcons) {
+            ChoiceRow("Colore delle icone", THEMED_ICON_COLORS, s.themedIconColor, preview = { IconShapeSwatch(s.iconShape, colorKey = it) }) {
+                vm.setSetting("themedIconColor", it)
+            }
+        }
     }
     Group("Nomi delle app") {
         SwitchRow("Mostra i nomi delle app", null, s.showLabels) { vm.setSetting("showLabels", it) }
