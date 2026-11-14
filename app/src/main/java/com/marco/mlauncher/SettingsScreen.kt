@@ -1243,6 +1243,13 @@ private fun PageTheme(vm: LauncherViewModel) {
     }
     Group(if (spec != null) "Impostazioni del tema ${spec.title}" else "Colori") {
         ChoiceRow("Colori", ACCENTS, s.accent, preview = { AccentPreview(it) }) { vm.setSetting("accent", it) }
+        // trasparenza dei pannelli per i temi con pannelli pieni (vetro e Liquid Glass hanno la loro, Nessuno non ha pannelli)
+        if (spec?.key in setOf("expressive", "tonal", "lite")) {
+            SliderRow("Trasparenza", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
+                val v = (it / 5f).roundToInt() * 5
+                if (v != s.matOpacity) vm.setSetting("matOpacity", v)
+            }
+        }
         when (spec?.key) {
             "liquid" -> {
                 // si mostra la trasparenza, si salva la densità del velo
