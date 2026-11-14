@@ -485,7 +485,7 @@ private fun PickDock(vm: LauncherViewModel) {
             }
     }
     Text(
-        "Altri materiali (scuro, colorato, pieno…), la forma della dock e i singoli elementi in Impostazioni → Stile → Materiale",
+        "Altri materiali (Fluent, nessuno…), la forma della dock e i singoli elementi in Impostazioni → Stile → Materiale",
         color = cs.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
         textAlign = TextAlign.Center,
@@ -850,8 +850,7 @@ private fun BoxScope.MiniPhone(m: Mini) {
         val shape = RoundedCornerShape(12.dp)
         val dockMod = when (m.dock) {
             "pill" -> Modifier.clip(shape).background(if (dark) Color(0xFF2B3140) else Color(0xFFF3F5F9))
-            "dark" -> Modifier.clip(shape).background(Color.Black.copy(alpha = 0.4f))
-            "tinted" -> Modifier.clip(shape).background(cs.primaryContainer.copy(alpha = 0.6f))
+            "fluent" -> Modifier.clip(shape).background(fluentBase(dark).copy(alpha = 0.9f)).border(1.dp, fluentOutline(dark), shape)
             "none", "tiles" -> Modifier
             "liquid" -> Modifier.clip(shape).background(Color.White.copy(alpha = 0.14f))
                 .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent, Color.White.copy(alpha = 0.15f))))

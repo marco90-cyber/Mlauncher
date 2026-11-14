@@ -151,10 +151,8 @@ data class Mat(val style: String, val opacity: Int, val glass: Boolean, val corn
 val MATERIALS = listOf(
     "liquid" to "Liquid Glass",
     "glass" to "Vetro",
-    "tinted" to "Vetro colorato",
-    "dark" to "Vetro scuro",
     "pill" to "Tonale",
-    "solid" to "Pieno",
+    "fluent" to "Fluent",
     "none" to "Nessuno"
 )
 
@@ -211,7 +209,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var dockSlotsL by mutableIntStateOf(sp.getInt("dockSlots_l", sp.getInt("dockSlots", 4)))
     val dockSlots: Int get() = if (landscape) dockSlotsL else dockSlotsP
     fun dockSlotsOf(l: Boolean) = if (l) dockSlotsL else dockSlotsP
-    private fun dockStyleOk(it: String) = if (it in listOf("liquid", "glass", "tinted", "dark", "pill", "bar", "tiles", "none")) it else "glass"
+    private fun dockStyleOk(it: String) = if (it in listOf("liquid", "glass", "pill", "fluent", "bar", "tiles", "none")) it else "glass"
     private var dockStyleP by mutableStateOf(dockStyleOk(sp.getString("dockStyle", "glass") ?: "glass"))
     val dockStyle: String get() = dockStyleP
     private var dockOpacityP by mutableStateOf(sp.getInt("dockOpacity", 60))
@@ -233,9 +231,12 @@ class LauncherSettings(private val sp: SharedPreferences) {
 
     // ---------- materiale degli elementi (Stile) ----------
     // le vecchie dock "barra" e "tessere" diventano una forma della dock + un materiale
-    private fun legacyMat(st: String) = when (st) { "bar" -> "pill"; "tiles" -> "glass"; else -> st }
-    /** materiale generale: liquid, glass, tinted, dark, pill (tonale), solid (pieno), none */
-    var matStyle by mutableStateOf(sp.getString("matStyle", null) ?: legacyMat(dockStyleP))
+    // i materiali tolti (vetro colorato, vetro scuro, pieno) passano al più simile rimasto
+    private fun legacyMat(st: String) = when (st) {
+        "bar" -> "pill"; "tiles" -> "glass"; "tinted", "dark" -> "glass"; "solid" -> "fluent"; else -> st
+    }
+    /** materiale generale: liquid, glass, pill (tonale), fluent, none */
+    var matStyle by mutableStateOf(legacyMat(sp.getString("matStyle", null) ?: dockStyleP))
     var matOpacity by mutableStateOf(sp.getInt("matOpacity", dockOpacityP))
     var matGlass by mutableStateOf(sp.getBoolean("matGlass", dockGlassP))
     var matCorner by mutableStateOf(sp.getInt("matCorner", dockCornerP))
@@ -265,7 +266,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     }
 
     fun elFollow(e: String): Boolean = (el["el_${e}_follow"] as? Boolean) ?: elFollowDefault(e)
-    fun elStyle(e: String): String = (el["el_${e}_style"] as? String) ?: elStyleDefault(e)
+    fun elStyle(e: String): String = (el["el_${e}_style"] as? String)?.let { legacyMat(it) } ?: elStyleDefault(e)
     fun elOpacity(e: String): Int = (el["el_${e}_opacity"] as? Int) ?: (if (e == "dock") dockOpacityP else matOpacity)
     fun elGlass(e: String): Boolean = (el["el_${e}_glass"] as? Boolean) ?: (if (e == "dock") dockGlassP else matGlass)
     fun elCorner(e: String): Int = (el["el_${e}_corner"] as? Int) ?: (if (e == "dock") dockCornerP else matCorner)

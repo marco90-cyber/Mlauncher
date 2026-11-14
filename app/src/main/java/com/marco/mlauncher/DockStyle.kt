@@ -10,8 +10,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+// ---------- Fluent (come Windows 11, preso da MLMeteo) ----------
+/** opacità di base del materiale Fluent (a trasparenza 60%) */
+const val FLUENT_ALPHA = 0.90f
+
+/** Fluent segue il tema del launcher: grigi neutri scuri o chiari. */
+@Composable
+fun fluentDark(): Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+/** Fondo neutro delle schede Fluent (gli stessi grigi di MLMeteo). */
+fun fluentBase(dark: Boolean): Color = if (dark) Color(0xFF2B2B2B) else Color(0xFFFDFDFD)
+
+/** Bordo sottile delle schede Fluent. */
+fun fluentOutline(dark: Boolean): Color = if (dark) Color(0xFF3D3D3D) else Color(0xFFE3E3E3)
 
 fun dockShape(style: String, corner: Dp): Shape =
     if (style == "bar") RoundedCornerShape(topStart = corner, topEnd = corner) else RoundedCornerShape(corner)
@@ -22,17 +37,18 @@ fun Modifier.dockLook(style: String, opacity: Int, glass: Boolean, corner: Dp, s
     if (style == "none" || style == "tiles" || style == "standard") return this
     if (style == "liquid") return this.liquidGlass(corner, shapeOverride ?: RoundedCornerShape(corner), opacity = opacity / 100f)
     val cs = MaterialTheme.colorScheme
+    val fDark = fluentDark()
     val (base, a) = when (style) {
-        "tinted" -> cs.primary to 0.50f // segue il colore scelto (o quello dello sfondo)
-        "dark" -> Color.Black to 0.38f
+        "fluent" -> fluentBase(fDark) to FLUENT_ALPHA
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
-        "solid" -> cs.surfaceContainerHigh to 0.96f
         else -> Color.White to 0.28f
     }
     val alpha = (a * opacity / 60f).coerceIn(0f, 1f)
     val shape = shapeOverride ?: dockShape(style, corner)
     var m = this.clip(shape).background(base.copy(alpha = alpha))
+    // Fluent: bordo sottile e neutro, come le schede di Windows 11 (e di MLMeteo)
+    if (style == "fluent") m = m.border(1.dp, fluentOutline(fDark), shape)
     if (glass) {
         val k = (0.4f + opacity / 100f).coerceIn(0.4f, 1.2f)
         m = m
@@ -59,11 +75,9 @@ fun dockContentColor(style: String, opacity: Int): Color {
     if (style == "none" || style == "standard") return Color.White
     if (style == "liquid") return if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White
     val (base, a0) = when (style) {
-        "tinted" -> cs.primary to 0.50f
-        "dark" -> Color.Black to 0.38f
+        "fluent" -> fluentBase(fluentDark()) to FLUENT_ALPHA
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
-        "solid" -> cs.surfaceContainerHigh to 0.96f
         "tiles" -> cs.surfaceContainerHighest to 0.30f
         else -> Color.White to 0.28f
     }
@@ -129,11 +143,9 @@ val LocalFolderDock = androidx.compose.runtime.compositionLocalOf<DockLookSpec?>
  */
 fun folderPanelColor(style: String, opacity: Int, glass: Boolean, base: Color, surface: Color, backdrop: Color): Color {
     val tint = when (style) {
-        "tinted" -> base to 0.50f
-        "dark" -> Color.Black to 0.38f
+        "fluent" -> base to FLUENT_ALPHA
         "pill" -> base to 0.85f
         "bar" -> base to 0.70f
-        "solid" -> base to 0.96f
         else -> Color.White to 0.28f
     }
     val a = (tint.second * maxOf(opacity, 40) / 60f).coerceIn(0f, 1f)
@@ -153,10 +165,7 @@ fun Modifier.matLook(m: Mat, corner: Dp, shape: Shape? = null, minOpacity: Int =
 
 /** Colore del testo leggibile sopra un elemento con questo materiale. */
 @Composable
-fun matContentColor(m: Mat): Color = when (m.style) {
-    "solid" -> MaterialTheme.colorScheme.onSurface
-    else -> dockContentColor(m.style, m.opacity)
-}
+fun matContentColor(m: Mat): Color = dockContentColor(m.style, m.opacity)
 
 /** Colore (stimato) del fondo su cui stanno i testi del pannello corrente: null = non noto. */
 val LocalPanelBg = androidx.compose.runtime.staticCompositionLocalOf<Color?> { null }
@@ -170,11 +179,9 @@ fun onPanel(c: Color, min: Double = 4.5): Color = LocalPanelBg.current?.let { re
 fun matPanelColor(style: String, opacity: Int, glass: Boolean, under: Color): Color {
     val cs = MaterialTheme.colorScheme
     val (base, a0) = when (style) {
-        "tinted" -> cs.primary to 0.50f
-        "dark" -> Color.Black to 0.38f
+        "fluent" -> fluentBase(fluentDark()) to FLUENT_ALPHA
         "pill" -> cs.surfaceContainer to 0.85f
         "bar" -> cs.surfaceContainerHigh to 0.70f
-        "solid" -> cs.surfaceContainerHigh to 0.96f
         else -> Color.White to 0.28f
     }
     var c = overColor(base, (a0 * opacity / 60f).coerceIn(0f, 1f), under)

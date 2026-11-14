@@ -273,7 +273,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val fgColor = if (dockSpec != null && followDock) {
                     val st = if (dockSpec.style == "bar") "pill" else dockSpec.style
                     val base = when (st) {
-                        "tinted" -> csF.primary
+                        "fluent" -> fluentBase(fluentDark())
                         "pill" -> csF.surfaceContainer
                         else -> Color.White
                     }
@@ -795,10 +795,8 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         minusLook -> cs.surface.copy(alpha = searchVeil)
         matDrawer -> {
             val (base, a0) = when (dm.style) {
-                "tinted" -> cs.primary to 0.50f
-                "dark" -> Color.Black to 0.45f
+                "fluent" -> fluentBase(fluentDark()) to FLUENT_ALPHA
                 "pill" -> cs.surfaceContainer to 0.85f
-                "solid" -> cs.surfaceContainerHigh to 0.97f
                 else -> Color.White to 0.22f
             }
             base.copy(alpha = (a0 * dm.opacity / 60f).coerceIn(0.12f, 1f))

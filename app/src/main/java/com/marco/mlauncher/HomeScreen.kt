@@ -1962,8 +1962,7 @@ private fun MenuArrow(vm: LauncherViewModel, x: Dp, up: Boolean) {
     val cs = MaterialTheme.colorScheme
     val m = vm.settings.matOf("menus")
     val color = if (m.plain) cs.surfaceContainerHigh else when (m.style) {
-        "dark" -> androidx.compose.ui.graphics.lerp(cs.surfaceContainerHigh, Color.Black, 0.45f)
-        "tinted" -> androidx.compose.ui.graphics.lerp(cs.surfaceContainerHigh, cs.primary, 0.45f)
+        "fluent" -> fluentBase(fluentDark())
         "pill" -> cs.surfaceContainer
         else -> androidx.compose.ui.graphics.lerp(cs.surfaceContainerHigh, Color.White, 0.2f)
     }
@@ -2003,7 +2002,7 @@ internal fun MenuSurface(vm: LauncherViewModel, corner: Dp, modifier: Modifier =
     // colore risultante (fondo quasi pieno + materiale sopra lo sfondo vero): testo con il contrasto migliore
     val panel = matPanelColor(m.style, maxOf(m.opacity, 70), m.glass, overColor(cs.surfaceContainerHigh, 0.9f, backdropTone()))
     val fg = when (m.style) {
-        "pill", "solid" -> readableOn(cs.onSurface, panel)
+        "pill" -> readableOn(cs.onSurface, panel)
         else -> bestTextOn(panel)
     }
     // fondo quasi pieno: le icone sotto il menu non devono trasparire e confondere le voci

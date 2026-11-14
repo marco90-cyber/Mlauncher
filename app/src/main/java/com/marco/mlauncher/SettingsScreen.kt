@@ -1822,7 +1822,7 @@ private fun matName(st: String) = when (st) {
     else -> MATERIALS.firstOrNull { it.first == st }?.second ?: st
 }
 
-/** Sfondo vivace per le miniature: così vetro, scuro, tonale e pieno si distinguono a colpo d'occhio. */
+/** Sfondo vivace per le miniature: così vetro, tonale e Fluent si distinguono a colpo d'occhio. */
 private val thumbWall = Brush.linearGradient(
     listOf(Color(0xFFFF8A3D), Color(0xFFE0357A), Color(0xFF3B2BD6), Color(0xFF0A1440))
 )
