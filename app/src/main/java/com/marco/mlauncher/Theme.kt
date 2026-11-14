@@ -16,6 +16,13 @@ import com.marco.mltheme.mlColorScheme
  */
 val ACCENTS = com.marco.mltheme.ACCENTS
 
+/** Colori "dal tema": quelli propri del tema scelto (oggi il verde lime di Sensation). */
+const val THEME_ACCENT = "theme"
+
+/** Colori che si possono scegliere con il tema [launcherTheme]: Sensation ha anche i suoi. */
+fun accentsFor(launcherTheme: String): List<Pair<String, String>> =
+    if (launcherTheme == "sensation") listOf(THEME_ACCENT to "Dal tema (verde HTC)") + ACCENTS else ACCENTS
+
 /** Colore campione per le anteprime. */
 fun accentSwatch(key: String): Color? = com.marco.mltheme.accentSwatch(key)
 
@@ -35,11 +42,12 @@ fun MLauncherTheme(
     content: @Composable () -> Unit
 ) {
     // ogni testo deve leggersi sul suo fondo, qualunque tavolozza dia il sistema
-    val raw = mlColorScheme(mode, accent, seed)
+    // "theme" = i colori propri del tema (il verde HTC di Sensation): la base resta quella di sistema
+    val raw = mlColorScheme(mode, if (accent == THEME_ACCENT) "system" else accent, seed)
     val scheme = androidx.compose.runtime.remember(raw, fluent, sense, accent) {
         guardScheme(
             when {
-                sense -> senseScheme(raw, greenAccent = accent == "system")
+                sense -> senseScheme(raw, greenAccent = accent == THEME_ACCENT)
                 fluent -> fluentScheme(raw)
                 else -> raw
             }
@@ -98,7 +106,7 @@ private val SenseShapes = androidx.compose.material3.Shapes(
 
 /**
  * Tavolozza Sensation: grafite e argento come i telefoni HTC con l'interfaccia Sense (scuro come Sense 2-3,
- * chiaro come i bianchi di Sense 1); con i colori "di sistema" l'accento diventa il verde lime di HTC.
+ * chiaro come i bianchi di Sense 1); con i colori "dal tema" l'accento diventa il verde lime di HTC.
  */
 fun senseScheme(c: androidx.compose.material3.ColorScheme, greenAccent: Boolean): androidx.compose.material3.ColorScheme {
     val dark = c.surface.luminance() < 0.5f

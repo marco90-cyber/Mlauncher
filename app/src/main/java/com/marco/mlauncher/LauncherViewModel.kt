@@ -188,6 +188,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 setSetting("iconShape", "original")
                 setSetting("themedIcons", false)
                 setSetting("switchStyle", "sense")
+                // colori dal tema: il verde lime HTC
+                setSetting("accent", THEME_ACCENT)
             }
             "none" -> {
                 setSetting("matStyle", "none")
@@ -207,6 +209,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             if (!wasSense) enterSenseLayout()
             moveDockToHome()
         } else if (wasSense) {
+            // i colori "dal tema" esistono solo in Sensation: si torna a quelli di sistema
+            if (settings.accent == THEME_ACCENT) setSetting("accent", "system")
             restoreDockFromHome()
             leaveSenseLayout()
         }

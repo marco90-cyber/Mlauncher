@@ -292,7 +292,7 @@ private fun PickColors(vm: LauncherViewModel) {
     }
     Spacer(Modifier.height(20.dp))
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ACCENTS.chunked(4).forEach { row ->
+        accentsFor(s.launcherTheme).chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { (k, l) ->
                     val on = s.accent == k
@@ -879,7 +879,7 @@ private fun Summary(vm: LauncherViewModel) {
     val rows = listOf(
         "Modalità" to when (s.theme) { "light" -> "Chiaro"; "dark" -> "Scuro"; else -> "Automatico" },
         "Tema" to (LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"),
-        "Colori" to (ACCENTS.firstOrNull { it.first == s.accent }?.second ?: ""),
+        "Colori" to (accentsFor(s.launcherTheme).firstOrNull { it.first == s.accent }?.second ?: ""),
         "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
         "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
         "Interruttori" to (SWITCH_STYLES.firstOrNull { it.first == s.switchStyle }?.second?.substringBefore(" (") ?: ""),

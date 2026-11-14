@@ -333,7 +333,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     val matName = { st: String -> MATERIALS.firstOrNull { it.first == st }?.second ?: "" }
     val sections = if (vm.settingsTab == 1) listOf(
         "Aspetto" to listOf(
-            Cat("theme", "Tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 ${(themeNames[s.theme] ?: "").lowercase()} \u00b7 colori ${(ACCENTS.firstOrNull { it.first == s.accent }?.second ?: "").lowercase()} \u00b7 interruttori", Icons.Default.Create),
+            Cat("theme", "Tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 ${(themeNames[s.theme] ?: "").lowercase()} \u00b7 colori ${(accentsFor(s.launcherTheme).firstOrNull { it.first == s.accent }?.second ?: "").lowercase()} \u00b7 interruttori", Icons.Default.Create),
             Cat("wallpaper", "Sfondo", "Immagine, Crea il tuo sfondo, effetti, Android", Icons.Default.Create),
             Cat("material", "Personalizza tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 dock, cartelle, widget, menu e altro", Icons.Default.Star),
             Cat("iconstyle", "Icone", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 nomi" + (if (s.themedIcons) " \u00b7 Material You" else ""), Icons.Default.Star),
@@ -1281,7 +1281,7 @@ private fun PageTheme(vm: LauncherViewModel) {
         )
     }
     Group(if (spec != null) "Impostazioni del tema ${spec.title}" else "Colori") {
-        ChoiceRow("Colori", ACCENTS, s.accent, preview = { AccentPreview(it) }) { vm.setSetting("accent", it) }
+        ChoiceRow("Colori", accentsFor(s.launcherTheme), s.accent, preview = { AccentPreview(it) }) { vm.setSetting("accent", it) }
         // trasparenza dei pannelli per i temi con pannelli pieni (vetro e Liquid Glass hanno la loro, Nessuno non ha pannelli)
         if (spec?.key in setOf("expressive", "tonal", "lite")) {
             SliderRow("Trasparenza", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
@@ -1847,7 +1847,14 @@ private fun EffectPreview(key: String) {
 }
 
 @Composable
-internal fun AccentPreview(key: String) = com.marco.mltheme.AccentPreview(key)
+internal fun AccentPreview(key: String) {
+    if (key != THEME_ACCENT) return com.marco.mltheme.AccentPreview(key)
+    // colori del tema Sensation: verde lime HTC su grafite
+    Box(
+        Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(SENSE_GREEN, SENSE_GREEN_DARK, Color(0xFF2A2C2F))))
+    )
+}
 
 @Composable
 internal fun ThemePreview(key: String) = com.marco.mltheme.ThemePreview(key)
