@@ -19,7 +19,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -147,10 +147,11 @@ fun Root(vm: LauncherViewModel, host: Host) {
                             capture = false
                         }
                         if (shot == null) return@collectLatest
-                        val shotSize = androidx.compose.ui.unit.IntSize(shot.width, shot.height)
+                        // la foto è fatta a un quarto della misura (vedi sotto): vale per la Home grande [size]
+                        val shotSize = size
                         val sigma = blurTarget * 0.577f
                         val img = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            blurSnapshot(shot.asAndroidBitmap(), sigma)?.asImageBitmap()
+                            blurSnapshot(shot.asAndroidBitmap(), sigma / SHOT_DOWN, down = 8 / SHOT_DOWN)?.asImageBitmap()
                         }
                         // ancora da sfocare? (nel frattempo la cartella potrebbe essersi già chiusa)
                         if (maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur) > 0.5.dp) {
@@ -188,11 +189,20 @@ fun Root(vm: LauncherViewModel, host: Host) {
                         }
                         .drawWithContent {
                             if (capture) {
-                                homeLayer.record { this@drawWithContent.drawContent() }
-                                drawLayer(homeLayer)
-                            } else {
-                                drawContent()
+                                // La foto si fa già piccola (un quarto per lato): tanto viene sfocata e rimpicciolita.
+                                // A grandezza piena teneva ferma la Home 55-60 ms proprio all'inizio
+                                // dell'animazione di cartelle e cassetto (nel registro: nCreateHardwareBitmap).
+                                val small = androidx.compose.ui.unit.IntSize(
+                                    (size.width / SHOT_DOWN).toInt().coerceAtLeast(1),
+                                    (size.height / SHOT_DOWN).toInt().coerceAtLeast(1)
+                                )
+                                homeLayer.record(small) {
+                                    scale(1f / SHOT_DOWN, 1f / SHOT_DOWN, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+                                        this@drawWithContent.drawContent()
+                                    }
+                                }
                             }
+                            drawContent()
                         }
                 ) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
@@ -231,6 +241,9 @@ fun Root(vm: LauncherViewModel, host: Host) {
         if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
     }
 }
+
+/** Di quanto è rimpicciolita (per lato) la foto della Home usata per la sfocatura. */
+private const val SHOT_DOWN = 4
 
 /** Dopo una chiusura improvvisa mostra l'errore, da copiare o condividere. */
 @Composable

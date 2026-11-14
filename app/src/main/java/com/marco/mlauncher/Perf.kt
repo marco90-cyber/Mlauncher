@@ -58,6 +58,8 @@ object Perf {
 
     private var coldDone = false
     private var resumeAt = 0L
+    /** cambia a ogni ritorno e a ogni uscita: una misura rimasta in sospeso da un ritorno precedente non conta */
+    private var resumeGen = 0
 
     /** La Home è comparsa con le icone per la prima volta in questo processo. */
     fun homeReady() {
@@ -74,8 +76,12 @@ object Perf {
         resumeAt = SystemClock.uptimeMillis()
         SlowSpot.watch(3000, "ritorno alla Home")
         val start = resumeAt
+        val gen = ++resumeGen
         try {
             activity.window.decorView.viewTreeObserver.registerFrameCommitCallback {
+                // senza niente da ridisegnare il fotogramma arrivava al ritorno successivo, con tempi finti
+                // (nel registro: «Ritorno alla Home: 4411 ms» e misure doppie)
+                if (gen != resumeGen) return@registerFrameCommitCallback
                 if (!coldDone) return@registerFrameCommitCallback
                 val ms = SystemClock.uptimeMillis() - start
                 time("Ritorno alla Home", ms, slowMs = 400)
@@ -86,6 +92,7 @@ object Perf {
     }
 
     fun onPause() {
+        resumeGen++
         synchronized(lock) { flushScene() }
         save()
     }

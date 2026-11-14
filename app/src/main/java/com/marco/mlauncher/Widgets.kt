@@ -85,6 +85,25 @@ class MWidgetHost(ctx: Context) : AppWidgetHost(ctx, 1024) {
         appWidgetId: Int,
         appWidget: AppWidgetProviderInfo?
     ): AppWidgetHostView = LongPressHostView(context)
+
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "widget-host").apply { isDaemon = true }
+    }
+
+    /**
+     * Accende o spegne l'ascolto degli aggiornamenti dei widget fuori dal thread principale: sono chiamate
+     * al sistema che uscendo dalla Home l'hanno tenuta ferma fino a 339 ms. Un solo thread, così accensioni
+     * e spegnimenti restano nell'ordine in cui sono stati chiesti.
+     */
+    fun listen(on: Boolean) {
+        io.execute {
+            try {
+                if (on) startListening() else stopListening()
+            } catch (e: Exception) {
+                if (on) AppLog.e("Widget host non avviato", e) else AppLog.quiet("spegnimento del widget host", e)
+            }
+        }
+    }
 }
 
 class LongPressHostView(ctx: Context) : AppWidgetHostView(ctx) {
@@ -613,7 +632,7 @@ fun ExtWidget(ref: WidgetRef, vm: LauncherViewModel, onLongPress: () -> Unit, mo
                 }
             },
             update = { v ->
-                (v as? AppWidgetHostView)?.setSizeDp(wDp, hDp)
+                if (v is AppWidgetHostView) sendWidgetSize(vm.widgetMgr, ref.widgetId, wDp, hDp)
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -1044,6 +1063,39 @@ fun BatteryWidget(host: Host, onLongPress: () -> Unit, modifier: Modifier) {
     }
 }
 
-/** Dice al widget quanto spazio ha (in dp). */
-@Suppress("DEPRECATION") // la versione nuova vuole un elenco di grandezze: per un posto fisso basta questa
-private fun AppWidgetHostView.setSizeDp(w: Int, h: Int) = updateAppWidgetSize(null, w, h, w, h)
+private val widgetSizeIo = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+    Thread(r, "widget-size").apply { isDaemon = true }
+}
+/** ultima misura mandata a ogni widget (larghezza e altezza in dp, in un solo numero) */
+private val widgetSizeSent = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+
+/**
+ * Dice al widget quanto spazio ha (in dp). È una chiamata al sistema che può restare ferma a lungo
+ * (nel registro fino a un secondo, con la Home bloccata): parte fuori dal thread principale e solo
+ * quando la misura cambia davvero, non a ogni ridisegno.
+ */
+private fun sendWidgetSize(mgr: android.appwidget.AppWidgetManager, id: Int, w: Int, h: Int) {
+    if (w <= 0 || h <= 0) return
+    val key = (w.toLong() shl 32) or h.toLong()
+    if (widgetSizeSent.put(id, key) == key) return
+    widgetSizeIo.execute {
+        try {
+            val old = mgr.getAppWidgetOptions(id)
+            if (old.getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) == w &&
+                old.getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) == h &&
+                old.getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH) == w &&
+                old.getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) == h
+            ) return@execute
+            val o = android.os.Bundle()
+            o.putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, w)
+            o.putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, h)
+            o.putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, w)
+            o.putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, h)
+            mgr.updateAppWidgetOptions(id, o)
+        } catch (e: Exception) {
+            // la prossima volta si riprova
+            widgetSizeSent.remove(id, key)
+            AppLog.quiet("misura di un widget", e)
+        }
+    }
+}

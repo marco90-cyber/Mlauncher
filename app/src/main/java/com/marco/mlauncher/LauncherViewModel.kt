@@ -1089,6 +1089,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // Aggiornamenti di pacchetti in arrivo tutti insieme (es. tornando alla Home dopo gli aggiornamenti del
     // Play Store): li raccolgo per un attimo e li elaboro in un colpo solo, invece di ricaricare tutto N volte.
     private val pendingPkgs = LinkedHashSet<String>()
+    /** data di aggiornamento di ogni pacchetto all'ultima elaborazione (solo sul thread principale) */
+    private val seenPkgTime = HashMap<String, Long>()
     private var pkgJob: kotlinx.coroutines.Job? = null
 
     private fun queuePkg(pkg: String) {
@@ -1107,14 +1109,28 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             val packName = settings.iconPack
-            val fresh = withContext(bg) {
+            val (fresh, times) = withContext(bg) {
                 try { smart.prepare(); smartReady = true } catch (e: Exception) { AppLog.e("Categorie non pronte", e) }
                 val pack = loadIconPack(packName)
-                list.associateWith { queryApps(it, pack) }
+                list.associateWith { queryApps(it, pack) } to list.associateWith { pkgTime(it) }
             }
             val t1 = System.currentTimeMillis()
             val map = HashMap(apps)
+            // Pacchetti che per la Home non sono cambiati: senza icona nel cassetto (es. i servizi di Facebook,
+            // che si aggiornano decine di volte al giorno) oppure con le stesse app e la stessa data di
+            // aggiornamento dell'ultima volta. Prima ognuno ricomponeva la Home e riscriveva la cache su disco.
+            val same = fresh.filter { (pkg, got) ->
+                val old = apps.values.filter { it.pkg == pkg }
+                val time = times[pkg] ?: -1L
+                val unchanged = if (got.isEmpty() && old.isEmpty()) true
+                else time != -1L && seenPkgTime[pkg] == time && pendingUninstall?.pkg != pkg &&
+                    old.map { it.id to it.label }.toSet() == got.map { it.id to it.label }.toSet()
+                seenPkgTime[pkg] = time
+                unchanged
+            }.keys
+            if (loaded && same.size == fresh.size) return@launch
             for ((pkg, got) in fresh) {
+                if (loaded && pkg in same) continue
                 val old = map.values.filter { it.pkg == pkg }
                 old.forEach { map.remove(it.id) }
                 // durante una disinstallazione tengo l'icona per l'animazione
@@ -2104,7 +2120,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             hasLayout = true
             saveLayout()
             if (settings.actualLand) swapTo(true)
-            refresh(null)
+            // le app e le icone sono quelle di prima: basta riallineare la Home (prima si ricaricavano
+            // tutte le app e si riscrivevano tutte le icone su disco, 3-5 secondi di lavoro)
+            if (loaded) reconcile() else refresh(null)
             AppLog.i("Disposizione ripristinata" + if (lost > 0) " ($lost widget non disponibili)" else "")
             lost
         } catch (e: Exception) {
@@ -2117,6 +2135,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return try {
             val o = JSONObject(text)
             val list = decodeItems(o.getJSONArray("layout"), true)
+            val packBefore = settings.iconPack
             settings.load(o.getJSONObject("settings"))
             loadMinus()
             layoutLand = false
@@ -2136,10 +2155,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             hasLayout = true
             saveLayout()
             if (settings.actualLand) swapTo(true)
-            refresh(null)
+            // le icone vanno ricaricate solo se il backup porta un altro pacchetto di icone
+            if (loaded && settings.iconPack == packBefore) reconcile() else refresh(null)
+            AppLog.i("Backup ripristinato")
             if (showWelcome) finishWelcome()
             true
         } catch (e: Exception) {
+            AppLog.e("Ripristino del backup non riuscito", e)
             false
         }
     }

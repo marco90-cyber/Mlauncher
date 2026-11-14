@@ -222,6 +222,15 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // dopo un aggiornamento il sistema ha aperto due volte la Home (nel registro «Launcher avviato» doppio):
+        // la copia vecchia restava viva e ogni pacchetto veniva elaborato e salvato due volte. Ne resta una sola.
+        current?.get()?.let { old ->
+            if (old !== this && !old.isDestroyed && !old.isFinishing) {
+                AppLog.i("Seconda Home aperta dal sistema: chiudo la precedente")
+                old.finish()
+            }
+        }
+        current = java.lang.ref.WeakReference(this)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
@@ -266,6 +275,7 @@ class MainActivity : ComponentActivity(), Host {
     }
 
     override fun onDestroy() {
+        if (current?.get() === this) current = null
         try { unregisterReceiver(unlockReceiver) } catch (e: Exception) { }
         super.onDestroy()
     }
@@ -293,7 +303,7 @@ class MainActivity : ComponentActivity(), Host {
         if (wasStopped && !stoppedByScreenOff && (launchedSinceStart || away > 1500)) vm.playReturn(fromApp = true)
         wasStopped = false
         launchedSinceStart = false
-        try { vm.widgetHost.startListening() } catch (e: Exception) { AppLog.e("Widget host non avviato", e) }
+        vm.widgetHost.listen(true)
         AppLog.i("Home in primo piano")
         MainWatchdog.active = true
     }
@@ -306,7 +316,7 @@ class MainActivity : ComponentActivity(), Host {
         } catch (e: Exception) {
             false
         }
-        try { vm.widgetHost.stopListening() } catch (e: Exception) { }
+        vm.widgetHost.listen(false)
         AppLog.i("Home in background")
         MainWatchdog.active = false
         super.onStop()
@@ -670,5 +680,7 @@ class MainActivity : ComponentActivity(), Host {
     companion object {
         private const val REQ_CONFIGURE = 7001
         private const val REQ_RECONFIGURE = 7002
+        /** la Home aperta in questo momento (ne deve restare una sola) */
+        private var current: java.lang.ref.WeakReference<MainActivity>? = null
     }
 }
