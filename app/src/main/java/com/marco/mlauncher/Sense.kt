@@ -176,7 +176,12 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
     }
     val personalize: () -> Unit = {
         Haptics.tick(view)
-        if (st.lockHome) vm.showOverview = true else vm.editMode = !vm.editMode
+        // "+" apre il menu dei widget, come "Aggiungi alla Home" di Sense
+        if (!vm.blockedByLock()) {
+            vm.minusPick = false
+            vm.stackTarget = null
+            vm.overlay = Overlay.WIDGETS
+        }
     }
     val launchCenter: () -> Unit = {
         val a = center.app
@@ -210,7 +215,7 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
                 onClick = launchCenter, onLongClick = choose
             ) { SenseCenterGlyph(center, 26.dp) }
             SenseKey(Modifier.weight(1f).fillMaxWidth(), onClick = personalize) {
-                Icon(Icons.Rounded.Add, "Personalizza", tint = SenseText, modifier = Modifier.size(26.dp))
+                Icon(Icons.Rounded.Add, "Aggiungi widget", tint = SenseText, modifier = Modifier.size(26.dp))
             }
         }
         return
@@ -246,7 +251,7 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
         val boxH = arc + keyH
         // quanto scende la curva al centro di ogni tasto: lì sotto si centra il contenuto
         fun dropAt(left: Dp, w: Dp): Dp {
-            val t = 1f - 2f * (left + w / 2) / barW
+            val t = 1f - 2f * ((left + w / 2) / barW)
             return arc * (t * t)
         }
         // linguetta d'argento al centro del bordo curvo: si tocca (o si tira su) per il cassetto
@@ -285,7 +290,7 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
                     }
                 }
                 else -> SenseKey(mod, onClick = personalize, shape = shape, contentTop = drop) {
-                    Icon(Icons.Rounded.Add, "Personalizza", tint = SenseText, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Rounded.Add, "Aggiungi widget", tint = SenseText, modifier = Modifier.size(28.dp))
                 }
             }
         }
