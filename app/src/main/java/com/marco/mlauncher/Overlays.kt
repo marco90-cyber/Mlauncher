@@ -206,6 +206,9 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 }
             }
             var menuRect by remember(folderId) { mutableStateOf(Rect.Zero) }
+            // dove starà la cartella aperta (posizione finale, non quella dell'animazione): serve per
+            // sapere che sfondo c'è dietro e scegliere un testo leggibile
+            var toneRect by remember(folderId) { mutableStateOf<Rect?>(null) }
             // solo preparata (non aperta): resta fuori dallo schermo, non copre la Home né prende tocchi
             val onlyPrepared = folder == null && !animating && !handoffHere
             Box(
@@ -253,6 +256,8 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         val ox = if (hasAnchor) anchor.center.x else cx
                         geo[0] = ((ox - cardX) / pl.width).coerceIn(0f, 1f)
                         geo[1] = if (hasAnchor) ((anchor.center.y - y) / pl.height).coerceIn(0f, 1f) else 0.5f
+                        val tr = Rect(cardX, y, cardX + pl.width, y + pl.height)
+                        if (toneRect != tr) toneRect = tr
                         layout(c.maxWidth, c.maxHeight) { pl.place(cardX.roundToInt(), y.roundToInt()) }
                     }
                 ) {
@@ -260,6 +265,11 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                 val dockSpec = vm.settings.matOf("menus").let { m -> if (m.plain) null else DockLookSpec(m.style, m.opacity, m.glass, m.corner) }
                 val followDock = dockSpec != null && dockSpec.style != "none" && dockSpec.style != "tiles"
                 val csF = MaterialTheme.colorScheme
+                // sfondo vero dietro la cartella, con il velo scuro che la accompagna
+                val behind = overColor(Color.Black, 0.18f, backdropTone(toneRect))
+                val liquidF = dockSpec != null && followDock && dockSpec.style == "liquid"
+                // vetro liquido: testo scuro solo se dietro è chiaro (il velo del vetro si adegua)
+                val liquidDark = liquidF && bestTextOn(overColor(Color.White, 0.12f, behind)) != Color.White
                 val fgColor = if (dockSpec != null && followDock) {
                     val st = if (dockSpec.style == "bar") "pill" else dockSpec.style
                     val base = when (st) {
@@ -267,9 +277,10 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                         "pill" -> csF.surfaceContainer
                         else -> Color.White
                     }
-                    if (st == "liquid") (if (LocalGlassDarkText.current) Color(0xFF15171C) else Color.White)
-                    else folderTextColor(st, dockSpec.opacity, base, csF.surfaceContainerHigh, csF.onSurface)
+                    if (st == "liquid") (if (liquidDark) Color(0xFF15171C) else Color.White)
+                    else folderTextColor(st, dockSpec.opacity, dockSpec.glass, base, csF.surfaceContainerHigh, behind)
                 } else csF.onSurface
+                androidx.compose.runtime.CompositionLocalProvider(LocalGlassDarkText provides liquidDark) {
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = if (followDock) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
@@ -556,6 +567,7 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                     }
                 }
                 }
+                }
             }
             val da = dragApp?.let { vm.apps[it] }
             if (da != null) {
@@ -776,16 +788,11 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
     // cassetto con il materiale scelto in Stile (sopra la Home sfocata)
     val dm = s.matOf("drawer")
     val matDrawer = !minusLook && !dm.plain
-    val fg = when {
-        minusLook -> cs.onSurface
-        matDrawer -> matContentColor(dm)
-        s.drBg == "dark" -> Color.White
-        s.drBg == "tonal" -> cs.onPrimaryContainer
-        else -> cs.onSurface
-    }
-    // come la pagina −1: velo del colore del tema sopra la Home sfocata
+    // come la pagina −1: velo del colore del tema sopra la Home sfocata, abbastanza coprente
+    // perché i testi del tema si leggano anche con il tema scuro su uno sfondo chiaro (o il contrario)
+    val searchVeil = if (minusLook) readableVeilAlpha(cs.onSurface, cs.surface, vm.searchDimEff / 100f) else 0f
     val surfaceColor = when {
-        minusLook -> cs.surface.copy(alpha = vm.searchDimEff / 100f)
+        minusLook -> cs.surface.copy(alpha = searchVeil)
         matDrawer -> {
             val (base, a0) = when (dm.style) {
                 "tinted" -> cs.primary to 0.50f
@@ -798,6 +805,17 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         }
         else -> bgColor.copy(alpha = s.drOpacity / 100f)
     }
+    // colore dei testi: quello del tema se si legge sul colore risultante (pannello sopra lo sfondo vero),
+    // altrimenti chiaro o scuro, quello con più contrasto
+    val wallBehind = backdropTone()
+    val panel = overColor(surfaceColor.copy(alpha = 1f), surfaceColor.alpha, wallBehind)
+    val fgTheme = when {
+        minusLook -> cs.onSurface
+        s.drBg == "dark" && !matDrawer -> Color.White
+        s.drBg == "tonal" && !matDrawer -> cs.onPrimaryContainer
+        else -> cs.onSurface
+    }
+    val fg = if (minusLook || contrastOf(fgTheme, panel) >= 4.5) fgTheme else bestTextOn(panel)
     val focusMgr = androidx.compose.ui.platform.LocalFocusManager.current
     Surface(Modifier.fillMaxSize(), color = surfaceColor, contentColor = fg) {
         Column(

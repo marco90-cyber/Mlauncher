@@ -39,3 +39,36 @@ fun guardScheme(cs: ColorScheme): ColorScheme = cs.copy(
     onError = readableOn(cs.onError, cs.error),
     onErrorContainer = readableOn(cs.onErrorContainer, cs.errorContainer)
 )
+
+/** [top] con opacità [a] sopra [bottom] (risultato opaco). */
+fun overColor(top: Color, a: Float, bottom: Color): Color {
+    val k = a.coerceIn(0f, 1f)
+    return Color(
+        top.red * k + bottom.red * (1 - k),
+        top.green * k + bottom.green * (1 - k),
+        top.blue * k + bottom.blue * (1 - k),
+        1f
+    )
+}
+
+/** Testo chiaro o scuro: quello che si legge meglio su [bg]. */
+fun bestTextOn(bg: Color, light: Color = Color.White, dark: Color = Color(0xFF1B1B1F)): Color {
+    val b = bg.copy(alpha = 1f).toArgb()
+    val cl = ColorUtils.calculateContrast(light.copy(alpha = 1f).toArgb(), b)
+    val cd = ColorUtils.calculateContrast(dark.copy(alpha = 1f).toArgb(), b)
+    return if (cl >= cd) light else dark
+}
+
+/** Contrasto tra due colori opachi (1..21). */
+fun contrastOf(fg: Color, bg: Color): Double =
+    ColorUtils.calculateContrast(fg.copy(alpha = 1f).toArgb(), bg.copy(alpha = 1f).toArgb())
+
+/**
+ * Opacità minima di un velo [veil] sopra [backdrop] perché [text] si legga (contrasto [min]).
+ * Parte da [start] (quella scelta dall'utente) e la alza solo quanto serve.
+ */
+fun veilAlphaFor(text: Color, veil: Color, backdrop: Color, start: Float, min: Double = 4.5): Float {
+    var a = start.coerceIn(0f, 1f)
+    while (a < 1f && contrastOf(text, overColor(veil, a, backdrop)) < min) a = (a + 0.04f).coerceAtMost(1f)
+    return a
+}

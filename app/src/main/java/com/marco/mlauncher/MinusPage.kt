@@ -124,7 +124,8 @@ fun MinusPage(vm: LauncherViewModel, host: Host) {
         Box(
             Modifier.fillMaxSize()
                 .graphicsLayer { alpha = p }
-                .background(cs.surface.copy(alpha = s.minusDim / 100f))
+                // coprente quanto basta perché i testi del tema si leggano su qualsiasi sfondo
+                .background(cs.surface.copy(alpha = readableVeilAlpha(cs.onSurface, cs.surface, s.minusDim / 100f)))
         )
         Box(
             Modifier
@@ -251,6 +252,12 @@ internal fun GlassContainer(vm: LauncherViewModel, pad: androidx.compose.ui.unit
     else Modifier.clip(shape)
         .background(if (m.style == "liquid") Color.Transparent else cs.surfaceContainerHigh.copy(alpha = 0.45f))
         .matLook(m, 32.dp, minOpacity = 40)
+        // il vetro liquido mostra lo sfondo così com'è (senza il velo della pagina): un velo del tema
+        // sopra il vetro, solo quanto serve, perché i testi del tema si leggano
+        .then(
+            if (m.style == "liquid") Modifier.background(cs.surface.copy(alpha = readableVeilAlpha(cs.onSurface, cs.surface, 0f)))
+            else Modifier
+        )
     Box(Modifier.fillMaxWidth().then(look).animateContentSize().padding(pad)) { content() }
 }
 

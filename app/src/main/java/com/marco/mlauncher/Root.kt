@@ -26,6 +26,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun Root(vm: LauncherViewModel, host: Host) {
@@ -87,6 +88,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
             WallRender(wb, rootSize.width.toFloat(), rootSize.height.toFloat(), vm.settings.wallParallax) { vm.homeScroll }
         } else null
         Box(Modifier.fillMaxSize().onSizeChanged { rootSize = it; vm.screenPx = it }) {
+          androidx.compose.runtime.CompositionLocalProvider(LocalBackdropWall provides wall) {
             androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
                 // ricerca come la pagina −1: la Home dietro si sfoca
                 val searchBlur by androidx.compose.animation.core.animateDpAsState(
@@ -106,14 +108,20 @@ fun Root(vm: LauncherViewModel, host: Host) {
                 // normalmente (un livello tenuto sempre poteva restare vuoto dopo lo schermo spento: solo sfondo)
                 var capture by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                 val density = androidx.compose.ui.platform.LocalDensity.current
+                // misura della Home quando è stata fatta la foto: ruotando il telefono la foto vecchia
+                // (fatta in verticale) non si stira sullo schermo orizzontale, se ne fa una nuova
+                var blurredSize by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     androidx.compose.runtime.snapshotFlow {
-                        maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur) > 0.5.dp
-                    }.collect { on ->
+                        (maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur) > 0.5.dp) to rootSize
+                    }.collectLatest { (on, size) ->
                         if (!on) {
                             blurred = null
-                            return@collect
+                            return@collectLatest
                         }
+                        // già pronta per questa misura: niente da rifare
+                        if (blurred != null && blurredSize == size) return@collectLatest
+                        blurred = null
                         // quanto sarà sfocata alla fine (la dissolvenza va da 0 a questa)
                         val target = maxOf(
                             if (vm.openFolderId != null) vm.settings.folderBlur.dp else 0.dp,
@@ -134,13 +142,17 @@ fun Root(vm: LauncherViewModel, host: Host) {
                         } finally {
                             capture = false
                         }
-                        if (shot == null) return@collect
+                        if (shot == null) return@collectLatest
+                        val shotSize = androidx.compose.ui.unit.IntSize(shot.width, shot.height)
                         val sigma = blurTarget * 0.577f
                         val img = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                             blurSnapshot(shot.asAndroidBitmap(), sigma)?.asImageBitmap()
                         }
                         // ancora da sfocare? (nel frattempo la cartella potrebbe essersi già chiusa)
-                        if (maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur) > 0.5.dp) blurred = img
+                        if (maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur) > 0.5.dp) {
+                            blurredSize = shotSize
+                            blurred = img
+                        }
                     }
                 }
                 Box(
@@ -148,6 +160,8 @@ fun Root(vm: LauncherViewModel, host: Host) {
                         // sopra la Home (che sfuma via) la foto sfocata che compare
                         drawContent()
                         val img = blurred ?: return@drawWithContent
+                        // foto di un'altra misura (telefono appena ruotato): meglio la Home nitida che stirata
+                        if (blurredSize.width != size.width.toInt() || blurredSize.height != size.height.toInt()) return@drawWithContent
                         val r = maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur).toPx()
                         val f = (r / blurTarget).coerceIn(0f, 1f)
                         if (f > 0f) drawImage(
@@ -165,7 +179,8 @@ fun Root(vm: LauncherViewModel, host: Host) {
                             val r = maxOf(blurRadius, (vm.minusP * vm.settings.minusBlur).dp, searchBlur).toPx()
                             val f = (r / blurTarget).coerceIn(0f, 1f)
                             // tutta sfocata: la Home nitida non serve disegnarla
-                            alpha = if (blurred != null && !capture) 1f - f else 1f
+                            val fits = blurredSize.width == size.width.toInt() && blurredSize.height == size.height.toInt()
+                            alpha = if (blurred != null && !capture && fits) 1f - f else 1f
                         }
                         .drawWithContent {
                             if (capture) {
@@ -190,6 +205,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
             AppsOverlay(vm, host)
             WidgetPicker(vm, host)
             SettingsOverlay(vm, host)
+          }
         }
     }
 

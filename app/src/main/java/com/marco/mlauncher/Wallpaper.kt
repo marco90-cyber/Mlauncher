@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
@@ -69,6 +70,9 @@ class WallRender(
 
 /** Sfondo corrente (null = sfondo di Android, che il Launcher non può leggere). */
 val LocalWall = staticCompositionLocalOf<WallRender?> { null }
+
+/** Sfondo per calcolare i colori dei testi: c'è anche dove il vetro non lo disegna (cassetto, ricerca). */
+val LocalBackdropWall = staticCompositionLocalOf<WallRender?> { null }
 
 /** Tema Liquid Glass attivo. */
 val LocalLiquid = staticCompositionLocalOf { false }
@@ -317,5 +321,61 @@ fun GlassWidgetFrame(kind: String, content: @Composable () -> Unit) {
         )
     ) {
         androidx.compose.material3.MaterialTheme(colorScheme = glass) { content() }
+    }
+}
+
+/**
+ * Colore medio dello sfondo nella zona [rect] dello schermo (tutto lo schermo se null).
+ * Serve a scegliere testi leggibili sopra pannelli trasparenti: si guarda lo sfondo vero,
+ * non un grigio immaginato. Senza sfondo di MLauncher si usa il consiglio di Android (chiaro/scuro).
+ */
+fun wallToneAt(wall: WallRender?, rect: androidx.compose.ui.geometry.Rect?, darkTextHint: Boolean): Color {
+    val fallback = if (darkTextHint) Color(0xFFD8D8DC) else Color(0xFF2A2C33)
+    if (wall == null) return fallback
+    return try {
+        val bm = wall.bmp.asAndroidBitmap()
+        if (bm.config == Bitmap.Config.HARDWARE) return fallback
+        val r = rect?.takeIf { it.width > 1f && it.height > 1f } ?: androidx.compose.ui.geometry.Rect(0f, 0f, wall.screenW, wall.screenH)
+        var rs = 0f; var gs = 0f; var bs = 0f; var n = 0
+        val steps = 12
+        for (i in 0 until steps) for (j in 0 until steps) {
+            val x = r.left + r.width * (i + 0.5f) / steps
+            val y = r.top + r.height * (j + 0.5f) / steps
+            val px = ((x - wall.offX()) / wall.scale).toInt().coerceIn(0, bm.width - 1)
+            val py = ((y - wall.offY) / wall.scale).toInt().coerceIn(0, bm.height - 1)
+            val c = bm.getPixel(px, py)
+            rs += ((c shr 16) and 255) / 255f
+            gs += ((c shr 8) and 255) / 255f
+            bs += (c and 255) / 255f
+            n++
+        }
+        Color(rs / n, gs / n, bs / n, 1f)
+    } catch (e: Exception) {
+        fallback
+    }
+}
+
+/** Colore medio dello sfondo dietro [rect] (tutto lo schermo se null). */
+@Composable
+fun backdropTone(rect: androidx.compose.ui.geometry.Rect? = null): Color {
+    val wall = LocalWall.current ?: LocalBackdropWall.current
+    val hint = LocalGlassDarkText.current
+    return remember(wall, rect, hint) { wallToneAt(wall, rect, hint) }
+}
+
+/**
+ * Opacità del velo [veil] (a tutto schermo, sopra la Home sfocata) perché [text] si legga ovunque:
+ * si prova su sei fasce dello sfondo e si tiene la più esigente. Non scende mai sotto [start].
+ */
+@Composable
+fun readableVeilAlpha(text: Color, veil: Color, start: Float): Float {
+    val wall = LocalWall.current ?: LocalBackdropWall.current
+    val hint = LocalGlassDarkText.current
+    return remember(wall, text, veil, start, hint) {
+        if (wall == null) veilAlphaFor(text, veil, wallToneAt(null, null, hint), start)
+        else (0 until 6).maxOf { i ->
+            val band = androidx.compose.ui.geometry.Rect(0f, wall.screenH * i / 6f, wall.screenW, wall.screenH * (i + 1) / 6f)
+            veilAlphaFor(text, veil, wallToneAt(wall, band, hint), start)
+        }
     }
 }

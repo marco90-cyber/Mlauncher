@@ -68,12 +68,9 @@ fun dockContentColor(style: String, opacity: Int): Color {
         else -> Color.White to 0.28f
     }
     val a = (a0 * opacity / 60f).coerceIn(0f, 1f)
-    val bd = Color(0xFF3A3A3A)
-    val r = base.red * a + bd.red * (1 - a)
-    val g = base.green * a + bd.green * (1 - a)
-    val b = base.blue * a + bd.blue * (1 - a)
-    val lum = 0.2126f * r + 0.7152f * g + 0.0722f * b
-    return if (lum > 0.5f) Color(0xFF1B1B1F) else Color.White
+    // lo sfondo vero dietro (non un grigio immaginato): con il tema scuro e uno sfondo chiaro, o il contrario,
+    // il testo resta leggibile
+    return bestTextOn(overColor(base, a, backdropTone()))
 }
 
 /** Forme disponibili per l'icona delle cartelle. */
@@ -126,18 +123,11 @@ data class DockLookSpec(val style: String, val opacity: Int, val glass: Boolean,
 val LocalFolderDock = androidx.compose.runtime.compositionLocalOf<DockLookSpec?> { null }
 
 /**
- * Colore del testo leggibile sul pannello di una cartella che segue la dock: si stima il colore
- * risultante (base opaca + tinto del vetro, su una Home sfocata mediamente scura) e si sceglie
- * bianco o nero in base alla luminosità.
+ * Colore del testo leggibile sul pannello di una cartella che segue la dock: si calcola il colore
+ * risultante (sfondo vero dietro la cartella + base opaca + tinta e riflesso del vetro) e si sceglie
+ * chiaro o scuro, quello con più contrasto.
  */
-fun folderTextColor(style: String, opacity: Int, base: Color, surface: Color, fallback: Color): Color {
-    fun over(top: Color, a: Float, bottom: Color) = Color(
-        top.red * a + bottom.red * (1 - a),
-        top.green * a + bottom.green * (1 - a),
-        top.blue * a + bottom.blue * (1 - a),
-        1f
-    )
-    val backdrop = Color(0xFF303030)
+fun folderPanelColor(style: String, opacity: Int, glass: Boolean, base: Color, surface: Color, backdrop: Color): Color {
     val tint = when (style) {
         "tinted" -> base to 0.50f
         "dark" -> Color.Black to 0.38f
@@ -147,11 +137,14 @@ fun folderTextColor(style: String, opacity: Int, base: Color, surface: Color, fa
         else -> Color.White to 0.28f
     }
     val a = (tint.second * maxOf(opacity, 40) / 60f).coerceIn(0f, 1f)
-    val c = over(tint.first, a, over(surface, 0.72f, backdrop))
-    val lum = 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
-    return if (lum > 0.5f) Color(0xFF1B1B1F) else Color.White
+    var c = overColor(tint.first, a, overColor(surface, 0.72f, backdrop))
+    // riflesso del vetro (in media un velo bianco leggero)
+    if (glass) c = overColor(Color.White, 0.12f * (0.4f + opacity / 100f).coerceIn(0.4f, 1.2f), c)
+    return c
 }
 
+fun folderTextColor(style: String, opacity: Int, glass: Boolean, base: Color, surface: Color, backdrop: Color): Color =
+    bestTextOn(folderPanelColor(style, opacity, glass, base, surface, backdrop))
 
 /** Aspetto di un elemento con il suo materiale (niente se "standard" o "nessuno"). */
 @Composable
@@ -161,6 +154,6 @@ fun Modifier.matLook(m: Mat, corner: Dp, shape: Shape? = null, minOpacity: Int =
 /** Colore del testo leggibile sopra un elemento con questo materiale. */
 @Composable
 fun matContentColor(m: Mat): Color = when (m.style) {
-    "pill", "solid" -> MaterialTheme.colorScheme.onSurface
+    "solid" -> MaterialTheme.colorScheme.onSurface
     else -> dockContentColor(m.style, m.opacity)
 }
