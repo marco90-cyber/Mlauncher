@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -215,13 +216,17 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
         return
     }
     val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val arc = 9.dp
+    // bordo superiore ben curvo: ai lati scende di [arc] rispetto al centro
+    val arc = 22.dp
+    // distanza dei tasti dal bordo curvo (i tasti seguono la stessa curva)
+    val keysTop = 12.dp
+    val keyH = 54.dp * size
     val swipePx = with(LocalDensity.current) { 36.dp.toPx() }
-    Box(
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .padding(top = 6.dp)
-            .height(arc + 60.dp * size + nav)
+            .height(keysTop + arc + keyH + 8.dp + nav)
             .drawBehind { drawSenseBarBack(arc.toPx()) }
             .pointerInput(Unit) {
                 var total = 0f
@@ -232,6 +237,18 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
                 )
             }
     ) {
+        val barW = maxWidth
+        val side = 7.dp
+        val gap = 5.dp
+        val unit = (barW - side * 2 - gap * 2) / 4.3f
+        val widths = listOf(unit, unit * 2.3f, unit)
+        val lefts = listOf(side, side + unit + gap, side + unit * 3.3f + gap * 2)
+        val boxH = arc + keyH
+        // quanto scende la curva al centro di ogni tasto: lì sotto si centra il contenuto
+        fun dropAt(left: Dp, w: Dp): Dp {
+            val t = 1f - 2f * (left + w / 2) / barW
+            return arc * (t * t)
+        }
         // linguetta d'argento al centro del bordo curvo: si tocca (o si tira su) per il cassetto
         Box(
             Modifier
@@ -246,32 +263,72 @@ fun SenseBar(vm: LauncherViewModel, host: Host, vertical: Boolean = false) {
         ) {
             Box(Modifier.size(22.dp, 2.dp).clip(CircleShape).background(Color(0xFF6A6D72)))
         }
-        Row(
-            Modifier
-                .fillMaxSize()
-                .padding(start = 6.dp, end = 6.dp, top = arc + 7.dp, bottom = nav + 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            SenseKey(Modifier.weight(1f).fillMaxHeight(), onClick = openDrawer) { SenseDrawerGlyph() }
-            SenseKey(
-                Modifier.weight(2.3f).fillMaxHeight().onGloballyPositioned { centerBounds = it.boundsInWindow() },
-                onClick = launchCenter, onLongClick = choose
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    SenseCenterGlyph(center, 22.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        center.label,
-                        style = senseTextStyle(17.sp, FontWeight.Medium),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+        for (i in 0..2) {
+            val shape = remember(barW, i) { SenseKeyShape(barW, lefts[i], arc, 14.dp) }
+            val mod = Modifier
+                .offset(x = lefts[i], y = keysTop)
+                .size(widths[i], boxH)
+                .then(if (i == 1) Modifier.onGloballyPositioned { centerBounds = it.boundsInWindow() } else Modifier)
+            val drop = dropAt(lefts[i], widths[i])
+            when (i) {
+                0 -> SenseKey(mod, onClick = openDrawer, shape = shape, contentTop = drop) { SenseDrawerGlyph() }
+                1 -> SenseKey(mod, onClick = launchCenter, onLongClick = choose, shape = shape, contentTop = drop) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        SenseCenterGlyph(center, 22.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            center.label,
+                            style = senseTextStyle(17.sp, FontWeight.Medium),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                else -> SenseKey(mod, onClick = personalize, shape = shape, contentTop = drop) {
+                    Icon(Icons.Rounded.Add, "Personalizza", tint = SenseText, modifier = Modifier.size(28.dp))
                 }
             }
-            SenseKey(Modifier.weight(1f).fillMaxHeight(), onClick = personalize) {
-                Icon(Icons.Rounded.Add, "Personalizza", tint = SenseText, modifier = Modifier.size(28.dp))
-            }
         }
+    }
+}
+
+/**
+ * Forma di un tasto della barra: il lato di sopra segue la curva della barra (parabola che sale al centro),
+ * gli angoli sono arrotondati. [left] è la posizione del tasto nella barra larga [barW].
+ */
+private class SenseKeyShape(val barW: Dp, val left: Dp, val arc: Dp, val corner: Dp) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density
+    ): androidx.compose.ui.graphics.Outline {
+        val bw = with(density) { barW.toPx() }
+        val l = with(density) { left.toPx() }
+        val a = with(density) { arc.toPx() }
+        val w = size.width
+        val h = size.height
+        val r = minOf(with(density) { corner.toPx() }, w / 2f, h / 3f)
+        fun k(x: Float): Float {
+            val t = 1f - 2f * (l + x) / bw
+            return a * t * t
+        }
+        val q = r * 0.45f
+        val p = Path().apply {
+            moveTo(0f, k(0f) + r)
+            cubicTo(0f, k(0f) + q, q, k(q), r, k(r))
+            val steps = 20
+            for (i in 1..steps) {
+                val x = r + (w - 2f * r) * i / steps
+                lineTo(x, k(x))
+            }
+            cubicTo(w - q, k(w - q), w, k(w) + q, w, k(w) + r)
+            lineTo(w, h - r)
+            cubicTo(w, h - q, w - q, h, w - r, h)
+            lineTo(r, h)
+            cubicTo(q, h, 0f, h - q, 0f, h - r)
+            close()
+        }
+        return androidx.compose.ui.graphics.Outline.Generic(p)
     }
 }
 
@@ -294,17 +351,21 @@ private fun DrawScope.drawSenseBarBack(arc: Float) {
     drawPath(
         body,
         Brush.verticalGradient(
-            0f to Color(0xFF9A9DA2), 0.07f to Color(0xFF5B5E63), 0.24f to Color(0xFF303236),
-            0.6f to Color(0xFF17181A), 1f to Color(0xFF0A0A0B)
+            0f to Color(0xFF55585D), 0.35f to Color(0xFF2C2E32), 0.7f to Color(0xFF151618), 1f to Color(0xFF0A0A0B)
         )
     )
-    drawPath(edge, Color(0xFFE2E4E7), style = Stroke(1.3.dp.toPx()))
+    // smusso chiaro che segue la curva, come il metallo spazzolato dei telefoni HTC
+    clipPath(body) {
+        drawPath(edge, Color(0xFF8E9196).copy(alpha = 0.55f), style = Stroke(16.dp.toPx()))
+        drawPath(edge, Color(0xFFB4B7BC).copy(alpha = 0.55f), style = Stroke(6.dp.toPx()))
+    }
+    drawPath(edge, Color(0xFFE2E4E7), style = Stroke(1.5.dp.toPx()))
     translate(top = 1.6.dp.toPx()) { drawPath(edge, Color.Black.copy(alpha = 0.45f), style = Stroke(1.dp.toPx())) }
 }
 
 /** Fondo della barra in orizzontale: la stessa grafite, in verticale, col filo d'argento verso la Home. */
 private fun DrawScope.drawSenseBarBackVertical() {
-    val r = 10.dp.toPx()
+    val r = 18.dp.toPx()
     drawRoundRect(
         Brush.horizontalGradient(listOf(Color(0xFF5B5E63), Color(0xFF2A2C30), Color(0xFF141516))),
         cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r)
@@ -316,27 +377,44 @@ private fun DrawScope.drawSenseBarBackVertical() {
     )
 }
 
-/** Tasto della barra: rilievo grafite con la luce in alto; premuto diventa verde lime, come in Sense. */
+/** Tasto della barra: rilievo grafite bombato con la luce in alto; premuto diventa verde lime, come in Sense. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SenseKey(
     modifier: Modifier,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(14.dp),
+    contentTop: Dp = 0.dp,
     content: @Composable () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val shape = RoundedCornerShape(7.dp)
     Box(
         modifier
             .clip(shape)
             .background(
-                if (pressed) Brush.verticalGradient(listOf(Color(0xFFC6EC86), Color(0xFF8CC63E), Color(0xFF4E8A12)))
-                else Brush.verticalGradient(listOf(Color(0xFF5E6166), Color(0xFF393B3F), Color(0xFF232427), Color(0xFF1A1B1D)))
+                if (pressed) Brush.verticalGradient(listOf(Color(0xFFD2F29A), Color(0xFF9BD14E), Color(0xFF5E9A1C), Color(0xFF3E6E0C)))
+                else Brush.verticalGradient(listOf(Color(0xFF6E7176), Color(0xFF45474C), Color(0xFF2A2C2F), Color(0xFF1B1C1E), Color(0xFF121314)))
             )
-            .background(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.16f), 0.5f to Color.Transparent))
-            .border(1.dp, Brush.verticalGradient(listOf(Color(0xFF8E9196), Color(0xFF3A3C40), Color(0xFF050506))), shape)
+            // riflesso bombato: un ovale di luce nella parte alta, ombra verso il basso
+            .drawBehind {
+                drawOval(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.04f)),
+                        startY = 0f, endY = size.height * 0.55f
+                    ),
+                    topLeft = Offset(size.width * 0.06f, -size.height * 0.30f),
+                    size = Size(size.width * 0.88f, size.height * 0.85f)
+                )
+                drawRect(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)),
+                        startY = size.height * 0.65f, endY = size.height
+                    )
+                )
+            }
+            .border(1.2.dp, Brush.verticalGradient(listOf(Color(0xFFB4B7BC), Color(0xFF4A4C50), Color(0xFF050506))), shape)
             .combinedClickable(
                 interactionSource = interaction,
                 indication = null,
@@ -344,7 +422,9 @@ private fun SenseKey(
                 onLongClick = onLongClick
             ),
         contentAlignment = Alignment.Center
-    ) { content() }
+    ) {
+        Box(Modifier.padding(top = contentTop), contentAlignment = Alignment.Center) { content() }
+    }
 }
 
 /** Tasto del cassetto: cerchio con la freccia in su. */

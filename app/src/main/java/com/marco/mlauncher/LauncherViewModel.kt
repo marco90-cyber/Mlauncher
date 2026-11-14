@@ -203,8 +203,62 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             setSetting("labelPills", key == "sensation")
         }
         setSetting("launcherTheme", key)
-        if (key == "sensation") moveDockToHome()
-        else if (wasSense) restoreDockFromHome()
+        if (key == "sensation") {
+            if (!wasSense) enterSenseLayout()
+            moveDockToHome()
+        } else if (wasSense) {
+            restoreDockFromHome()
+            leaveSenseLayout()
+        }
+    }
+
+    /**
+     * Tema Sensation: tutte le app nel cassetto (come i telefoni HTC). Le app messe in Home in automatico
+     * (pagine dalla seconda in poi) tornano nel cassetto, la prima pagina resta com'è; la griglia perde una
+     * riga per fare posto alla barra più alta. Modalità e righe di prima si ricordano per quando si cambia tema.
+     */
+    private fun enterSenseLayout() {
+        val e = sp.edit().putString("senseHomeMode", settings.homeMode)
+        if (settings.homeMode != "drawer") {
+            settings.set("homeMode", "drawer")
+            items.removeAll { it.page >= 1 && (it is AppItem || it is FolderItem) }
+            compactPages()
+            AppLog.i("Sensation: app della Home nel cassetto")
+        }
+        if (!settings.landscape) {
+            val rows = settings.rowsOf(false)
+            if (rows > 4) {
+                e.putInt("senseRows", rows)
+                setSetting("rows", rows - 1)
+            }
+        }
+        e.apply()
+        saveLayout()
+    }
+
+    /** Lasciando Sensation tornano le righe e la modalità della Home di prima. */
+    private fun leaveSenseLayout() {
+        val rows = sp.getInt("senseRows", -1)
+        val mode = sp.getString("senseHomeMode", null)
+        sp.edit().remove("senseRows").remove("senseHomeMode").apply()
+        // le righe tornano solo se nel frattempo non le hai cambiate tu
+        if (rows > 0 && !settings.landscape && settings.rowsOf(false) == rows - 1) setSetting("rows", rows)
+        if (mode != null && mode != settings.homeMode) setSetting("homeMode", mode)
+    }
+
+    /** Toglie le pagine rimaste vuote (tranne la prima), senza buchi in mezzo. */
+    private fun compactPages() {
+        val used = items.filter { it.page >= 0 }.map { it.page }.toSortedSet()
+        used.add(0)
+        val map = used.withIndex().associate { (i, p) -> p to i }
+        for (it in items.toList()) {
+            if (it.page >= 0) {
+                val np = map[it.page] ?: 0
+                if (np != it.page) replace(it, it.at(np, it.x, it.y))
+            }
+        }
+        pageCount = used.size.coerceAtLeast(1)
+        if (settings.homePage >= pageCount) settings.set("homePage", 0)
     }
 
     /**

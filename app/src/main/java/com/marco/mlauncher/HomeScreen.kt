@@ -776,7 +776,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
                 Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = navL)) {
                     Spacer(Modifier.height(2.dp))
                     pagerContent(Modifier.weight(1f).fillMaxWidth())
-                    ovHide { PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER } }
+                    // tema Sensation: niente indicatore di pagina né ricerca sopra la barra
+                    if (s.launcherTheme != "sensation") ovHide { PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER } }
                 }
                 if (!seascape && (!s.hideDock || edit)) ovHide { dockContent() }
             }
@@ -789,7 +790,8 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         ) {
             Spacer(Modifier.height(topPad))
             pagerContent(Modifier.weight(1f).fillMaxWidth())
-            ovHide { PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER } }
+            // tema Sensation: niente indicatore di pagina né ricerca sopra la barra
+                    if (s.launcherTheme != "sensation") ovHide { PageDots(vm.pageCount, pagerState, vm.settings.pageIndicator, vm.settings, vm.labelDark) { vm.searchFocus = true; vm.overlay = Overlay.DRAWER } }
             if ((!s.hideDock || edit) && s.launcherTheme == "sensation") ovHide {
                 SideEffect { dockRect = Rect.Zero }
                 SenseBar(vm, host)

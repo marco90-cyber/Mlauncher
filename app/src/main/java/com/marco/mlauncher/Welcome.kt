@@ -322,7 +322,7 @@ private fun PickMode(vm: LauncherViewModel) {
     AB(
         s.homeMode == "drawer", s.homeMode == "all", "Home e cassetto\n(scorri in su)", "Tutte le app\nin Home",
         { if (s.homeMode != "drawer") vm.setSetting("homeMode", "drawer") },
-        { if (s.homeMode != "all") vm.setSetting("homeMode", "all") },
+        { if (s.homeMode != "all" && s.launcherTheme != "sensation") vm.setSetting("homeMode", "all") },
         { MiniPhone(mini(vm, dark).copy(allApps = false, folders = false)) },
         { MiniPhone(mini(vm, dark).copy(allApps = true, folders = false)) }
     )

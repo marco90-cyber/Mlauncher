@@ -814,6 +814,8 @@ private fun PageHome(vm: LauncherViewModel) {
             s.lockHome
         ) { vm.setSetting("lockHome", it) }
         var askOrder by remember { mutableStateOf(false) }
+        // con il tema Sensation le app stanno sempre nel cassetto (come i telefoni HTC)
+        Dependent(s.launcherTheme != "sensation") {
         ChoiceRow(
             "Modalità Home",
             listOf("drawer" to "Home e cassetto app", "all" to "Tutte le app in Home"),
@@ -821,6 +823,7 @@ private fun PageHome(vm: LauncherViewModel) {
         ) {
             vm.setSetting("homeMode", it)
             if (it == "all") askOrder = true
+        }
         }
         if (s.homeMode == "all") {
             SwitchRow(
