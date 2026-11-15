@@ -266,7 +266,8 @@ fun ClockWidget(vm: LauncherViewModel, host: Host, onLongPress: () -> Unit, modi
         "glass" -> { bg = if (onLight) Color.White.copy(alpha = 0.38f) else Color.Black.copy(alpha = 0.26f); fg = glassFg }
         "text" -> { bg = Color.Transparent; fg = glassFg }
         "filled" -> { bg = cs.primary; fg = cs.onPrimary }
-        else -> { bg = cs.primaryContainer; fg = cs.onPrimaryContainer }
+        // Fluent: come la card del widget meteo di MLMeteo (fondo con un velo di colore, testo neutro)
+        else -> if (LocalFluent.current) { bg = cs.surfaceContainer; fg = cs.onSurface } else { bg = cs.primaryContainer; fg = cs.onPrimaryContainer }
     }
     // per il contrasto, sotto a vetro e solo testo immagino lo sfondo chiaro o scuro
     val solidBg = when (style) {
