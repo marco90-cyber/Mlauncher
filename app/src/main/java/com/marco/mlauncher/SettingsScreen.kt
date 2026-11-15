@@ -1344,7 +1344,7 @@ private fun PageTheme(vm: LauncherViewModel) {
                     if (v != s.matOpacity) vm.setSetting("matOpacity", v)
                 }
                 Text(
-                    "Fluent: grigi neutri, bordo sottile e angoli piccoli come Windows 11 (e MLMeteo), anche qui nelle impostazioni.",
+                    "Fluent: i colori del widget di MLMeteo (superfici con un velo del colore dello sfondo o di quello scelto, accento sulle icone), bordo sottile e angoli piccoli come Windows 11, anche qui nelle impostazioni.",
                     style = MaterialTheme.typography.bodySmall,
                     color = cs.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp)

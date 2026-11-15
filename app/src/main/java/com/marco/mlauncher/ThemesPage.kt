@@ -141,7 +141,7 @@ object LauncherThemes {
         TonalIcon, glass = false, expressive = false, lite = false
     )
     val Fluent = ThemeSpec(
-        "fluent", "Fluent", "Come Windows 11: angoli piccoli, bordo sottile, grigi neutri",
+        "fluent", "Fluent", "Come Windows 11 con i colori di MLMeteo: tinta leggera dal colore scelto, accento sulle icone",
         FluentIcon, glass = false, expressive = false, lite = false
     )
     val Sensation = ThemeSpec(
@@ -326,11 +326,12 @@ private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp) 
         }
         // Tonale: icone Material You squircole, tutte nei colori del tema
         spec.key == "tonal" -> { shape = IosShape; bg = cs.secondaryContainer; fg = cs.onSecondaryContainer }
-        // Fluent: tessere quadrate con angoli piccoli, grigio neutro e glifo colorato
+        // Fluent: tessere con angoli piccoli, fondo con un velo del colore e glifo nel colore d'accento (come MLMeteo)
         spec.key == "fluent" -> {
             shape = RoundedCornerShape(size * 0.2f)
-            bg = fluentBase(fluentDark())
-            fg = listOf(Color(0xFF0078D4), Color(0xFFD13438), Color(0xFF107C10), Color(0xFFFFB900))[index % 4]
+            val f = fluentColors()
+            bg = f.card2
+            fg = f.accent
         }
         // Lite: come le icone di serie dei Pixel, cerchi bianchi con il disegno colorato
         spec.lite -> {

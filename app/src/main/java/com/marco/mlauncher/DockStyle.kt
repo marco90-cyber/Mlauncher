@@ -12,21 +12,63 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 
 // ---------- Fluent (come Windows 11, preso da MLMeteo) ----------
 /** opacità di base del materiale Fluent (a trasparenza 60%) */
 const val FLUENT_ALPHA = 0.90f
 
-/** Fluent segue il tema del launcher: grigi neutri scuri o chiari. */
+/** Fluent segue il tema del launcher: chiaro o scuro. */
 @Composable
 fun fluentDark(): Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-/** Fondo neutro delle schede Fluent (gli stessi grigi di MLMeteo). */
-fun fluentBase(dark: Boolean): Color = if (dark) Color(0xFF2B2B2B) else Color(0xFFFDFDFD)
+/**
+ * Colori Fluent, presi da MLMeteo (gli stessi del suo widget meteo): superfici quasi neutre con
+ * appena un velo del colore scelto (sfondo o personale), elementi un gradino più marcati,
+ * accento solo su icone e simboli (smorzato nel chiaro, più vivo nello scuro), testo neutro.
+ */
+data class FluentColors(
+    val dark: Boolean, val bg: Color, val card: Color, val card2: Color,
+    val ink: Color, val inkDim: Color, val outline: Color,
+    val accent: Color, val container: Color, val onContainer: Color
+)
 
-/** Bordo sottile delle schede Fluent. */
-fun fluentOutline(dark: Boolean): Color = if (dark) Color(0xFF3D3D3D) else Color(0xFFE3E3E3)
+/** Il colore "200" della tavolozza (come system_accent1_200 usato da MLMeteo), da qualunque schema. */
+fun fluentSeed(c: androidx.compose.material3.ColorScheme): Color =
+    if (c.surface.luminance() < 0.5f) c.primary else c.inversePrimary
+
+/** Stessa ricetta di buildColors() di MLMeteo. */
+fun fluentColors(dark: Boolean, accent: Color): FluentColors = if (dark) {
+    val card = lerp(Color(0xFF1F1E26), accent, 0.07f)
+    val container = lerp(card, accent, 0.38f)
+    FluentColors(
+        dark = true,
+        bg = lerp(Color(0xFF131218), accent, 0.04f), card = card, card2 = lerp(Color(0xFF2A2932), accent, 0.10f),
+        ink = Color(0xFFE6E1EC), inkDim = Color(0xFFC9C5D0), outline = Color(0xFF3A3944),
+        accent = accent, container = container,
+        onContainer = if (container.luminance() > 0.45f) Color(0xFF16151C) else Color.White
+    )
+} else {
+    val a = if (accent.luminance() > 0.35f) lerp(accent, Color.Black, 0.45f) else accent
+    FluentColors(
+        dark = false,
+        bg = lerp(Color(0xFFFBF9FE), a, 0.03f), card = lerp(Color(0xFFF1EFF6), a, 0.06f), card2 = lerp(Color(0xFFE4E2EC), a, 0.10f),
+        ink = Color(0xFF1C1B21), inkDim = Color(0xFF47464F), outline = Color(0xFFCAC7D3),
+        accent = a, container = lerp(Color.White, a, 0.30f), onContainer = Color(0xFF16151C)
+    )
+}
+
+@Composable
+fun fluentColors(dark: Boolean = fluentDark()): FluentColors = fluentColors(dark, fluentSeed(MaterialTheme.colorScheme))
+
+/** Fondo delle schede Fluent (dock, cartelle, menu, pannelli): come la card del widget di MLMeteo. */
+@Composable
+fun fluentBase(dark: Boolean = fluentDark()): Color = fluentColors(dark).card
+
+/** Bordo sottile delle schede Fluent: un gradino della stessa tinta, appena visibile. */
+@Composable
+fun fluentOutline(dark: Boolean = fluentDark()): Color = fluentColors(dark).card2
 
 // ---------- Sense (come i telefoni HTC: grafite lucida con il bordo d'argento) ----------
 /** grafite dei pannelli Sense: sempre scura, come i widget dei telefoni HTC */
