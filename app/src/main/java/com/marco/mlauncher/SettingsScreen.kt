@@ -1006,6 +1006,12 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
 @Composable
 private fun PageDrawer(vm: LauncherViewModel) {
     val s = vm.settings
+    // la dimensione delle icone è la prima cosa che si cerca: sta in cima, non in fondo alla pagina
+    OrientedGroup("Dimensione delle icone", s) {
+        SliderRow("Dimensione icone", "${(s.drIcon * 100).roundToInt()}%", s.drIcon, 0.7f..2.0f, 25) {
+            vm.setSetting("drIcon", (it * 20).roundToInt() / 20f)
+        }
+    }
     Group("Disposizione") {
         ChoiceRow(
             "Disposizione",
@@ -1087,9 +1093,6 @@ private fun PageDrawer(vm: LauncherViewModel) {
                 val v = it.roundToInt()
                 if (v != s.drCols) vm.setSetting("drCols", v)
             }
-        }
-        SliderRow("Dimensione icone", "${(s.drIcon * 100).roundToInt()}%", s.drIcon, 0.7f..1.4f, 13) {
-            vm.setSetting("drIcon", (it * 20).roundToInt() / 20f)
         }
         SliderRow("Altezza delle righe", "${(s.drRowH * 100).roundToInt()}%", s.drRowH, 0.6f..1.6f, 9) {
             vm.setSetting("drRowH", (it * 20).roundToInt() / 20f)

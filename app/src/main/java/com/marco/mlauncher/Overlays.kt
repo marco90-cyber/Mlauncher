@@ -1036,7 +1036,7 @@ private fun DrawerPages(
         val cols = s.drCols
         val lines = if (s.drTwoLine) 2 else 1
         val labelH = if (s.drLabels) (s.drLabelSize * 1.35f * lines * fontScale + 6f).dp else 0.dp
-        val cellH = 52.dp * s.drIcon + (16f * s.drRowH).dp + labelH
+        val cellH = drawerIconDp(s, maxWidth.value.toInt(), true) + (16f * s.drRowH).dp + labelH
         val dotsH = 28.dp
         val rows = ((maxHeight - dotsH - s.drTop.dp) / cellH).toInt().coerceAtLeast(1)
         val per = cols * rows
@@ -1244,6 +1244,18 @@ private fun androidx.compose.foundation.layout.BoxScope.DrawerScrollBar(
     }
 }
 
+/**
+ * Dimensione dell'icona nel cassetto: quella scelta nelle impostazioni, ma mai più larga della cella
+ * (con 6 colonne e icone al 200% uscirebbero dai bordi e si toccherebbero).
+ */
+internal fun drawerIconDp(s: LauncherSettings, screenWidthDp: Int, grid: Boolean): androidx.compose.ui.unit.Dp {
+    val wanted = 52.dp * s.drIcon
+    if (!grid) return wanted
+    val side = s.drIndent * 2 + (if (s.drScrollbar && !s.drPaged) 30 else 0)
+    val cell = (screenWidthDp - side) / s.drCols.coerceAtLeast(1)
+    return minOf(wanted, (cell * 0.88f).dp)
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host, forceGrid: Boolean = false) {
@@ -1268,7 +1280,7 @@ private fun DrawerApp(app: AppEntry, vm: LauncherViewModel, host: Host, forceGri
                 .padding(vertical = (8f * st.drRowH).dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val iconSz = 52.dp * st.drIcon
+            val iconSz = drawerIconDp(st, LocalConfiguration.current.screenWidthDp, !listMode)
             if (listMode) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     AppIcon(app, iconSz * 0.8f, st.themedIcons)
