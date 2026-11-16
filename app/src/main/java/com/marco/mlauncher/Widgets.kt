@@ -4,7 +4,6 @@ import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.text.format.DateFormat
@@ -12,7 +11,6 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.RemoteViews
 import android.widget.TextView
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -95,41 +93,42 @@ class MWidgetHost(ctx: Context) : AppWidgetHost(ctx, 1024) {
 
     private val main = Handler(Looper.getMainLooper())
 
-    /** L'ultimo stato chiesto: serve all'accensione rimandata sul thread principale (Android 12-13). */
+    /** L'ultimo stato chiesto: l'accensione arriva dopo sul thread principale e deve valere ancora. */
     @Volatile
     private var wanted = false
 
     /**
-     * Accende o spegne l'ascolto degli aggiornamenti dei widget fuori dal thread principale: sono chiamate
-     * al sistema che uscendo dalla Home l'hanno tenuta ferma fino a 339 ms. Un solo thread, così accensioni
-     * e spegnimenti restano nell'ordine in cui sono stati chiesti.
+     * Accende o spegne l'ascolto degli aggiornamenti dei widget. Passano tutti da un solo thread, così
+     * accensioni e spegnimenti restano nell'ordine in cui sono stati chiesti.
      *
-     * Attenzione: l'accensione applica subito, sul thread che la chiama, gli aggiornamenti rimasti in coda
-     * mentre la Home era ferma (per esempio dopo l'aggiornamento di un'app con widget). Toccare le viste da
-     * qui ha fatto chiudere la Home al ritorno (NullPointerException in dispatchVisibilityAggregated), quindi:
-     *  - da Android 14 le viste dei widget riportano da sole il lavoro sul thread principale (LongPressHostView);
-     *  - su Android 12 e 13 quel passaggio non si può intercettare, e l'accensione si fa sul thread principale.
+     * Lo spegnimento resta fuori dal thread principale: uscendo dalla Home l'ha tenuta ferma fino a 339 ms.
+     *
+     * L'accensione invece si fa sul thread principale: applica subito, sul thread che la chiama, gli
+     * aggiornamenti rimasti in coda mentre la Home era ferma (per esempio dopo l'aggiornamento di un'app
+     * con widget), cioè smonta e rimonta le viste dei widget. Fatta dal thread "widget-host" ha fatto
+     * chiudere la Home al ritorno (NullPointerException in ViewGroup.dispatchVisibilityAggregated).
      */
     fun listen(on: Boolean) {
         wanted = on
         io.execute {
-            try {
-                when {
-                    !on -> stopListening()
-                    Build.VERSION.SDK_INT >= 34 -> startListening()
-                    else -> main.post {
-                        // nel frattempo la Home può essere già uscita di nuovo: allora niente accensione
-                        if (wanted) {
-                            try {
-                                startListening()
-                            } catch (e: Exception) {
-                                AppLog.e("Widget host non avviato", e)
-                            }
-                        }
+            if (!on) {
+                try {
+                    stopListening()
+                } catch (e: Exception) {
+                    AppLog.quiet("spegnimento del widget host", e)
+                }
+            } else {
+                main.post {
+                    // nel frattempo la Home può essere già uscita di nuovo: allora niente accensione
+                    if (!wanted) return@post
+                    try {
+                        val t0 = android.os.SystemClock.uptimeMillis()
+                        startListening()
+                        Perf.time("Accensione dei widget", android.os.SystemClock.uptimeMillis() - t0, slowMs = 100)
+                    } catch (e: Exception) {
+                        AppLog.e("Widget host non avviato", e)
                     }
                 }
-            } catch (e: Exception) {
-                if (on) AppLog.e("Widget host non avviato", e) else AppLog.quiet("spegnimento del widget host", e)
             }
         }
     }
@@ -148,30 +147,22 @@ class LongPressHostView(ctx: Context) : AppWidgetHostView(ctx) {
     }
 
     /**
-     * Gli aggiornamenti in coda arrivano dal thread "widget-host" (vedi MWidgetHost.listen): le viste si
-     * toccano solo dal thread principale, quindi da lì il lavoro viene rimandato, nello stesso ordine.
+     * Rete di sicurezza: le viste si toccano solo dal thread principale. Se un aggiornamento arriva da un
+     * altro thread viene rimandato lì invece di smontare il widget sotto i piedi della Home.
      */
-    private inline fun onMain(crossinline work: () -> Unit) {
+    override fun updateAppWidget(remoteViews: RemoteViews?) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            work()
+            super.updateAppWidget(remoteViews)
         } else {
             handler.post {
                 try {
-                    work()
+                    super.updateAppWidget(remoteViews)
                 } catch (e: Exception) {
                     AppLog.quiet("aggiornamento di un widget", e)
                 }
             }
         }
     }
-
-    override fun updateAppWidget(remoteViews: RemoteViews?) = onMain { super.updateAppWidget(remoteViews) }
-
-    @RequiresApi(34)
-    override fun onUpdateProviderInfo(info: AppWidgetProviderInfo?) = onMain { super.onUpdateProviderInfo(info) }
-
-    @RequiresApi(34)
-    override fun onViewDataChanged(viewId: Int) = onMain { super.onViewDataChanged(viewId) }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
