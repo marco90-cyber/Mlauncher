@@ -222,15 +222,19 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // dopo un aggiornamento il sistema ha aperto due volte la Home (nel registro «Launcher avviato» doppio):
-        // la copia vecchia restava viva e ogni pacchetto veniva elaborato e salvato due volte. Ne resta una sola.
-        current?.get()?.let { old ->
-            if (old !== this && !old.isDestroyed && !old.isFinishing) {
-                AppLog.i("Seconda Home aperta dal sistema: chiudo la precedente")
-                old.finish()
-            }
+        instanceNo = ++instances
+        alive.add(java.lang.ref.WeakReference(this))
+        // Primo avvio dopo un aggiornamento di MLauncher: lo segno nel registro e la Home riparte pulita
+        // (nessuna animazione di ritorno rimasta a metà dalla versione precedente).
+        val prefs = getSharedPreferences("mlauncher_start", MODE_PRIVATE)
+        val code = AppUpdate.installedCode(this)
+        val prevCode = prefs.getLong("lastCode", -1L)
+        afterUpdate = prevCode != -1L && prevCode != code
+        if (prevCode != code) prefs.edit().putLong("lastCode", code).apply()
+        if (afterUpdate) {
+            AppLog.i("Avvio: primo avvio dopo l'aggiornamento (${prevCode} → ${code}), Home ripartita da zero")
+            vm.disarmReturn()
         }
-        current = java.lang.ref.WeakReference(this)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
@@ -242,7 +246,9 @@ class MainActivity : ComponentActivity(), Host {
         } catch (e: Exception) { AppLog.quiet("ascolto dello sblocco", e) }
         vm.checkUpdate(auto = true)
         vm.loadCrash()
-        AppLog.i("Launcher avviato" + if (savedInstanceState != null) " (ricreato)" else "")
+        AppLog.i("Launcher avviato (Home n. $instanceNo)" + if (savedInstanceState != null) " (ricreato)" else "")
+        // ogni disegno della finestra: serve al controllo «la Home si vede davvero?»
+        window.decorView.viewTreeObserver.addOnDrawListener { lastDrawAt = android.os.SystemClock.uptimeMillis() }
         Perf.attach(window)
         // il rilevatore dei rallentamenti scrive anche cosa c'era aperto in quel momento
         SlowSpot.context = {
@@ -275,7 +281,8 @@ class MainActivity : ComponentActivity(), Host {
     }
 
     override fun onDestroy() {
-        if (current?.get() === this) current = null
+        alive.removeAll { it.get() == null || it.get() === this }
+        lateH.removeCallbacks(visibleCheck)
         try { unregisterReceiver(unlockReceiver) } catch (e: Exception) { }
         super.onDestroy()
     }
@@ -335,6 +342,7 @@ class MainActivity : ComponentActivity(), Host {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && afterUpdate) AppLog.i("Avvio dopo l'aggiornamento: Home n. $instanceNo in primo piano con il focus")
         if (hasFocus && unlockArmed && !keyguardLocked()) playUnlock()
     }
 
@@ -360,7 +368,7 @@ class MainActivity : ComponentActivity(), Host {
         wasStopped = false
         launchedSinceStart = false
         vm.widgetHost.listen(true)
-        AppLog.i("Home in primo piano")
+        AppLog.i("Home in primo piano (n. $instanceNo)")
         MainWatchdog.active = true
     }
 
@@ -418,6 +426,7 @@ class MainActivity : ComponentActivity(), Host {
     override fun onPause() {
         super.onPause()
         lateH.removeCallbacks(lateResume)
+        lateH.removeCallbacks(visibleCheck)
         Perf.onPause()
     }
 
@@ -432,6 +441,12 @@ class MainActivity : ComponentActivity(), Host {
             if (info != null && id != -1) finishPending(id, info) else waitConfigReturn = false
         }
         updateDefault()
+        closeOtherHomes()
+        // controllo «la Home si vede davvero?» poco dopo il ritorno in primo piano
+        resumedAt = android.os.SystemClock.uptimeMillis()
+        checkRound = 0
+        lateH.removeCallbacks(visibleCheck)
+        lateH.postDelayed(visibleCheck, CHECK_DELAY)
         lateH.removeCallbacks(lateResume)
         lateSince = android.os.SystemClock.uptimeMillis()
         lateH.postDelayed(lateResume, 1200)
@@ -511,6 +526,82 @@ class MainActivity : ComponentActivity(), Host {
     private fun updateDefault() {
         val rm = getSystemService(RoleManager::class.java)
         vm.isDefaultHome = rm != null && rm.isRoleHeld(RoleManager.ROLE_HOME)
+    }
+
+    // ---------- Home sempre visibile ----------
+
+    /** numero di questa Home nel processo (dopo un aggiornamento il sistema a volte ne apre due) */
+    private var instanceNo = 0
+    /** primo avvio dopo un aggiornamento di MLauncher */
+    private var afterUpdate = false
+    @Volatile private var lastDrawAt = 0L
+    private var resumedAt = 0L
+    private var checkRound = 0
+
+    /**
+     * Se il sistema ha aperto più di una Home, resta quella che si vede (quella tornata in primo piano) e le
+     * altre si chiudono. Prima si chiudeva la Home vecchia appena ne nasceva una nuova, anche se la vecchia era
+     * proprio quella sullo schermo: dopo un aggiornamento restava solo lo sfondo.
+     */
+    private fun closeOtherHomes() {
+        alive.removeAll { it.get() == null }
+        for (ref in alive.toList()) {
+            val other = ref.get() ?: continue
+            if (other === this || other.isFinishing || other.isDestroyed) continue
+            AppLog.i("Più Home aperte: resta la n. $instanceNo (in primo piano), chiudo la n. ${other.instanceNo}")
+            other.finish()
+        }
+    }
+
+    /**
+     * Rete di sicurezza: un attimo dopo il ritorno in primo piano controllo che la Home si veda davvero.
+     * Se no la sistemo da sola, come facevi tu passando dal multitasking.
+     */
+    private val visibleCheck = object : Runnable {
+        override fun run() {
+            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
+            // dietro la schermata di blocco l'animazione aspetta lo sblocco: è voluto
+            if (keyguardLocked()) return
+            checkRound++
+            val now = android.os.SystemClock.uptimeMillis()
+            val problems = ArrayList<String>()
+            if (!vm.loaded) problems.add("app non ancora caricate")
+            val stuck = vm.returnP < 1f && !unlockArmed && now - vm.returnStartedAt > 2000L
+            if (stuck) problems.add("animazione di ritorno ferma a ${(vm.returnP * 100).toInt()}%")
+            val drawn = lastDrawAt >= resumedAt
+            if (!drawn) problems.add("finestra non ridisegnata")
+            if (problems.isEmpty()) {
+                if (afterUpdate && checkRound <= 2) AppLog.i("Avvio dopo l'aggiornamento: Home visibile (n. $instanceNo)")
+                return
+            }
+            // solo «non ridisegnata» al primo controllo: può essere normale (es. tornando da una finestra
+            // trasparente non serve ridisegnare). Chiedo un disegno e ricontrollo, senza scrivere nel registro.
+            val onlyDraw = drawn.not() && problems.size == 1
+            if (!(onlyDraw && checkRound == 1)) {
+                AppLog.w("Home non visibile (controllo $checkRound, Home n. $instanceNo): " + problems.joinToString(", "))
+            }
+            if (stuck) vm.disarmReturn()
+            when {
+                // ridisegno la finestra e ricontrollo
+                checkRound == 1 -> {
+                    window.decorView.invalidate()
+                    window.decorView.requestLayout()
+                    lateH.postDelayed(this, CHECK_DELAY)
+                }
+                // la finestra non si disegna ancora: riapro la Home (come uscire e rientrare dal multitasking)
+                // (al massimo una volta ogni 30 secondi, per non riaprirla all'infinito)
+                !drawn && checkRound == 2 && now - lastRecreateAt > 30_000L -> {
+                    lastRecreateAt = now
+                    AppLog.w("Home ancora non visibile: la riapro")
+                    recreate()
+                }
+                // app non caricate dopo parecchi secondi: le ricarico
+                !vm.loaded && checkRound < 6 -> {
+                    if (checkRound == 4) vm.refresh(null)
+                    lateH.postDelayed(this, CHECK_DELAY)
+                }
+            }
+        }
     }
 
     // ---------- Host ----------
@@ -742,7 +833,12 @@ class MainActivity : ComponentActivity(), Host {
     companion object {
         private const val REQ_CONFIGURE = 7001
         private const val REQ_RECONFIGURE = 7002
-        /** la Home aperta in questo momento (ne deve restare una sola) */
-        private var current: java.lang.ref.WeakReference<MainActivity>? = null
+        /** dopo quanto (ms) si controlla che la Home si veda */
+        private const val CHECK_DELAY = 1200L
+        /** le Home aperte in questo processo (ne deve restare una sola) */
+        private val alive = ArrayList<java.lang.ref.WeakReference<MainActivity>>()
+        private var instances = 0
+        /** ultima volta che la Home è stata riaperta dalla rete di sicurezza */
+        private var lastRecreateAt = 0L
     }
 }

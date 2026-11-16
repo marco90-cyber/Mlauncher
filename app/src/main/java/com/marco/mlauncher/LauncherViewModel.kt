@@ -611,6 +611,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var returnP by mutableFloatStateOf(1f)
     var returnSignal by mutableIntStateOf(0)
         private set
+    /** quando è partita (o è stata preparata) l'ultima animazione di ritorno: serve al controllo della Home visibile */
+    var returnStartedAt = 0L
+        private set
     /** ultima app aperta dalla Home (per il rimbalzo e l'onda) */
     var returnAppId by mutableStateOf<String?>(null)
         private set
@@ -639,6 +642,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             hit.page == -1 -> (hit.x.toFloat() * gridCols / dockCount.coerceAtLeast(1)) to gridRows.toFloat()
             else -> (hit.x + hit.spanX / 2f) to (hit.y + hit.spanY / 2f)
         }
+        returnStartedAt = android.os.SystemClock.uptimeMillis()
         returnP = 0f
         returnSignal += 1
     }
@@ -654,6 +658,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (overlay != Overlay.NONE || openFolderId != null || editMode) return false
         returnAppId = null
         returnOrigin = (gridCols / 2f) to (gridRows / 2f)
+        returnStartedAt = android.os.SystemClock.uptimeMillis()
         returnP = 0f
         return true
     }

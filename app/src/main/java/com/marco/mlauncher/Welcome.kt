@@ -80,14 +80,25 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
     var step by remember { mutableStateOf(Step.HELLO) }
     var forward by remember { mutableStateOf(true) }
-    // la domanda sulle cartelle ha senso solo con "tutte le app in Home"
-    val steps = Step.entries.filter { it != Step.FOLDERS || vm.settings.homeMode == "all" }
+    // Domande che il tema scelto rende inutili o in conflitto:
+    //  - cartelle intelligenti: solo con «tutte le app in Home»;
+    //  - con Sensation le app stanno sempre nel cassetto e al posto della dock c'è la barra a tre tasti
+    //    (senza indicatore di pagina), quindi niente domande su dove mettere le app e sulla dock.
+    val sense = vm.settings.launcherTheme == "sensation"
+    val steps = Step.entries.filter {
+        when (it) {
+            Step.FOLDERS -> vm.settings.homeMode == "all" && !sense
+            Step.MODE, Step.DOCK -> !sense
+            else -> true
+        }
+    }
     fun go(to: Step) {
         forward = to.ordinal > step.ordinal
         step = to
     }
-    fun next() = steps.getOrNull(steps.indexOf(step) + 1)?.let { go(it) } ?: vm.finishWelcome()
-    fun back() = steps.getOrNull(steps.indexOf(step) - 1)?.let { go(it) }
+    // il passo dopo/prima nell'ordine, anche se quello attuale è appena sparito dall'elenco (tema cambiato)
+    fun next() = steps.firstOrNull { it.ordinal > step.ordinal }?.let { go(it) } ?: vm.finishWelcome()
+    fun back() = steps.lastOrNull { it.ordinal < step.ordinal }?.let { go(it) }
     BackHandler { if (step == Step.HELLO) vm.finishWelcome() else back() }
     // durante il benvenuto si impostano i valori del verticale
     LaunchedEffect(Unit) { vm.settings.previewLand = false }
@@ -269,7 +280,7 @@ private fun PickTheme(vm: LauncherViewModel) {
     )
     Label("Il tema")
     Text(
-        "Materiale della Home, forma delle icone e interruttori, tutto insieme. Poi puoi cambiare ogni dettaglio in Stile \u2192 Tema.",
+        "Aspetto di dock, cartelle e widget, forma delle icone e interruttori, tutto insieme. Ogni dettaglio si cambia poi in Impostazioni \u2192 Tema e Personalizza tema.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
         textAlign = TextAlign.Center,
@@ -287,6 +298,10 @@ private fun PickColors(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     Headline("I tuoi colori", "Gli stessi colori di Android, quelli del tuo sfondo oppure un colore fisso.")
+    when (s.launcherTheme) {
+        "fluent" -> ThemeNote("Con Fluent il colore dà una tinta leggera a pannelli e menu; l'accento va solo su icone e simboli.")
+        "sensation" -> ThemeNote("\u00abDal tema\u00bb è il verde lime dei telefoni HTC.")
+    }
     Box(Modifier.fillMaxWidth(0.5f).aspectRatio(0.52f).clip(RoundedCornerShape(26.dp)).border(1.dp, cs.outlineVariant, RoundedCornerShape(26.dp)).padding(6.dp)) {
         MiniPhone(mini(vm, isDarkPreview(s.theme)))
     }
@@ -351,6 +366,18 @@ private fun PickFolders(vm: LauncherViewModel) {
     }
 }
 
+/** Nota sotto il titolo quando il tema scelto cambia il senso della domanda. */
+@Composable
+private fun ThemeNote(t: String) {
+    Text(
+        t,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 0.dp, bottom = 16.dp)
+    )
+}
+
 @Composable
 private fun Label(t: String) {
     Text(
@@ -370,7 +397,10 @@ private fun PickIcons(vm: LauncherViewModel) {
     Headline("Icone e griglia", "Quante icone, di che forma e quanto grandi.")
     Label("Griglia")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf(Triple(4, 5, "4 × 5"), Triple(4, 6, "4 × 6"), Triple(5, 6, "5 × 6")).forEach { (c, r, l) ->
+        // con Sensation la barra a tre tasti è più alta: una riga in meno
+        val grids = if (s.launcherTheme == "sensation") listOf(Triple(4, 4, "4 × 4"), Triple(4, 5, "4 × 5"), Triple(5, 5, "5 × 5"))
+        else listOf(Triple(4, 5, "4 × 5"), Triple(4, 6, "4 × 6"), Triple(5, 6, "5 × 6"))
+        grids.forEach { (c, r, l) ->
             PickCard(s.cols == c && s.rows == r, l, Modifier.weight(1f), {
                 if (s.cols != c) vm.setSetting("cols", c)
                 if (s.rows != r) vm.setSetting("rows", r)
@@ -379,7 +409,9 @@ private fun PickIcons(vm: LauncherViewModel) {
     }
     Label("Forma")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        listOf("original" to "Originale", "ios" to "iOS", "circle" to "Cerchio", "square" to "Quadrato").forEach { (k, l) ->
+        // la forma scelta dal tema (es. il biscotto di Material 3 Expressive) resta tra le scelte
+        val base = listOf("original" to "Originale", "ios" to "iOS", "circle" to "Cerchio", "square" to "Quadrato")
+        (if (base.none { it.first == s.iconShape }) listOf(s.iconShape to "Del tema") + base else base).forEach { (k, l) ->
             Column(
                 Modifier.clip(RoundedCornerShape(16.dp)).clickable { vm.setSetting("iconShape", k) }
                     .background(if (s.iconShape == k) cs.primaryContainer else Color.Transparent).padding(10.dp),
@@ -446,7 +478,7 @@ private fun PickDock(vm: LauncherViewModel) {
             }
     }
     Text(
-        "Il materiale dei singoli elementi (dock, cartelle, widget\u2026) si cambia in Impostazioni \u2192 Stile \u2192 Personalizza tema",
+        "L'aspetto dei singoli elementi (dock, cartelle, widget\u2026) si cambia in Impostazioni \u2192 Personalizza tema",
         color = cs.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
         textAlign = TextAlign.Center,
@@ -468,10 +500,18 @@ private fun Done(vm: LauncherViewModel, host: Host) {
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Da sapere", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-            listOf(
+            val st = vm.settings
+            listOfNotNull(
+                when {
+                    st.launcherTheme == "sensation" -> "Tutte le app: tocca la freccia in su nella barra. Tieni premuto il tasto centrale per cambiarne l'app"
+                    st.homeMode == "drawer" -> "Tutte le app: scorri verso l'alto dalla Home"
+                    else -> null
+                },
+                if (st.minusOn) "Pagina \u22121: scorri verso destra dalla prima pagina" else null,
                 "Pizzica la Home con due dita: anteprima pagine con sfondi, widget, nuove pagine e pagina principale",
                 "Tieni premuto uno spazio vuoto per spostare icone e widget",
-                "In modifica tocca un widget per ridimensionarlo dai pallini sui lati"
+                "In modifica tocca un widget per ridimensionarlo dai pallini sui lati",
+                "Nelle impostazioni c'è la ricerca: scrivi cosa vuoi cambiare (es. griglia, sfondo, icone)"
             ).forEach {
                 Text("•  " + it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
@@ -614,21 +654,6 @@ private fun PickMinus(vm: LauncherViewModel, host: Host) {
         }
         if (vm.autoName == null) TextButton(onClick = { host.requestContactsName() }) {
             Text("Prendi il nome dal profilo del telefono")
-        }
-        Label("Contenitore dei widget")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val pk = if (s.elFollow("panels")) "dock" else if (s.elStyle("panels") == "glass") "glass" else "tonal"
-            listOf("dock" to "Come la dock", "tonal" to "Tonale", "glass" to "Vetro").forEach { (k, l) ->
-                FilterChip(selected = pk == k, onClick = {
-                    when (k) {
-                        "dock" -> vm.setElFollow("panels", true)
-                        else -> {
-                            vm.setSetting("el_panels_follow", false)
-                            vm.setSetting("el_panels_style", if (k == "glass") "glass" else "standard")
-                        }
-                    }
-                }, label = { Text(l) })
-            }
         }
     }
 }
@@ -882,7 +907,7 @@ private fun Summary(vm: LauncherViewModel) {
         "Colori" to (accentsFor(s.launcherTheme).firstOrNull { it.first == s.accent }?.second ?: ""),
         "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
         "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
-        "Interruttori" to (SWITCH_STYLES.firstOrNull { it.first == s.switchStyle }?.second?.substringBefore(" (") ?: ""),
+        "Dock" to (if (s.launcherTheme == "sensation") "Barra a tre tasti" else when (s.dockForm) { "bar" -> "Barra"; "tiles" -> "Tessere"; else -> "Fluttuante" }),
         "Pagina \u22121" to (if (s.minusOn) "Attiva" else "Spenta"),
         "Ritorno alla Home" to (RETURN_ANIMS.firstOrNull { it.first == s.returnAnim }?.second?.substringBefore(" (") ?: "")
     )

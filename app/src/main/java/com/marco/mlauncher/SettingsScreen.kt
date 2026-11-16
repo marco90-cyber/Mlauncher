@@ -52,6 +52,10 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -117,7 +121,7 @@ private fun pageTitle(key: String?) = when (key) {
     "icons" -> "Notifiche e app nascoste"
     "theme" -> "Tema"
     "material" -> "Personalizza tema"
-    "iconstyle" -> "Icone"
+    "iconstyle" -> "Icone e nomi delle app"
     "clock" -> "Orologio"
     "anim" -> "Animazioni"
     "folders" -> "Cartelle"
@@ -180,11 +184,11 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
         // la barra Sense non si richiude: senza la barra grande lo scorrimento non va collegato (lo bloccherebbe)
         modifier = if (LocalSense.current) Modifier else Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            if (LocalSense.current) SenseTitleBar(if (page == null && vm.settingsTab == 1) "Stile" else pageTitle(page)) {
+            if (LocalSense.current) SenseTitleBar(pageTitle(page)) {
                 if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
             } else
             LargeTopAppBar(
-                title = { Text(if (page == null && vm.settingsTab == 1) "Stile" else pageTitle(page), fontWeight = FontWeight.SemiBold) },
+                title = { Text(pageTitle(page), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
@@ -270,7 +274,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         value = vm.settingsQuery,
         onValueChange = { vm.settingsQuery = it },
         singleLine = true,
-        placeholder = { Text("Cerca nelle impostazioni") },
+        placeholder = { Text("Cerca: griglia, sfondo, icone, dock\u2026") },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = {
             if (vm.settingsQuery.isNotEmpty()) IconButton(onClick = { vm.settingsQuery = "" }) {
@@ -324,43 +328,38 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.clickable { host.requestHomeRole() }
         )
     }
-    // due schede, come Nova: come funziona e come appare
-    androidx.compose.material3.PrimaryTabRow(selectedTabIndex = vm.settingsTab, containerColor = cs.surface) {
-        listOf("Impostazioni", "Stile").forEachIndexed { i, l ->
-            androidx.compose.material3.Tab(selected = vm.settingsTab == i, onClick = { vm.settingsTab = i }, text = { Text(l) })
-        }
-    }
-    val matName = { st: String -> MATERIALS.firstOrNull { it.first == st }?.second ?: "" }
-    val sections = if (vm.settingsTab == 1) listOf(
+    // Un solo elenco, diviso per argomento: prima c'erano due schede (Impostazioni e Stile) e chi non conosceva
+    // MLauncher non trovava metà delle voci. Ogni voce dice cosa c'è dentro, con le parole che uno cercherebbe.
+    val themeTitle = LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"
+    val sections = listOf(
         "Aspetto" to listOf(
-            Cat("theme", "Tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 ${(themeNames[s.theme] ?: "").lowercase()} \u00b7 colori ${(accentsFor(s.launcherTheme).firstOrNull { it.first == s.accent }?.second ?: "").lowercase()} \u00b7 interruttori", Icons.Default.Create),
-            Cat("wallpaper", "Sfondo", "Immagine, Crea il tuo sfondo, effetti, Android", Icons.Default.Create),
-            Cat("material", "Personalizza tema", "${LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"} \u00b7 dock, cartelle, widget, menu e altro", Icons.Default.Star),
-            Cat("iconstyle", "Icone", "Forma: ${shapeNames[s.iconShape] ?: ""} \u00b7 nomi" + (if (s.themedIcons) " \u00b7 Material You" else ""), Icons.Default.Star),
+            Cat("theme", "Tema", "$themeTitle · ${(themeNames[s.theme] ?: "").lowercase()} · colori, chiaro o scuro, interruttori", Icons.Default.Star),
+            Cat("wallpaper", "Sfondo", "Foto, sfondi inclusi, Crea il tuo sfondo, effetti", Icons.Default.Create),
+            Cat("iconstyle", "Icone e nomi delle app", "Forma: ${shapeNames[s.iconShape] ?: ""} · pacchetto icone, nomi" + (if (s.themedIcons) " · Material You" else ""), Icons.Default.AccountBox),
+            Cat("material", "Personalizza tema", "Aspetto di dock, cartelle, widget, indicatore, menu e cassetto", Icons.Default.Edit),
             Cat("clock", "Orologio", "Widget orologio: " + (CLOCK_STYLES.firstOrNull { it.first == s.clockStyle }?.second ?: ""), Icons.Default.DateRange),
             Cat("anim", "Animazioni", "Ritorno alla Home, cambio pagina, velocità", Icons.Default.Refresh)
-        )
-    ) else listOf(
-        "Home" to listOf(
-            Cat("home", "Schermata Home", "${s.cols}\u00d7${s.rows} \u00b7 " + (if (s.homeMode == "drawer") "con cassetto" else "tutte le app in Home"), Icons.Default.Home),
-            Cat("dock", "Dock", "${s.dockSlots} icone \u00b7 grandezza ${(s.dockSize * 100).toInt()}%", Icons.Default.Menu),
-            Cat("folders", "Cartelle", "Posizione, grandezza, colonne", Icons.AutoMirrored.Filled.List),
+        ),
+        "Home e app" to listOf(
+            Cat("home", "Schermata Home", "Griglia ${s.cols}×${s.rows}, grandezza icone, pagine, " + (if (s.homeMode == "drawer") "app nel cassetto" else "tutte le app in Home") + ", rotazione", Icons.Default.Home),
+            Cat("dock", "Dock", "${s.dockSlots} icone · grandezza ${(s.dockSize * 100).toInt()}%", Icons.Default.Menu),
+            Cat("folders", "Cartelle", "Cartella aperta: posizione, grandezza, colonne, ordine", Icons.AutoMirrored.Filled.List),
             *(if (s.homeMode == "drawer") arrayOf(
-                Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} \u00b7 ${s.drCols} colonne", Icons.Default.Menu)
+                Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} · ${s.drCols} colonne · ordine, ricerca, app suggerite", Icons.Default.Menu)
             ) else arrayOf(
-                Cat("search", "Ricerca", if (s.searchLook == "minus") "Come la pagina \u22121" else "Classica", Icons.Default.Search)
+                Cat("search", "Ricerca", (if (s.searchLook == "minus") "Come la pagina −1" else "Classica") + " · app cercate e più usate", Icons.Default.Search)
             )),
-            Cat("minus", "Pagina \u22121", if (s.minusOn) "Saluto, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.DateRange),
-            Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Search)
+            Cat("minus", "Pagina −1", if (s.minusOn) "Saluto con il tuo nome, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.Person),
+            Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Add)
         ),
         "Comportamento" to listOf(
-            Cat("gestures", "Gesti e vibrazione", if (s.haptics) "Feedback tattile attivo" else "Feedback tattile spento", Icons.Default.Lock),
-            Cat("icons", "Notifiche e app nascoste", "Badge \u00b7 ${vm.hidden.size} app nascoste", Icons.Default.Notifications)
+            Cat("gestures", "Gesti e vibrazione", "Scorri su e giù, doppio tocco, tasto Home · " + (if (s.haptics) "vibrazione attiva" else "vibrazione spenta"), Icons.Default.ThumbUp),
+            Cat("icons", "Notifiche e app nascoste", "Puntini delle notifiche · ${vm.hidden.size} app nascoste", Icons.Default.Notifications)
         ),
         "Sistema" to listOf(
-            Cat("backup", "Backup e manutenzione", (if (s.autoBackup) "Backup automatico attivo" else "Backup automatico spento") + " \u00b7 esporta, ripristina", Icons.Default.Build),
+            Cat("backup", "Backup e manutenzione", (if (s.autoBackup) "Backup automatico attivo" else "Backup automatico spento") + " · esporta, ripristina, riavvia", Icons.Default.Build),
             Cat("log", "Registro log", if (vm.lastCrash != null) "C'è un errore registrato" else "Eventi ed errori del Launcher", Icons.Default.Warning),
-            Cat("info", "Informazioni", vm.updateInfo?.let { "Aggiornamento ${it.version} disponibile" } ?: "MLauncher ${vm.currentVersionName} \u00b7 aggiornamenti", Icons.Default.Info)
+            Cat("info", "Informazioni", vm.updateInfo?.let { "Aggiornamento ${it.version} disponibile" } ?: "MLauncher ${vm.currentVersionName} · aggiornamenti, guida, benvenuto", Icons.Default.Info)
         )
     )
     sections.forEach { (title, cats) ->
@@ -395,28 +394,74 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     }
 }
 
-/** Voci che il generatore dell'indice non riesce a leggere (titolo calcolato). */
+/** Voci che il generatore dell'indice non riesce a leggere (titolo calcolato, schede dei temi). */
 private val EXTRA_INDEX = listOf(
     SettingEntry("Cerca aggiornamenti", "info", "Aggiornamenti", "Scarica e installa la nuova versione"),
     SettingEntry("Versione installata", "info", "Aggiornamenti", "")
+) + LauncherThemes.all.map { SettingEntry(it.title, "theme", "Scegli il tema", it.tagline) }
+
+/**
+ * Parole che le persone cercano davvero, con le voci a cui portano: chi scrive «drawer» o «wallpaper»
+ * deve trovare Cassetto e Sfondo anche se nelle impostazioni si chiamano in italiano.
+ */
+private val SEARCH_SYNONYMS = mapOf(
+    "drawer" to "cassetto", "app drawer" to "cassetto", "elenco app" to "cassetto", "tutte le app" to "cassetto",
+    "wallpaper" to "sfondo", "immagine" to "sfondo", "foto" to "sfondo",
+    "grid" to "colonne righe", "griglia" to "colonne righe", "dimensione" to "grandezza dimensione", "grande" to "grandezza dimensione",
+    "piccol" to "grandezza dimensione",
+    "icon pack" to "pacchetto icone", "iconpack" to "pacchetto icone", "forma" to "forma maschera",
+    "nascondi" to "nascoste", "nascosta" to "nascoste", "badge" to "badge notifiche", "puntin" to "badge puntino",
+    "vibra" to "vibrazione feedback tattile", "haptic" to "feedback tattile",
+    "scuro" to "chiaro o scuro", "dark" to "chiaro o scuro", "notte" to "chiaro o scuro", "light" to "chiaro o scuro",
+    "colore" to "colori", "accento" to "colori",
+    "blur" to "sfocatura", "trasparen" to "trasparenza opacità", "vetro" to "vetro glass", "glass" to "vetro glass",
+    "ruota" to "rotazione", "orizzontale" to "rotazione", "landscape" to "rotazione",
+    "meteo" to "meteo città", "weather" to "meteo", "orologio" to "orologio", "clock" to "orologio",
+    "gesti" to "scorri doppio tocco", "swipe" to "scorri", "blocc" to "blocca",
+    "aggiorna" to "aggiornamenti", "update" to "aggiornamenti", "versione" to "versione aggiornamenti",
+    "salva" to "backup", "ripristin" to "ripristina", "esporta" to "esporta backup", "reset" to "ripristina",
+    "nomi" to "nomi", "etichett" to "nomi", "label" to "nomi",
+    "animazion" to "animazione", "effetto" to "effetto animazione", "velocità" to "velocità",
+    "pagina -1" to "pagina \u22121", "pagina meno" to "pagina \u22121", "-1" to "\u22121", "saluto" to "saluto",
+    "dock" to "dock", "barra" to "dock barra", "interruttor" to "interruttori", "switch" to "interruttori",
+    "material you" to "material you", "temi" to "tema", "stile" to "tema stile", "aspetto" to "aspetto",
+    "log" to "registro", "errori" to "registro", "crash" to "registro"
 )
+
+/** Minuscole e senza accenti: «velocita» trova «Velocità». */
+private fun norm(t: String): String =
+    java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
 
 @Composable
 private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
     val cs = MaterialTheme.colorScheme
-    val words = q.lowercase().split(' ').filter { it.isNotBlank() }
+    val words = norm(q).split(' ').filter { it.isNotBlank() }
     val drawerOn = vm.settings.homeMode == "drawer"
     val pages = listOf(
         "home", "dock", "folders", "drawer", "search", "minus", "widgets", "gestures", "icons", "backup", "log", "info",
         "theme", "wallpaper", "material", "iconstyle", "clock", "anim"
     ) + MAT_ELEMENTS.map { "mat_" + it.first }
     val results = remember(q, drawerOn) {
-        val pageHits = pages.filter { p -> words.all { pageTitle(p).lowercase().contains(it) } }
+        // ogni parola cercata vale anche con i suoi sinonimi (basta che ne compaia uno)
+        val alts = words.map { w ->
+            listOf(w) + SEARCH_SYNONYMS.filterKeys { k ->
+                norm(k).let { (w.length >= 3 && it.startsWith(w)) || w.startsWith(it) }
+            }.values.flatMap { norm(it).split(' ') }.filter { it.length >= 3 || it.startsWith("\u2212") }
+        }
+        fun match(hay: String) = alts.all { a -> a.any { hay.contains(it) } }
+        val pageHits = pages.filter { p -> match(norm(pageTitle(p))) }
             .map { SettingEntry(pageTitle(it), it, "", "Apri la sezione") }
         val hits = (SETTINGS_INDEX + EXTRA_INDEX).filter { e ->
-            val hay = (e.title + " " + e.group + " " + e.hint + " " + pageTitle(e.page)).lowercase()
-            words.all { hay.contains(it) }
-        }.sortedBy { if (it.title.lowercase().startsWith(words.first())) 0 else 1 }
+            match(norm(e.title + " " + e.group + " " + e.hint + " " + pageTitle(e.page)))
+        }.sortedBy { e ->
+            // prima le voci il cui nome contiene la parola scritta, poi quelle trovate dalla descrizione
+            val t = norm(e.title)
+            when {
+                t.startsWith(words.first()) -> 0
+                words.all { t.contains(it) } -> 1
+                else -> 2
+            }
+        }
         (pageHits + hits).filter { (drawerOn || it.page != "drawer") && (!drawerOn || it.page != "search") }
     }
     if (results.isEmpty()) {
@@ -440,7 +485,6 @@ private fun SettingsSearchResults(vm: LauncherViewModel, q: String) {
                 colors = prefColors(),
                 modifier = Modifier.clickable {
                     vm.settingsHighlight = if (e.hint == "Apri la sezione") null else e.title
-                    vm.settingsTab = if (isStylePage(e.page)) 1 else 0
                     vm.settingsPage = e.page
                 }
             )
@@ -1388,7 +1432,7 @@ private fun PageTheme(vm: LauncherViewModel) {
             preview = { ThemePreview(it) }
         ) { vm.setSetting("theme", it) }
     }
-    Group("Altro") {
+    Group("Interruttori e dettagli") {
         ChoiceRow(
             "Stile degli interruttori",
             SWITCH_STYLES,
@@ -2016,18 +2060,15 @@ private val STYLE_PAGES = setOf("theme", "look", "wallpaper", "material", "icons
 /** Pagina della scheda "Stile" (serve per tornare alla scheda giusta). */
 internal fun isStylePage(page: String?) = page != null && (page in STYLE_PAGES || page.startsWith("mat_"))
 
-/** Collegamento a una pagina di un'altra scheda (es. dall'Impostazione al suo aspetto in Stile). */
+/** Collegamento a un'altra sezione (es. da Dock al suo aspetto): dice dove porta. */
 @Composable
 private fun StyleLink(vm: LauncherViewModel, title: String, page: String) {
     ListItem(
         headlineContent = { Text(title) },
-        supportingContent = { Text(if (isStylePage(page)) "In Stile" else "In Impostazioni") },
+        supportingContent = { Text("Apre «" + pageTitle(page) + "»") },
         trailingContent = { Chevron() },
         colors = prefColors(),
-        modifier = Modifier.clickable {
-            vm.settingsTab = if (isStylePage(page)) 1 else 0
-            vm.settingsPage = page
-        }
+        modifier = Modifier.hl(title).clickable { vm.settingsPage = page }
     )
 }
 
@@ -2207,7 +2248,7 @@ private fun PageMaterial(vm: LauncherViewModel) {
     MaterialLivePreview(vm, null)
     Group("Elementi della Home") {
         Text(
-            "Ognuno segue il tema scelto oppure ha un materiale suo: toccalo per cambiarlo. Il tema si sceglie in Stile \u2192 Tema.",
+            "Ognuno segue il tema scelto oppure ha un materiale suo: toccalo per cambiarlo. Il tema si sceglie in Impostazioni \u2192 Tema.",
             style = MaterialTheme.typography.bodySmall,
             color = cs.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().background(cs.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)

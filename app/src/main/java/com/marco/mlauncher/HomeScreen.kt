@@ -2154,7 +2154,7 @@ private fun PagesOverviewControls(vm: LauncherViewModel, host: Host, pagerState:
                 // in orizzontale non c'è spazio per il pannello: Widget diventa un pulsante
                 if (land) OverviewButton(WidgetsIcon, "Widget") { if (!vm.blockedByLock()) vm.overlay = Overlay.WIDGETS }
                 OverviewButton(WallpaperIcon, "Sfondi") {
-                    vm.overlay = Overlay.SETTINGS; vm.settingsTab = 1; vm.settingsPage = "wallpaper"
+                    vm.overlay = Overlay.SETTINGS; vm.settingsPage = "wallpaper"
                 }
                 OverviewButton(Icons.Default.Add, "Nuova pagina") { if (!vm.blockedByLock()) onAddPage() }
                 OverviewButton(Icons.Default.Lock, if (vm.settings.lockHome) "Sblocca" else "Blocca") {
