@@ -1019,11 +1019,25 @@ private fun PageDrawer(vm: LauncherViewModel) {
         ) { vm.setSetting("drSort", it) }
         SwitchRow("App suggerite", "Le 4 più usate in cima", s.drSuggest) { vm.setSetting("drSuggest", it) }
         SwitchRow("Ricorda la posizione", "Riapre il cassetto dove l'avevi lasciato", s.drRemember) { vm.setSetting("drRemember", it) }
+        Dependent(s.drLayout == "grid") {
+            SwitchRow(
+                "Cassetto a pagine",
+                "Sfogli le app di lato, una pagina alla volta, come HyperOS",
+                s.drPaged
+            ) { vm.setSetting("drPaged", it) }
+        }
+        SwitchRow(
+            "Schede per categoria",
+            "Tutte, Giochi, Social, Lavoro… in cima al cassetto",
+            s.drTabs
+        ) { vm.setSetting("drTabs", it) }
     }
     Group("Ricerca e scorrimento") {
         SwitchRow("Barra di ricerca", "In cima al cassetto", s.drSearchBar) { vm.setSetting("drSearchBar", it) }
         Dependent(s.drSearchBar) { SwitchRow("Sfondo della barra di ricerca", null, s.drSearchBg) { vm.setSetting("drSearchBg", it) } }
-        SwitchRow("Barra laterale A-Z", "Scorri veloce tra le lettere", s.drScrollbar) { vm.setSetting("drScrollbar", it) }
+        Dependent(!(s.drPaged && s.drLayout == "grid")) {
+            SwitchRow("Barra laterale A-Z", "Scorri veloce tra le lettere", s.drScrollbar) { vm.setSetting("drScrollbar", it) }
+        }
     }
     Group("Nomi delle app") {
         SwitchRow("Mostra i nomi", null, s.drLabels) { vm.setSetting("drLabels", it) }
@@ -1040,7 +1054,33 @@ private fun PageDrawer(vm: LauncherViewModel) {
             s.newAppDot
         ) { vm.setSetting("newAppDot", it) }
     }
-    Group("Sfondo") { StyleLink(vm, "Aspetto del cassetto", "mat_drawer") }
+    Group("Sfondo") {
+        // Quando il cassetto usa un materiale (vetro, Fluent…) il colore scelto non si vede: qui si decide
+        // tutto in un posto solo, senza passare da «Personalizza tema».
+        val material = !s.matOf("drawer").plain
+        val themeMaterial = s.matStyle != "standard" && s.matStyle != "none"
+        ChoiceRow(
+            "Sfondo del cassetto",
+            (if (material || themeMaterial) listOf("mat" to "Materiale del tema") else emptyList()) + DRAWER_BGS,
+            if (material) "mat" else s.drBg
+        ) {
+            if (it == "mat") {
+                if (!material) vm.setElFollow("drawer", true)
+            } else {
+                vm.setSetting("el_drawer_follow", false)
+                vm.setSetting("el_drawer_style", "standard")
+                vm.setSetting("drBg", it)
+            }
+        }
+        Dependent(!material) {
+            SliderRow("Opacità dello sfondo", "${s.drOpacity}%", s.drOpacity.toFloat(), 0f..100f, 19) {
+                val v = (it / 5f).roundToInt() * 5
+                if (v != s.drOpacity) vm.setSetting("drOpacity", v)
+            }
+        }
+        if (!material && s.drBg == "custom") DrawerColorRows(vm)
+        StyleLink(vm, "Materiale del cassetto", "mat_drawer")
+    }
     OrientedGroup("Griglia e spaziatura", s) {
         Dependent(s.drLayout == "grid") {
             SliderRow("Colonne", "${s.drCols}", s.drCols.toFloat(), 3f..6f, 2) {
@@ -1062,6 +1102,38 @@ private fun PageDrawer(vm: LauncherViewModel) {
             val v = it.roundToInt()
             if (v != s.drTop) vm.setSetting("drTop", v)
         }
+    }
+}
+
+/** Colori pieni dello sfondo del cassetto. */
+private val DRAWER_BGS = listOf(
+    "surface" to "Superficie", "tonal" to "Tonale (colore principale)", "neutral" to "Neutro",
+    "dark" to "Nero", "custom" to "Colore personale"
+)
+
+/** Colore personale del cassetto: tinta, saturazione e luminosità, con il campione accanto alla tinta. */
+@Composable
+private fun DrawerColorRows(vm: LauncherViewModel) {
+    val s = vm.settings
+    SliderRow(
+        "Tinta", "${s.drBgHue}°", s.drBgHue.toFloat(), 0f..360f, 0,
+        preview = {
+            Box(
+                Modifier.size(34.dp).clip(CircleShape).background(drawerCustomColor(s))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+            )
+        }
+    ) {
+        val v = it.roundToInt()
+        if (v != s.drBgHue) vm.setSetting("drBgHue", v)
+    }
+    SliderRow("Saturazione", "${s.drBgSat}%", s.drBgSat.toFloat(), 0f..100f, 0) {
+        val v = it.roundToInt()
+        if (v != s.drBgSat) vm.setSetting("drBgSat", v)
+    }
+    SliderRow("Luminosità", "${s.drBgVal}%", s.drBgVal.toFloat(), 0f..100f, 0) {
+        val v = it.roundToInt()
+        if (v != s.drBgVal) vm.setSetting("drBgVal", v)
     }
 }
 
@@ -2411,13 +2483,14 @@ private fun PageMatDrawer(vm: LauncherViewModel) {
         Dependent(s.matOf("drawer").plain) {
             ChoiceRow(
                 "Colore di sfondo",
-                listOf("surface" to "Superficie", "tonal" to "Tonale (colore principale)", "neutral" to "Neutro", "dark" to "Nero"),
+                DRAWER_BGS,
                 s.drBg
             ) { vm.setSetting("drBg", it) }
             SliderRow("Opacità dello sfondo", "${s.drOpacity}%", s.drOpacity.toFloat(), 0f..100f, 19) {
                 val v = (it / 5f).roundToInt() * 5
                 if (v != s.drOpacity) vm.setSetting("drOpacity", v)
             }
+            if (s.drBg == "custom") DrawerColorRows(vm)
         }
     }
 }

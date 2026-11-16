@@ -39,6 +39,19 @@ val AppEntry.isAction: Boolean get() = cls.startsWith(ACTION_PREFIX)
 /** Id di un'app ("pacchetto/classe") che è un'Azione MLauncher: non va mai messa in Home da sola. */
 fun isActionId(id: String): Boolean = id.substringAfter('/').startsWith(ACTION_PREFIX)
 
+/**
+ * Collegamenti fissati dalle app («Aggiungi a schermata Home» di Chrome, una chat di WhatsApp…): come le azioni
+ * sono "app" virtuali, con il pacchetto dell'app che li ha creati e classe "pin:<chiave>".
+ */
+const val PIN_PREFIX = "pin:"
+
+val AppEntry.isPin: Boolean get() = cls.startsWith(PIN_PREFIX)
+
+/** Azione di MLauncher o collegamento fissato: non è un'app vera (mai nel cassetto, mai messa in Home da sola). */
+val AppEntry.isVirtual: Boolean get() = isAction || isPin
+
+fun isVirtualId(id: String): Boolean = id.substringAfter('/').let { it.startsWith(ACTION_PREFIX) || it.startsWith(PIN_PREFIX) }
+
 /** Colore di fondo dell'icona di ogni azione. */
 private fun actionColor(key: String): Int = when (key) {
     "drawer", "search" -> 0xFF3D5AFE.toInt()

@@ -766,6 +766,26 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         if (query.isBlank()) visible
         else visible.filter { it.label.contains(query.trim(), ignoreCase = true) }
     }
+    // Schede per categoria: le categorie si calcolano fuori dal thread principale (leggono gli elenchi
+    // del Play Store e interrogano il sistema), una volta per elenco di app.
+    var tab by remember { mutableStateOf("") }
+    val tabsOn = s.drTabs && !searchOnly
+    val cats by androidx.compose.runtime.produceState<Map<String, String>>(emptyMap(), vm.sortedApps, tabsOn) {
+        value = if (!tabsOn) emptyMap()
+        else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { vm.drawerCategories(vm.sortedApps) }
+    }
+    val tabNames = remember(cats, list) {
+        if (cats.isEmpty()) emptyList()
+        else list.groupingBy { cats[it.id] ?: DRAWER_OTHER }.eachCount().entries
+            .sortedWith(compareBy<Map.Entry<String, Int>>({ it.key == DRAWER_OTHER }, { -it.value }, { it.key }))
+            .map { it.key }
+    }
+    // scheda sparita (app disinstallate, schede spente): si torna a «Tutte»
+    LaunchedEffect(tabNames) { if (tab.isNotEmpty() && tab !in tabNames) tab = "" }
+    LaunchedEffect(active) { if (!active && !s.drRemember) tab = "" }
+    val shown = remember(list, tab, cats) {
+        if (tab.isEmpty() || cats.isEmpty()) list else list.filter { (cats[it.id] ?: DRAWER_OTHER) == tab }
+    }
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         val wantFocus = searchOnly || vm.searchFocus
@@ -783,6 +803,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         "tonal" -> cs.primaryContainer
         "dark" -> Color.Black
         "neutral" -> cs.surfaceContainerHighest
+        "custom" -> drawerCustomColor(s)
         else -> cs.surface
     }
     val minusLook = searchOnly && vm.searchMinusLook
@@ -900,12 +921,17 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
             }
             val showGrid = !searchOnly && query.isBlank()
             if (showGrid) {
-                Box(Modifier.weight(1f)) {
-                    val listMode = s.drLayout == "list"
-                    val suggested = remember(list, s.drSuggest, vm.homeSignal) {
-                        if (!s.drSuggest) emptyList()
-                        else list.filter { vm.useCount(it.id) > 0 }.sortedByDescending { vm.useCount(it.id) }.take(4)
-                    }
+                if (tabNames.size > 1) DrawerTabs(tabNames, tab, fg) { tab = it }
+                val listMode = s.drLayout == "list"
+                // le app suggerite stanno solo nella scheda «Tutte»
+                val suggested = remember(list, s.drSuggest, vm.homeSignal, tab) {
+                    if (!s.drSuggest || tab.isNotEmpty()) emptyList()
+                    else list.filter { vm.useCount(it.id) > 0 }.sortedByDescending { vm.useCount(it.id) }.take(4)
+                }
+                if (s.drPaged && !listMode) {
+                    if (suggested.isNotEmpty()) Box(Modifier.padding(horizontal = s.drIndent.dp)) { SuggestedRow(suggested, vm, host) }
+                    DrawerPages(Modifier.weight(1f), shown, vm, host, fg, active, tab)
+                } else Box(Modifier.weight(1f)) {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(if (listMode) 1 else s.drCols),
                         state = gridState,
@@ -917,28 +943,143 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
                     ) {
                         if (suggested.isNotEmpty()) {
                             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                                Surface(
-                                    shape = RoundedCornerShape(24.dp),
-                                    color = cs.surfaceContainerHigh.copy(alpha = 0.7f),
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                ) {
-                                    Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                        suggested.forEach { a -> Box(Modifier.weight(1f)) { DrawerApp(a, vm, host, forceGrid = true) } }
-                                        repeat(4 - suggested.size) { Spacer(Modifier.weight(1f)) }
-                                    }
-                                }
+                                SuggestedRow(suggested, vm, host)
                             }
                         }
-                        items(list, key = { it.id }) { app -> DrawerApp(app, vm, host) }
+                        items(shown, key = { it.id }) { app -> DrawerApp(app, vm, host) }
                     }
-                    if (!searchOnly && query.isBlank() && list.isNotEmpty() && s.drScrollbar) {
-                        DrawerScrollBar(list, gridState, s.drSort.startsWith("name"))
+                    if (!searchOnly && query.isBlank() && shown.isNotEmpty() && s.drScrollbar) {
+                        DrawerScrollBar(shown, gridState, s.drSort.startsWith("name"))
                     }
                 }
             }
         }
     }
 }
+}
+
+/** Categoria delle app che non rientrano in nessun genere (schede del cassetto). */
+const val DRAWER_OTHER = "Altro"
+
+/** Colore personale dello sfondo del cassetto (tinta, saturazione e luminosità scelte nelle impostazioni). */
+internal fun drawerCustomColor(s: LauncherSettings): Color = Color.hsv(
+    s.drBgHue.toFloat().coerceIn(0f, 360f),
+    (s.drBgSat / 100f).coerceIn(0f, 1f),
+    (s.drBgVal / 100f).coerceIn(0f, 1f)
+)
+
+/** Le 4 app più usate, in un riquadro in cima al cassetto. */
+@Composable
+private fun SuggestedRow(suggested: List<AppEntry>, vm: LauncherViewModel, host: Host) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f),
+        modifier = Modifier.padding(bottom = 8.dp)
+    ) {
+        Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            suggested.forEach { a -> Box(Modifier.weight(1f)) { DrawerApp(a, vm, host, forceGrid = true) } }
+            repeat(4 - suggested.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+}
+
+/** Schede per categoria: «Tutte» e poi le categorie con più app; «Altro» in fondo. */
+@Composable
+private fun DrawerTabs(names: List<String>, current: String, fg: Color, onPick: (String) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val view = androidx.compose.ui.platform.LocalView.current
+    val all = remember(names) { listOf("") + names }
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+    ) {
+        listItems(all, key = { it }) { n ->
+            val sel = n == current
+            Text(
+                if (n.isEmpty()) "Tutte" else n,
+                fontSize = 14.sp,
+                fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (sel) cs.onPrimary else fg,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (sel) cs.primary else fg.copy(alpha = 0.10f))
+                    .clickable {
+                        if (!sel) Haptics.tick(view)
+                        onPick(n)
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Cassetto a pagine (come HyperOS): le app si sfogliano di lato. Le righe per pagina si ricavano
+ * dall'altezza disponibile, così ogni pagina riempie lo schermo su qualunque telefono.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DrawerPages(
+    modifier: Modifier,
+    list: List<AppEntry>,
+    vm: LauncherViewModel,
+    host: Host,
+    fg: Color,
+    active: Boolean,
+    tab: String
+) {
+    val s = vm.settings
+    val fontScale = LocalDensity.current.fontScale
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth()) {
+        val cols = s.drCols
+        val lines = if (s.drTwoLine) 2 else 1
+        val labelH = if (s.drLabels) (s.drLabelSize * 1.35f * lines * fontScale + 6f).dp else 0.dp
+        val cellH = 52.dp * s.drIcon + (16f * s.drRowH).dp + labelH
+        val dotsH = 28.dp
+        val rows = ((maxHeight - dotsH - s.drTop.dp) / cellH).toInt().coerceAtLeast(1)
+        val per = cols * rows
+        val pageN = ((list.size + per - 1) / per).coerceAtLeast(1)
+        val pager = androidx.compose.foundation.pager.rememberPagerState { pageN }
+        // cambio di scheda: si riparte dalla prima pagina
+        LaunchedEffect(tab) { if (pager.currentPage != 0) pager.scrollToPage(0) }
+        LaunchedEffect(active) { if (!active && !s.drRemember && pager.currentPage != 0) pager.scrollToPage(0) }
+        Column(Modifier.fillMaxSize().padding(top = s.drTop.dp)) {
+            androidx.compose.foundation.pager.HorizontalPager(
+                state = pager,
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) { p ->
+                Column(Modifier.fillMaxSize().padding(horizontal = s.drIndent.dp)) {
+                    for (r in 0 until rows) {
+                        Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            for (c in 0 until cols) {
+                                val app = list.getOrNull(p * per + r * cols + c)
+                                Box(Modifier.weight(1f)) {
+                                    if (app != null) androidx.compose.runtime.key(app.id) { DrawerApp(app, vm, host, forceGrid = true) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().height(dotsH),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (pageN in 2..12) repeat(pageN) { i ->
+                    val on = i == pager.currentPage
+                    Box(
+                        Modifier.padding(horizontal = 4.dp).size(if (on) 8.dp else 6.dp).clip(CircleShape)
+                            .background(fg.copy(alpha = if (on) 0.9f else 0.3f))
+                    )
+                } else if (pageN > 12) {
+                    Text("${pager.currentPage + 1} / $pageN", fontSize = 12.sp, color = fg.copy(alpha = 0.7f))
+                }
+            }
+        }
+    }
 }
 
 /** Barra laterale: indicatore di posizione, striscia A-Z con ingrandimento e bolla della lettera. */

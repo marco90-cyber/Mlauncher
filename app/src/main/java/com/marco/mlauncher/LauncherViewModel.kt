@@ -922,6 +922,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
             }
         }
+        // collegamenti fissati dalle app: restano accanto all'app che li ha creati
+        try {
+            result.addAll(pinEntries(pkg))
+        } catch (e: Exception) {
+            AppLog.quiet("collegamenti fissati non letti", e)
+        }
         return result
     }
 
@@ -1083,7 +1089,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 // app nuove o con attività cambiate
                 now.filter { (it.packageName + "/" + it.name) !in cachedKeys }.forEach { changed.add(it.packageName) }
                 // app tolte
-                cache.list.filter { it.pkg != ctx.packageName && (it.pkg + "/" + it.cls) !in nowKeys }.forEach { changed.add(it.pkg) }
+                cache.list.filter { it.pkg != ctx.packageName && !it.isPin && (it.pkg + "/" + it.cls) !in nowKeys }.forEach { changed.add(it.pkg) }
                 // app aggiornate (MLauncher compreso: azioni e icona delle impostazioni)
                 (now.map { it.packageName }.distinct() + ctx.packageName).forEach { p ->
                     if (p !in changed && cache.pkgTimes[p] != pkgTime(p)) changed.add(p)
@@ -1105,7 +1111,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun showCache(list: List<AppEntry>, t0: Long) {
         apps = list.associateBy { it.id }
-        sortedApps = list.filter { !it.isAction }.sortedBy { it.label.lowercase() }
+        sortedApps = list.filter { !it.isVirtual }.sortedBy { it.label.lowercase() }
         loaded = true
         AppLog.i("Home mostrata dalla cache: ${list.size} app in ${System.currentTimeMillis() - t0} ms")
         Perf.time("Icone dalla cache all'avvio", System.currentTimeMillis() - t0)
@@ -1164,7 +1170,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 got.forEach { map[it.id] = it }
             }
             apps = map
-            sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
+            sortedApps = map.values.filter { !it.isVirtual }.sortedBy { it.label.lowercase() }
             reconcile()
             loaded = true
             AppLog.i(
@@ -1195,7 +1201,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val map = HashMap<String, AppEntry>()
             fresh.forEach { map[it.id] = it }
             apps = map
-            sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
+            sortedApps = map.values.filter { !it.isVirtual }.sortedBy { it.label.lowercase() }
             reconcile()
             loaded = true
             AppLog.i("App caricate: ${map.size} in ${System.currentTimeMillis() - t0} ms")
@@ -1692,6 +1698,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * Categoria di ogni app per le schede del cassetto (id dell'app -> nome). Da chiamare fuori dal thread
+     * principale: la prima volta legge gli elenchi delle categorie.
+     */
+    fun drawerCategories(list: List<AppEntry>): Map<String, String> = try {
+        ensureSmart()
+        list.associate { it.id to (smart.folderOf(it) ?: DRAWER_OTHER) }
+    } catch (e: Exception) {
+        AppLog.e("Categorie del cassetto non pronte", e)
+        emptyMap()
+    }
+
     /** Cartella intelligente di un'app secondo la modalità scelta (null = resta sciolta). */
     private fun smartGroupOf(a: AppEntry): String? = when (settings.smartMode) {
         "genre" -> categoryName(a)
@@ -1715,7 +1733,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         items.removeAll { it.page >= 1 && (it is AppItem || it is FolderItem) }
         val placed = placedAppIds()
         // le Azioni MLauncher si mettono in Home solo a mano, dal selettore dei widget
-        var list = apps.values.filter { !it.isAction && it.id !in placed && it.id !in hidden }
+        var list = apps.values.filter { !it.isVirtual && it.id !in placed && it.id !in hidden }
         val byName = compareBy<AppEntry> { it.label.lowercase() }
         // cartelle intelligenti: niente cartelle generiche, chi non rientra (o resterebbe da solo) va sciolto
         if (settings.autoFolders) {
@@ -1945,10 +1963,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (settings.homeMode == "all") {
             sortedApps.filter { it.id !in placed && it.id !in hidden }.forEach { placeNewApp(it) }
         } else if (settings.autoAddNew && knownIds.isNotEmpty()) {
-            ids.filter { !isActionId(it) && it !in knownIds && it !in placed && it !in hidden }.forEach { addApp(it) }
+            ids.filter { !isVirtualId(it) && it !in knownIds && it !in placed && it !in hidden }.forEach { addApp(it) }
         }
         if (knownIds.isNotEmpty()) {
-            val fresh = ids.filter { !isActionId(it) && it !in knownIds && it !in newApps }
+            val fresh = ids.filter { !isVirtualId(it) && it !in knownIds && it !in newApps }
             if (fresh.isNotEmpty()) {
                 newApps.addAll(fresh)
                 sp.edit().putStringSet("newApps", HashSet(newApps)).apply()
@@ -2904,6 +2922,140 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // ---------- collegamenti fissati dalle app («Aggiungi a schermata Home») ----------
+
+    private val pinDir get() = java.io.File(ctx.filesDir, "pins")
+
+    /** Elenco salvato: pacchetto (p), id del collegamento (i), chiave dell'icona (k), nome (l). */
+    private fun pinList(): JSONArray = try {
+        JSONArray(sp.getString("pins", "[]") ?: "[]")
+    } catch (e: Exception) {
+        JSONArray()
+    }
+
+    /**
+     * Collegamenti fissati di un pacchetto (null = tutti) come app virtuali. Nome e icona sono quelli salvati
+     * al momento dell'aggiunta: così restano in Home anche se in quel momento il sistema non li fa leggere.
+     */
+    private fun pinEntries(pkg: String?): List<AppEntry> {
+        val out = ArrayList<AppEntry>()
+        val arr = pinList()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val p = o.optString("p")
+            if (pkg != null && p != pkg) continue
+            // app disinstallata: il collegamento non può più aprirsi
+            if (pkgTime(p) == -1L) continue
+            val key = o.optString("k")
+            val bmp = try {
+                android.graphics.BitmapFactory.decodeFile(java.io.File(pinDir, "$key.png").path)
+            } catch (e: Exception) {
+                null
+            }
+            if (bmp == null) continue
+            out.add(AppEntry(p, PIN_PREFIX + key, o.optString("l"), bmp.asImageBitmap(), null, false))
+        }
+        return out
+    }
+
+    /**
+     * Un'app ha chiesto di aggiungere un collegamento in Home (un sito da Chrome, una chat di WhatsApp…).
+     * Restituisce il nome del collegamento aggiunto, oppure null se la richiesta non è più valida.
+     */
+    fun acceptPin(intent: Intent): String? {
+        try {
+            val la = ctx.getSystemService(LauncherApps::class.java) ?: return null
+            val req = la.getPinItemRequest(intent) ?: return null
+            if (req.requestType != LauncherApps.PinItemRequest.REQUEST_TYPE_SHORTCUT || !req.isValid) return null
+            val info = req.shortcutInfo ?: return null
+            if (blockedByLock()) return null
+            val pkg = info.`package`
+            val sid = info.id
+            val label = (info.shortLabel ?: info.longLabel)?.toString()?.takeIf { it.isNotBlank() } ?: "Collegamento"
+            val dpi = ctx.resources.displayMetrics.densityDpi
+            fun readIcon(): Drawable? = try {
+                la.getShortcutBadgedIconDrawable(info, dpi) ?: la.getShortcutIconDrawable(info, dpi)
+            } catch (e: Exception) {
+                null
+            }
+            var d = readIcon()
+            if (!req.accept()) return null
+            if (d == null) d = readIcon()
+            // senza un'icona sua, quella dell'app che lo ha creato
+            val bmp: Bitmap = if (d != null) drawableToBitmap(d, 0)
+            else apps.values.firstOrNull { it.pkg == pkg && !it.isVirtual }?.icon?.asAndroidBitmap() ?: return null
+            val key = Integer.toHexString("$pkg/$sid".hashCode())
+            pinDir.mkdirs()
+            java.io.FileOutputStream(java.io.File(pinDir, "$key.png")).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            val old = pinList()
+            val arr = JSONArray()
+            for (i in 0 until old.length()) {
+                val o = old.optJSONObject(i) ?: continue
+                if (o.optString("k") != key) arr.put(o)
+            }
+            arr.put(JSONObject().put("p", pkg).put("i", sid).put("k", key).put("l", label))
+            sp.edit().putString("pins", arr.toString()).apply()
+            val entry = AppEntry(pkg, PIN_PREFIX + key, label, bmp.asImageBitmap(), null, false)
+            val map = HashMap(apps)
+            map[entry.id] = entry
+            apps = map
+            if (entry.id !in placedAppIds()) {
+                addApp(entry.id, maxOf(currentPage, 0))
+                saveLayout()
+            }
+            AppLog.i("Collegamento «$label» di $pkg aggiunto in Home")
+            return label
+        } catch (e: Exception) {
+            AppLog.e("Collegamento non aggiunto in Home", e)
+            return null
+        }
+    }
+
+    /** Apre un collegamento fissato. Falso se il sistema non lo fa più aprire (app cambiata, MLauncher non predefinito). */
+    fun launchPin(app: AppEntry): Boolean {
+        val key = app.cls.removePrefix(PIN_PREFIX)
+        val arr = pinList()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optString("k") != key) continue
+            return try {
+                ctx.getSystemService(LauncherApps::class.java)
+                    .startShortcut(o.optString("p"), o.optString("i"), null, null, Process.myUserHandle())
+                true
+            } catch (e: Exception) {
+                AppLog.e("Collegamento ${app.label} non aperto", e)
+                false
+            }
+        }
+        return false
+    }
+
+    /** Toglie dalla Home un collegamento fissato e lo dimentica (icona salvata compresa). */
+    fun removePin(app: AppEntry, item: HomeItem) {
+        removeWidgetItem(item)
+        try {
+            val key = app.cls.removePrefix(PIN_PREFIX)
+            val old = pinList()
+            val arr = JSONArray()
+            val left = ArrayList<String>()
+            for (i in 0 until old.length()) {
+                val o = old.optJSONObject(i) ?: continue
+                if (o.optString("k") == key) continue
+                arr.put(o)
+                if (o.optString("p") == app.pkg) left.add(o.optString("i"))
+            }
+            sp.edit().putString("pins", arr.toString()).apply()
+            java.io.File(pinDir, "$key.png").delete()
+            val map = HashMap(apps)
+            map.remove(app.id)
+            apps = map
+            // il sistema tiene fissati solo i collegamenti rimasti di quell'app
+            ctx.getSystemService(LauncherApps::class.java).pinShortcuts(app.pkg, left, Process.myUserHandle())
+        } catch (e: Exception) {
+            AppLog.quiet("collegamento non dimenticato del tutto", e)
+        }
+    }
+
     // ---------- disinstallazione ----------
 
     fun beginUninstall(app: AppEntry) {
@@ -2944,7 +3096,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val map = HashMap(apps)
         map.remove(appId)
         apps = map
-        sortedApps = map.values.filter { !it.isAction }.sortedBy { it.label.lowercase() }
+        sortedApps = map.values.filter { !it.isVirtual }.sortedBy { it.label.lowercase() }
         pendingUninstall = null
         saveLayout()
     }

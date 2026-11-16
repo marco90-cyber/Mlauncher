@@ -270,6 +270,7 @@ class MainActivity : ComponentActivity(), Host {
         try {
             getSystemService(android.view.contentcapture.ContentCaptureManager::class.java)?.setContentCaptureEnabled(false)
         } catch (e: Exception) { AppLog.quiet("spegnimento del content capture", e) }
+        handlePinRequest(intent)
         setContent {
             MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null, fluent = vm.settings.launcherTheme == "fluent", sense = vm.settings.launcherTheme == "sensation") {
                 Root(vm, this@MainActivity)
@@ -515,8 +516,25 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    /**
+     * «Aggiungi a schermata Home» chiesto da un'app (un sito da Chrome, una chat…): quando la Home è caricata
+     * l'icona viene aggiunta nella pagina aperta. Una richiesta già usata o scaduta non fa nulla.
+     */
+    private fun handlePinRequest(intent: Intent?, tries: Int = 0) {
+        if (intent == null || intent.action != android.content.pm.LauncherApps.ACTION_CONFIRM_PIN_SHORTCUT) return
+        if (!vm.loaded && tries < 40) {
+            window.decorView.postDelayed({ handlePinRequest(intent, tries + 1) }, 250)
+            return
+        }
+        val label = vm.acceptPin(intent) ?: return
+        vm.openFolderId = null
+        vm.overlay = Overlay.NONE
+        Toast.makeText(this, "«$label» aggiunto alla Home", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handlePinRequest(intent)
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
             // come Launcher3: conta come "già in Home" solo se la finestra aveva il focus
             vm.onHomePressed(alreadyHome = hasWindowFocus())
@@ -650,6 +668,12 @@ class MainActivity : ComponentActivity(), Host {
         if (app.pkg == packageName && app.cls == SETTINGS_CLS) {
             vm.openFolderId = null
             vm.overlay = Overlay.SETTINGS
+            return
+        }
+        if (app.isPin) {
+            AppLog.i("Apro il collegamento ${app.label} (${app.pkg})")
+            launchedSinceStart = true
+            if (!vm.launchPin(app)) Toast.makeText(this, "Impossibile aprire ${app.label}", Toast.LENGTH_SHORT).show()
             return
         }
         vm.recordLaunch(app.id)

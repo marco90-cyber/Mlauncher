@@ -75,6 +75,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.core:core-ktx:1.13.1")
+    // Profilo di avvio: l'APK scaricato da GitHub (senza Play Store) viene compilato in anticipo al primo avvio,
+    // con le regole di app/src/main/baseline-prof.txt e quelle delle librerie Compose.
+    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
 
     testImplementation("junit:junit:4.13.2")
     // JSON vero anche nei test (quello di Android lì è solo un guscio vuoto)

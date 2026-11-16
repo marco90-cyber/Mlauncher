@@ -143,7 +143,7 @@ private fun rememberSenseCenter(vm: LauncherViewModel, ctx: Context): SenseCente
     }
     return remember(id, apps, dialerPkg) {
         val chosen = if (id.isNotEmpty()) apps[id] else null
-        val app = chosen ?: dialerPkg?.let { p -> apps.values.firstOrNull { it.pkg == p && !it.isAction } }
+        val app = chosen ?: dialerPkg?.let { p -> apps.values.firstOrNull { it.pkg == p && !it.isVirtual } }
         val phone = app == null || app.pkg == dialerPkg
         SenseCenter(app, phone, if (phone || app == null) "Telefono" else app.label)
     }
@@ -485,7 +485,7 @@ private fun SenseCenterGlyph(c: SenseCenter, size: Dp) {
 @Composable
 fun SenseAppPicker(vm: LauncherViewModel, current: String, onDismiss: () -> Unit, onPick: (String) -> Unit) {
     var q by remember { mutableStateOf("") }
-    val list = remember(vm.apps) { vm.apps.values.filter { !it.isAction }.sortedBy { it.label.lowercase() } }
+    val list = remember(vm.apps) { vm.apps.values.filter { !it.isVirtual }.sortedBy { it.label.lowercase() } }
     val shown = list.filter { q.isBlank() || it.label.contains(q.trim(), ignoreCase = true) }
     val cs = MaterialTheme.colorScheme
     AlertDialog(

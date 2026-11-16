@@ -1956,8 +1956,8 @@ internal fun QuickMenu(
                         first = false
                         MenuRow(text, icon, bmp, danger) { onDismiss(); click() }
                     }
-                    if (app != null && app.isAction) {
-                        row("Rimuovi", Icons.Default.Close) { vm.removeWidgetItem(item) }
+                    if (app != null && app.isVirtual) {
+                        row("Rimuovi", Icons.Default.Close) { if (app.isPin) vm.removePin(app, item) else vm.removeWidgetItem(item) }
                         row("Modifica", Icons.Default.Edit) { vm.editMode = true }
                     } else if (app != null) {
                         shortcuts.forEach { sc -> row(sc.label, bmp = sc.icon) { vm.launchShortcut(sc) } }

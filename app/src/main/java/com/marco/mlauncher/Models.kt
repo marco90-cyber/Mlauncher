@@ -376,6 +376,14 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var drIndentL by mutableStateOf(sp.getInt("drIndent_l", sp.getInt("drIndent", 8)))
     val drIndent: Int get() = if (landscape) drIndentL else drIndentP
     var drRemember by mutableStateOf(sp.getBoolean("drRemember", false))
+    /** schede per categoria in cima al cassetto (Tutte, Giochi, Social…) */
+    var drTabs by mutableStateOf(sp.getBoolean("drTabs", false))
+    /** cassetto a pagine orizzontali (come HyperOS) invece dello scorrimento verticale */
+    var drPaged by mutableStateOf(sp.getBoolean("drPaged", false))
+    /** colore personale dello sfondo del cassetto (drBg = "custom"): tinta 0-360, saturazione e luminosità 0-100 */
+    var drBgHue by mutableStateOf(sp.getInt("drBgHue", 220))
+    var drBgSat by mutableStateOf(sp.getInt("drBgSat", 45))
+    var drBgVal by mutableStateOf(sp.getInt("drBgVal", 30))
     var folderBlur by mutableStateOf(sp.getInt("folderBlur", 18))
     var folderFollowDock by mutableStateOf(sp.getBoolean("folderFollowDock", true))
     var allowRotation by mutableStateOf(sp.getBoolean("allowRotation", true))
@@ -549,6 +557,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "drTop" -> if (landscape) drTopL = value as Int else drTopP = value as Int
             "drIndent" -> if (landscape) drIndentL = value as Int else drIndentP = value as Int
             "drRemember" -> drRemember = value as Boolean
+            "drTabs" -> drTabs = value as Boolean
+            "drPaged" -> drPaged = value as Boolean
+            "drBgHue" -> drBgHue = value as Int
+            "drBgSat" -> drBgSat = value as Int
+            "drBgVal" -> drBgVal = value as Int
             "folderBlur" -> folderBlur = value as Int
             "folderFollowDock" -> folderFollowDock = value as Boolean
             "allowRotation" -> allowRotation = value as Boolean
