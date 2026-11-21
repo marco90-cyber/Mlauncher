@@ -713,6 +713,9 @@ private fun Modifier.drawerGestures(
                 val ev = awaitPointerEvent()
                 val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                 if (!c.pressed) {
+                    // il rilascio va consumato: altrimenti il tocco "sul vuoto" della ricerca (che chiude
+                    // la ricerca e torna alla Home) lo vede come un tocco e chiude dopo la pressione lunga
+                    c.consume()
                     released = true
                     break
                 }
