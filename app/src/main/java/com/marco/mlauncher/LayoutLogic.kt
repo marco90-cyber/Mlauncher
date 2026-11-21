@@ -31,13 +31,18 @@ object LayoutLogic {
     }
 
     /** Primo posto libero da [startPage] in poi (riga per riga); se serve va sulle pagine successive. */
-    fun findFree(list: List<HomeItem>, g: Grid, startPage: Int, sx: Int = 1, sy: Int = 1): Triple<Int, Int, Int> {
+    fun findFree(list: List<HomeItem>, g: Grid, startPage: Int, sx: Int = 1, sy: Int = 1): Triple<Int, Int, Int> =
+        findFreeIn({ list }, g, startPage, sx, sy)
+
+    /** Come [findFree], ma [onPage] dà gli elementi di una pagina: così non si controllano quelli delle altre. */
+    private fun findFreeIn(onPage: (Int) -> List<HomeItem>, g: Grid, startPage: Int, sx: Int, sy: Int): Triple<Int, Int, Int> {
         val w = minOf(sx, g.cols)
         val h = minOf(sy, g.rows)
         var p = startPage
         while (true) {
+            val here = onPage(p)
             for (y in 0..(g.rows - h)) for (x in 0..(g.cols - w)) {
-                if (areaFree(list, g, p, x, y, w, h)) return Triple(p, x, y)
+                if (areaFree(here, g, p, x, y, w, h)) return Triple(p, x, y)
             }
             p++
         }
@@ -70,10 +75,18 @@ object LayoutLogic {
      */
     fun project(src: List<HomeItem>, srcPages: Int, from: Grid, to: Grid): Layout {
         val out = ArrayList<HomeItem>()
+        // gli elementi già messi, divisi per pagina: i posti liberi si cercano solo tra quelli della stessa pagina
+        // (prima si scorreva ogni volta tutta la Home: nel registro 200-500 ms a ogni rotazione)
+        val perPage = HashMap<Int, ArrayList<HomeItem>>()
+        fun put(i: HomeItem) {
+            out.add(i)
+            perPage.getOrPut(i.page) { ArrayList() }.add(i)
+        }
+        fun on(p: Int): List<HomeItem> = perPage[p] ?: emptyList()
         var pages = srcPages.coerceAtLeast(1)
         val overflow = ArrayList<HomeItem>()
         for (d in src.filter { it.page == -1 }.sortedBy { it.x }) {
-            if (d.x < to.slots && areaFree(out, to, -1, d.x, 0, 1, 1)) out.add(d) else overflow.add(d)
+            if (d.x < to.slots && areaFree(on(-1), to, -1, d.x, 0, 1, 1)) put(d) else overflow.add(d)
         }
         // prima i più grandi, che hanno meno posti possibili
         val grid = src.filter { it.page >= 0 }.sortedWith(
@@ -83,17 +96,17 @@ object LayoutLogic {
             val n = it.sized(minOf(it.spanX, to.cols), minOf(it.spanY, to.rows))
             val tx = mapPos(it.x, it.spanX, from.cols, n.spanX, to.cols)
             val ty = mapPos(it.y, it.spanY, from.rows, n.spanY, to.rows)
-            val spot = nearestFree(out, to, n.page, tx, ty, n.spanX, n.spanY)
+            val spot = nearestFree(on(n.page), to, n.page, tx, ty, n.spanX, n.spanY)
             if (spot != null) {
-                out.add(n.at(n.page, spot.first, spot.second))
+                put(n.at(n.page, spot.first, spot.second))
                 if (n.page + 1 > pages) pages = n.page + 1
             } else {
                 overflow.add(n)
             }
         }
         for (o in overflow) {
-            val (p, x, y) = findFree(out, to, maxOf(o.page, 0), o.spanX, o.spanY)
-            out.add(o.at(p, x, y))
+            val (p, x, y) = findFreeIn(::on, to, maxOf(o.page, 0), o.spanX, o.spanY)
+            put(o.at(p, x, y))
             if (p + 1 > pages) pages = p + 1
         }
         return Layout(out, pages)

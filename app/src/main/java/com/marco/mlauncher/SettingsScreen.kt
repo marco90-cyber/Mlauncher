@@ -772,8 +772,10 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
                                     Row(
                                         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
                                             askAndroid = false
-                                            val ok = vm.wallpaperToAndroid(k)
-                                            android.widget.Toast.makeText(ctx, if (ok) "Sfondo di Android impostato" else "Non riuscito", android.widget.Toast.LENGTH_SHORT).show()
+                                            val appCtx = ctx.applicationContext
+                                            vm.wallpaperToAndroid(k) { ok ->
+                                                android.widget.Toast.makeText(appCtx, if (ok) "Sfondo di Android impostato" else "Non riuscito", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
                                         }.padding(vertical = 12.dp, horizontal = 4.dp)
                                     ) { Text(l) }
                                 }

@@ -557,19 +557,28 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * Mette lo sfondo di MLauncher anche in Android: [which] "home" (schermata Home di sistema),
      * "lock" (schermata di blocco) o "both".
      */
-    fun wallpaperToAndroid(which: String): Boolean = try {
-        val bm = BitmapFactory.decodeFile(wallFile(ctx).path)
-        val flags = when (which) {
-            "home" -> android.app.WallpaperManager.FLAG_SYSTEM
-            "lock" -> android.app.WallpaperManager.FLAG_LOCK
-            else -> android.app.WallpaperManager.FLAG_SYSTEM or android.app.WallpaperManager.FLAG_LOCK
+    fun wallpaperToAndroid(which: String, onDone: (Boolean) -> Unit) {
+        // WallpaperManager.setBitmap aspetta che Android finisca (nel registro: Home bloccata per 2 secondi
+        // sul thread principale): decodifica e impostazione vanno in background, l'esito arriva dopo
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val bm = BitmapFactory.decodeFile(wallFile(ctx).path)
+                    val flags = when (which) {
+                        "home" -> android.app.WallpaperManager.FLAG_SYSTEM
+                        "lock" -> android.app.WallpaperManager.FLAG_LOCK
+                        else -> android.app.WallpaperManager.FLAG_SYSTEM or android.app.WallpaperManager.FLAG_LOCK
+                    }
+                    android.app.WallpaperManager.getInstance(ctx).setBitmap(bm, null, true, flags)
+                    AppLog.i("Sfondo messo anche in Android ($which)")
+                    true
+                } catch (e: Throwable) {
+                    AppLog.e("Sfondo di Android non impostato", e)
+                    false
+                }
+            }
+            onDone(ok)
         }
-        android.app.WallpaperManager.getInstance(ctx).setBitmap(bm, null, true, flags)
-        AppLog.i("Sfondo messo anche in Android ($which)")
-        true
-    } catch (e: Throwable) {
-        AppLog.e("Sfondo di Android non impostato", e)
-        false
     }
 
     private fun refreshDarkText() {
@@ -3129,15 +3138,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             PackageManager.PERMISSION_GRANTED
     }
 
+    // ultimo nome del luogo trovato dal Geocoder (con le coordinate a cui si riferisce) e istante dell'ultimo errore:
+    // il Geocoder spesso risponde «UNAVAILABLE», e ritentarlo a ogni ritorno alla Home sprecava rete e batteria
+    private var geoLat = Double.NaN
+    private var geoLon = Double.NaN
+    private var geoName = ""
+    private var geoFailAt = 0L
+    // istante dell'ultimo meteo non scaricato: dopo un errore si aspetta un po' prima di riprovare da soli
+    private var weatherFailAt = 0L
+
     fun refreshWeather(force: Boolean = false) {
         checkLocationPermission()
         if (!weatherReady || weatherBusy) return
         val w = weather
         if (!force && w != null && System.currentTimeMillis() - w.time < 20 * 60 * 1000L) return
+        if (!force && System.currentTimeMillis() - weatherFailAt < 5 * 60 * 1000L) return
         weatherBusy = true
         viewModelScope.launch {
             try {
                 val data = withContext(Dispatchers.IO) { fetchWeather() }
+                weatherFailAt = if (data == null) System.currentTimeMillis() else 0L
                 if (data != null) {
                     weather = data.first
                     weatherDetail = data.second
@@ -3183,14 +3203,33 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val cur = j.getJSONObject("current")
             val daily = j.getJSONObject("daily")
             var place = city?.name ?: ""
-            if (city == null) try {
-                @Suppress("DEPRECATION")
-                val list = Geocoder(ctx, Locale.getDefault()).getFromLocation(lat, lon, 1)
-                val a = list?.firstOrNull()
-                place = a?.locality ?: a?.subAdminArea ?: a?.adminArea ?: ""
-            } catch (e: Exception) {
-                AppLog.quiet("nome del luogo per il meteo", e)
-                // senza nome del luogo
+            if (city == null) {
+                val now = System.currentTimeMillis()
+                // stesso posto di prima (circa 5 km): il nome già trovato vale ancora
+                val sameSpot = geoName.isNotEmpty() &&
+                    kotlin.math.abs(lat - geoLat) < 0.05 && kotlin.math.abs(lon - geoLon) < 0.05
+                if (sameSpot) {
+                    place = geoName
+                } else {
+                    // se il nome non si trova si tiene quello del meteo precedente, invece di svuotarlo
+                    place = weather?.place.orEmpty()
+                    if (now - geoFailAt >= 30 * 60 * 1000L) try {
+                        @Suppress("DEPRECATION")
+                        val list = Geocoder(ctx, Locale.getDefault()).getFromLocation(lat, lon, 1)
+                        val a = list?.firstOrNull()
+                        val found = a?.locality ?: a?.subAdminArea ?: a?.adminArea ?: ""
+                        if (found.isNotEmpty()) {
+                            place = found
+                            geoName = found
+                            geoLat = lat
+                            geoLon = lon
+                        }
+                        geoFailAt = 0L
+                    } catch (e: Exception) {
+                        geoFailAt = now
+                        AppLog.quiet("nome del luogo per il meteo", e)
+                    }
+                }
             }
             Triple(WeatherData(
                 temp = cur.getDouble("temperature_2m").roundToInt(),
