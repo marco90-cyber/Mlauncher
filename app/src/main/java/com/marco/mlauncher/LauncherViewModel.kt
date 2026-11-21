@@ -3140,9 +3140,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ultimo nome del luogo trovato dal Geocoder (con le coordinate a cui si riferisce) e istante dell'ultimo errore:
     // il Geocoder spesso risponde «UNAVAILABLE», e ritentarlo a ogni ritorno alla Home sprecava rete e batteria
-    private var geoLat = Double.NaN
-    private var geoLon = Double.NaN
-    private var geoName = ""
+    // (nome e coordinate si salvano: se il processo viene chiuso il nome resta legato al posto in cui è stato trovato)
+    private var geoLat = sp.getString("geoLat", null)?.toDoubleOrNull() ?: Double.NaN
+    private var geoLon = sp.getString("geoLon", null)?.toDoubleOrNull() ?: Double.NaN
+    private var geoName = sp.getString("geoName", "") ?: ""
     private var geoFailAt = 0L
     // istante dell'ultimo meteo non scaricato: dopo un errore si aspetta un po' prima di riprovare da soli
     private var weatherFailAt = 0L
@@ -3205,14 +3206,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             var place = city?.name ?: ""
             if (city == null) {
                 val now = System.currentTimeMillis()
+                // nome già trovato e coordinate a cui si riferisce
+                val known = geoName.isNotEmpty() && !geoLat.isNaN() && !geoLon.isNaN()
                 // stesso posto di prima (circa 5 km): il nome già trovato vale ancora
-                val sameSpot = geoName.isNotEmpty() &&
-                    kotlin.math.abs(lat - geoLat) < 0.05 && kotlin.math.abs(lon - geoLon) < 0.05
+                val sameSpot = known && kotlin.math.abs(lat - geoLat) < 0.05 && kotlin.math.abs(lon - geoLon) < 0.05
                 if (sameSpot) {
                     place = geoName
                 } else {
-                    // se il nome non si trova si tiene quello del meteo precedente, invece di svuotarlo
-                    place = weather?.place.orEmpty()
+                    // Se il nome non si trova: senza coordinate con cui confrontarlo si tiene quello del meteo
+                    // precedente (invece di svuotarlo); se invece ci si è spostati, meglio nessun nome che quello
+                    // di un'altra città.
+                    place = if (known) "" else weather?.place.orEmpty()
                     if (now - geoFailAt >= 30 * 60 * 1000L) try {
                         @Suppress("DEPRECATION")
                         val list = Geocoder(ctx, Locale.getDefault()).getFromLocation(lat, lon, 1)
@@ -3223,6 +3227,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                             geoName = found
                             geoLat = lat
                             geoLon = lon
+                            sp.edit().putString("geoName", found).putString("geoLat", lat.toString())
+                                .putString("geoLon", lon.toString()).apply()
                         }
                         geoFailAt = 0L
                     } catch (e: Exception) {
