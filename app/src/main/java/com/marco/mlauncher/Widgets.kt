@@ -1134,6 +1134,16 @@ private fun sendWidgetSize(mgr: android.appwidget.AppWidgetManager, id: Int, w: 
                 old.getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) == h
             ) return@execute
             val o = android.os.Bundle()
+            // come il launcher di Android: la lista delle misure serve ai widget "responsive" (Android 12) e la categoria
+            // "Home" a quelli che altrimenti restano vuoti (es. elenchi di conversazioni)
+            o.putParcelableArrayList(
+                android.appwidget.AppWidgetManager.OPTION_APPWIDGET_SIZES,
+                arrayListOf(android.util.SizeF(w.toFloat(), h.toFloat()))
+            )
+            o.putInt(
+                android.appwidget.AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY,
+                android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN
+            )
             o.putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, w)
             o.putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, h)
             o.putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, w)

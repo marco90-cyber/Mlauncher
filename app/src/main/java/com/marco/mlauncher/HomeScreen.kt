@@ -1775,8 +1775,17 @@ private fun WidgetCell(
                 StackManage(item, vm, Modifier.align(Alignment.TopEnd).padding(6.dp))
             }
             if (sel) {
+                // limiti del widget (se è di un'altra app): quali lati si possono trascinare, minimo e massimo in celle
+                val resizeCtx = androidx.compose.ui.platform.LocalContext.current
+                val extWidgetId = (item as? WidgetItem)?.ref?.takeIf { it.kind == "ext" }?.widgetId
+                val range = remember(extWidgetId, vm.gridCols, vm.gridRows) {
+                    extWidgetId?.let { vm.widgetMgr.getAppWidgetInfo(it) }?.let {
+                        widgetRange(it, resizeCtx.resources.displayMetrics.density, vm.cellWdp, vm.cellHdp, vm.gridCols, vm.gridRows)
+                    }
+                }
                 // pallini a metà dei lati: 0 sinistra, 1 sopra, 2 destra, 3 sotto
                 for (side in 0..3) {
+                    if (range != null && !(if (side == 0 || side == 2) range.horizontal else range.vertical)) continue
                     val al = when (side) {
                         0 -> Alignment.CenterStart
                         1 -> Alignment.TopCenter
@@ -1789,7 +1798,7 @@ private fun WidgetCell(
                             .align(al)
                             .size(48.dp)
                             .systemGestureExclusion()
-                            .pointerInput(item.id, side) {
+                            .pointerInput(item.id, side, range) {
                                 var x0 = 0
                                 var y0 = 0
                                 var sx0 = 1
@@ -1807,11 +1816,17 @@ private fun WidgetCell(
                                         val dx = (acc.x / cwPx).roundToInt()
                                         val dy = (acc.y / chPx).roundToInt()
                                         var nx = x0; var ny = y0; var nsx = sx0; var nsy = sy0
+                                        val minX = range?.minX ?: 1
+                                        val minY = range?.minY ?: 1
+                                        val maxX = range?.maxX ?: vm.gridCols
+                                        val maxY = range?.maxY ?: vm.gridRows
+                                        // intervallo ammesso (se un vecchio layout è fuori dai limiti, resta com'è)
+                                        fun clampTo(v: Int, lo: Int, hi: Int, keep: Int) = if (lo > hi) keep else v.coerceIn(lo, hi)
                                         when (side) {
-                                            0 -> { val k = dx.coerceIn(-x0, sx0 - 1); nx = x0 + k; nsx = sx0 - k }
-                                            1 -> { val k = dy.coerceIn(-y0, sy0 - 1); ny = y0 + k; nsy = sy0 - k }
-                                            2 -> nsx = (sx0 + dx).coerceIn(1, maxOf(1, vm.gridCols - x0))
-                                            else -> nsy = (sy0 + dy).coerceIn(1, maxOf(1, vm.gridRows - y0))
+                                            0 -> { val k = clampTo(dx, maxOf(-x0, sx0 - maxX), sx0 - minX, 0); nx = x0 + k; nsx = sx0 - k }
+                                            1 -> { val k = clampTo(dy, maxOf(-y0, sy0 - maxY), sy0 - minY, 0); ny = y0 + k; nsy = sy0 - k }
+                                            2 -> nsx = clampTo(sx0 + dx, minX, minOf(maxX, maxOf(1, vm.gridCols - x0)), sx0)
+                                            else -> nsy = clampTo(sy0 + dy, minY, minOf(maxY, maxOf(1, vm.gridRows - y0)), sy0)
                                         }
                                         val cur = curItem
                                         if (nx != cur.x || ny != cur.y || nsx != cur.spanX || nsy != cur.spanY) {

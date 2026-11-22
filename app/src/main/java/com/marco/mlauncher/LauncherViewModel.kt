@@ -1648,12 +1648,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val t = stackTarget
         if (t != null && addRefToStack(t, WidgetRef("ext", widgetId, info.provider.flattenToString()))) return
         val density = ctx.resources.displayMetrics.density
-        val wDp = info.minWidth / density
-        val hDp = info.minHeight / density
-        val sx = ceil(((wDp - 8f).coerceAtLeast(1f)) / cellWdp.coerceAtLeast(40f)).toInt()
-            .coerceIn(1, minOf(4, curCols))
-        val sy = ceil(((hDp - 8f).coerceAtLeast(1f)) / cellHdp.coerceAtLeast(40f)).toInt()
-            .coerceIn(1, minOf(4, curRows))
+        // celle iniziali: il suggerimento del widget (targetCell) o il suo minimo, se più grande
+        val (sx, sy) = widgetDefaultSpans(info, density, cellWdp, cellHdp, minOf(4, curCols), minOf(4, curRows))
         val (p, x, y) = findFree(currentPage, sx, sy)
         items.add(
             WidgetItem(

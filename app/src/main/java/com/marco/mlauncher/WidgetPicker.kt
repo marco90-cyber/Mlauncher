@@ -376,10 +376,7 @@ private fun EmptyStackCard(vm: LauncherViewModel, sx: Int, sy: Int) {
 private fun ExtCard(vm: LauncherViewModel, host: Host, info: AppWidgetProviderInfo) {
     val ctx = LocalContext.current
     val density = ctx.resources.displayMetrics.density
-    val sx = ceil(((info.minWidth / density - 8f).coerceAtLeast(1f)) / vm.cellWdp.coerceAtLeast(40f)).toInt()
-        .coerceIn(1, 4)
-    val sy = ceil(((info.minHeight / density - 8f).coerceAtLeast(1f)) / vm.cellHdp.coerceAtLeast(40f)).toInt()
-        .coerceIn(1, 4)
+    val (sx, sy) = widgetDefaultSpans(info, density, vm.cellWdp, vm.cellHdp, 4, 4)
     val label = remember(info) {
         try {
             info.loadLabel(ctx.packageManager)
