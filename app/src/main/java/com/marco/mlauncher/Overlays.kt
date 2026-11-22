@@ -767,7 +767,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
         }
         val visible = base.filter { it.id !in vm.hidden }
         if (query.isBlank()) visible
-        else visible.filter { it.label.contains(query.trim(), ignoreCase = true) }
+        else AppSearch.filter(visible, query.trim())
     }
     // Schede per categoria: le categorie si calcolano fuori dal thread principale (leggono gli elenchi
     // del Play Store e interrogano il sistema), una volta per elenco di app.

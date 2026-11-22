@@ -486,7 +486,7 @@ private fun SenseCenterGlyph(c: SenseCenter, size: Dp) {
 fun SenseAppPicker(vm: LauncherViewModel, current: String, onDismiss: () -> Unit, onPick: (String) -> Unit) {
     var q by remember { mutableStateOf("") }
     val list = remember(vm.apps) { vm.apps.values.filter { !it.isVirtual }.sortedBy { it.label.lowercase() } }
-    val shown = list.filter { q.isBlank() || it.label.contains(q.trim(), ignoreCase = true) }
+    val shown = AppSearch.filter(list, q.trim())
     val cs = MaterialTheme.colorScheme
     AlertDialog(
         onDismissRequest = onDismiss,
