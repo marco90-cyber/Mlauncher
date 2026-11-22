@@ -1124,7 +1124,22 @@ private val widgetSizeSent = java.util.concurrent.ConcurrentHashMap<Int, Long>()
 private fun sendWidgetSize(mgr: android.appwidget.AppWidgetManager, id: Int, w: Int, h: Int) {
     if (w <= 0 || h <= 0) return
     val key = (w.toLong() shl 32) or h.toLong()
+    // durante l'animazione di ridimensionamento la misura cambia a ogni fotogramma: la mandiamo al widget
+    // solo quando si ferma (la prima volta, appena creato, subito)
+    val had = widgetSizeSent.containsKey(id)
     if (widgetSizeSent.put(id, key) == key) return
+    sizeDebounce.remove(id)?.let { sizeHandler.removeCallbacks(it) }
+    if (had) {
+        val r = Runnable { sizeDebounce.remove(id); pushWidgetSize(mgr, id, w, h, key) }
+        sizeDebounce[id] = r
+        sizeHandler.postDelayed(r, 160)
+    } else pushWidgetSize(mgr, id, w, h, key)
+}
+
+private val sizeHandler = android.os.Handler(android.os.Looper.getMainLooper())
+private val sizeDebounce = java.util.concurrent.ConcurrentHashMap<Int, Runnable>()
+
+private fun pushWidgetSize(mgr: android.appwidget.AppWidgetManager, id: Int, w: Int, h: Int, key: Long) {
     widgetSizeIo.execute {
         try {
             val old = mgr.getAppWidgetOptions(id)

@@ -1700,11 +1700,17 @@ private fun WidgetCell(
     // il contenuto viene registrato in un layer: quando parte il trascinamento ne facciamo una foto
     val snapLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
     val snapScope = rememberCoroutineScope()
+    // misura animata: quando cambiano le celle (ridimensionamento) il widget scorre nel posto nuovo, come in Launcher3
+    val sizeSpec = tween<Float>((Motion.REORDER * vm.settings.animFactor).toInt().coerceAtLeast(1), easing = Motion.Standard)
+    val animW by animateFloatAsState(item.spanX.toFloat(), sizeSpec, label = "wcw")
+    val animH by animateFloatAsState(item.spanY.toFloat(), sizeSpec, label = "wch")
+    // cornice che segue il dito in modo continuo mentre trascini un pallino (il widget intanto si aggancia alle celle)
+    var ghost by remember { mutableStateOf<ResizeGhost?>(null) }
 
     Box(
         modifier
             .returnItem(vm, item)
-            .size(cellW * item.spanX, cellH * item.spanY)
+            .size(cellW * animW, cellH * animH)
             .padding(5.dp)
             .alpha(if (hidden) 0f else 1f)
     ) {
@@ -1783,6 +1789,20 @@ private fun WidgetCell(
                         widgetRange(it, resizeCtx.resources.displayMetrics.density, vm.cellWdp, vm.cellHdp, vm.gridCols, vm.gridRows)
                     }
                 }
+                // cornice "elastica": segue il dito senza scatti, come il bordo di Lawnchair
+                Box(
+                    Modifier.fillMaxSize().drawBehind {
+                        val g = ghost ?: return@drawBehind
+                        val it0 = curItem
+                        val sx = (it0.x - g.x0) * cwPx
+                        val sy = (it0.y - g.y0) * chPx
+                        val tl = Offset(g.l - sx, g.t - sy)
+                        val sz = androidx.compose.ui.geometry.Size((g.r - g.l).coerceAtLeast(cwPx * 0.5f), (g.b - g.t).coerceAtLeast(chPx * 0.5f))
+                        val cr = androidx.compose.ui.geometry.CornerRadius(28.dp.toPx())
+                        drawRoundRect(cs.primary.copy(alpha = 0.16f), tl, sz, cr)
+                        drawRoundRect(cs.primary, tl, sz, cr, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+                    }
+                )
                 // pallini a metà dei lati: 0 sinistra, 1 sopra, 2 destra, 3 sotto
                 for (side in 0..3) {
                     if (range != null && !(if (side == 0 || side == 2) range.horizontal else range.vertical)) continue
@@ -1809,10 +1829,21 @@ private fun WidgetCell(
                                         x0 = curItem.x; y0 = curItem.y
                                         sx0 = curItem.spanX; sy0 = curItem.spanY
                                         acc = Offset.Zero
+                                        ghost = ResizeGhost(0f, 0f, sx0 * cwPx, sy0 * chPx, x0, y0)
                                     },
+                                    onDragEnd = { ghost = null },
+                                    onDragCancel = { ghost = null },
                                     onDrag = { c, d ->
                                         c.consume()
                                         acc += d
+                                        val w0 = sx0 * cwPx
+                                        val h0 = sy0 * chPx
+                                        ghost = when (side) {
+                                            0 -> ResizeGhost(acc.x.coerceAtMost(w0 - cwPx * 0.5f), 0f, w0, h0, x0, y0)
+                                            1 -> ResizeGhost(0f, acc.y.coerceAtMost(h0 - chPx * 0.5f), w0, h0, x0, y0)
+                                            2 -> ResizeGhost(0f, 0f, w0 + acc.x, h0, x0, y0)
+                                            else -> ResizeGhost(0f, 0f, w0, h0 + acc.y, x0, y0)
+                                        }
                                         val dx = (acc.x / cwPx).roundToInt()
                                         val dy = (acc.y / chPx).roundToInt()
                                         var nx = x0; var ny = y0; var nsx = sx0; var nsy = sy0
@@ -2370,3 +2401,6 @@ private fun OverviewButton(icon: androidx.compose.ui.graphics.vector.ImageVector
         )
     }
 }
+
+/** Cornice di ridimensionamento che segue il dito (in pixel, relativa al widget com'era a inizio trascinamento). */
+private class ResizeGhost(val l: Float, val t: Float, val r: Float, val b: Float, val x0: Int, val y0: Int)
