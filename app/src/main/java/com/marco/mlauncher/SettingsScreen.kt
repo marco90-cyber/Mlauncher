@@ -94,6 +94,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.draw.drawWithContent
 import kotlin.math.roundToInt
@@ -153,7 +154,7 @@ private fun Modifier.newDot(title: String): Modifier {
     val c = MaterialTheme.colorScheme.primary
     return this
         .pointerInput(title) {
-            androidx.compose.foundation.gestures.awaitEachGesture {
+            awaitEachGesture {
                 // guarda soltanto (non consuma nulla): un tocco senza scorrere segna la voce come vista
                 val down = awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                 var moved = false
