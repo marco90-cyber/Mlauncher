@@ -852,11 +852,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun findIconPacks(): List<Pair<String, String>> {
-        val actions = listOf("org.adw.launcher.THEMES", "com.novalauncher.THEME", "com.gau.go.launcherex.theme")
+        // Come ARK-launcher (Apache-2.0): i pacchetti dichiarano il tema come azione (Nova/ADW/Go/Atom/Lawnchair)
+        // oppure come categoria di un'attività MAIN (Apex/Tesla/Fede): le cerchiamo tutte e due.
+        val intents = listOf(
+            "org.adw.launcher.THEMES", "com.novalauncher.THEME", "com.gau.go.launcherex.theme",
+            "com.dlto.atom.launcher.THEME", "ch.deletescape.lawnchair.ICONPACK", "app.lawnchair.icons.THEMED_ICON"
+        ).map { Intent(it) } + listOf(
+            "com.anddoes.launcher.THEME", "com.teslacoilsw.launcher.THEME", "com.fede.launcher.THEME_ICONPACK"
+        ).map { Intent(Intent.ACTION_MAIN).addCategory(it) }
         val set = LinkedHashMap<String, String>()
-        for (a in actions) {
+        for (a in intents) {
             try {
-                for (ri in pm.queryIntentActivities(Intent(a), 0)) {
+                for (ri in pm.queryIntentActivities(a, 0)) {
                     val p = ri.activityInfo.packageName
                     if (p !in set) set[p] = ri.loadLabel(pm).toString()
                 }
@@ -898,8 +905,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (ev == XmlPullParser.START_TAG && parser.name == "item") {
                     val comp = parser.getAttributeValue(null, "component")
                     val dr = parser.getAttributeValue(null, "drawable")
-                    if (comp != null && dr != null && comp.startsWith("ComponentInfo{") && comp.endsWith("}")) {
-                        map[comp.substring(14, comp.length - 1)] = dr
+                    if (comp != null && !dr.isNullOrEmpty() && comp.startsWith("ComponentInfo{") && comp.endsWith("}")) {
+                        // se il pacchetto elenca due icone per la stessa app vale la prima (come ARK-launcher)
+                        val key = comp.substring(14, comp.length - 1)
+                        if (key !in map) map[key] = dr
                     }
                 }
                 ev = parser.next()
