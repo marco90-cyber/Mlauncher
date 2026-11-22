@@ -624,6 +624,8 @@ class MainActivity : ComponentActivity(), Host {
 
     // ---------- Host ----------
 
+    override fun gestureAction(key: String) = runAction(key)
+
     /** Esegue un'azione di MLauncher (icona "azione" in Home). */
     private fun runAction(spec: String) {
         AppLog.i("Azione $spec")
@@ -676,6 +678,39 @@ class MainActivity : ComponentActivity(), Host {
             if (!vm.launchPin(app)) Toast.makeText(this, "Impossibile aprire ${app.label}", Toast.LENGTH_SHORT).show()
             return
         }
+        if (app.id in vm.locked) {
+            askUnlock(app) { launchChecked(app, bounds) }
+            return
+        }
+        launchChecked(app, bounds)
+    }
+
+    /** Chiede impronta o PIN del telefono, poi esegue [then]. Se il telefono non ha nessun blocco, apre e basta. */
+    private fun askUnlock(app: AppEntry, then: () -> Unit) {
+        try {
+            val bp = android.hardware.biometrics.BiometricPrompt.Builder(this)
+                .setTitle("Apri ${app.label}")
+                .setAllowedAuthenticators(
+                    android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                        android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                )
+                .build()
+            bp.authenticate(
+                android.os.CancellationSignal(),
+                mainExecutor,
+                object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) {
+                        then()
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            AppLog.quiet("richiesta di sblocco app", e)
+            Toast.makeText(this, "Imposta un blocco schermo sul telefono per usare il blocco app", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun launchChecked(app: AppEntry, bounds: Rect?) {
         vm.recordLaunch(app.id)
         vm.noteLaunched(app.id)
         launchedSinceStart = true
@@ -685,6 +720,10 @@ class MainActivity : ComponentActivity(), Host {
             .setComponent(ComponentName(app.pkg, app.cls))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         try {
+            if (vm.settings.launchAnim == "zoom" && bounds != null && bounds.width > 0f) {
+                vm.launchZoom = app.icon to androidx.compose.ui.geometry.Rect(bounds.left, bounds.top, bounds.right, bounds.bottom)
+                lateH.postDelayed({ vm.launchZoom = null }, 500)
+            }
             val opts = if (bounds != null && bounds.width > 0f) {
                 ActivityOptions.makeScaleUpAnimation(
                     window.decorView,

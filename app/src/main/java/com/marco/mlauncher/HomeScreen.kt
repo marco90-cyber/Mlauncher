@@ -137,6 +137,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 interface Host {
     fun launch(app: AppEntry, bounds: Rect?)
@@ -154,6 +155,8 @@ interface Host {
     fun openListenerSettings()
     fun openAccessibilitySettings()
     fun lockScreen(): Boolean
+    /** esegue l'azione scelta per un gesto (chiave di MLA_ACTIONS) */
+    fun gestureAction(key: String)
     fun openClockApp()
     fun requestBluetooth()
     fun webSearch(query: String)
@@ -218,6 +221,25 @@ fun Modifier.pageEffect(effect: String, state: PagerState, page: Int): Modifier 
             }
         }
         else -> {}
+    }
+}
+
+/**
+ * Effetto "Onda": la pagina scorre normalmente ma ogni icona parte con un piccolo ritardo
+ * (in base alla colonna) e fa un saltello verso l'alto, così le icone si muovono a cascata.
+ */
+fun Modifier.waveIcon(state: PagerState, page: Int, col: Int): Modifier = graphicsLayer {
+    val o = page - state.currentPage - state.currentPageOffsetFraction
+    val a = abs(o).coerceAtMost(1f)
+    if (a > 0f) {
+        val c = col.coerceIn(0, 5) / 5f
+        val lag = if (o > 0f) c else 1f - c
+        val t = (a * 1.35f - lag * 0.35f).coerceIn(0f, 1f)
+        translationY = -sin(t * Math.PI.toFloat()) * size.height * 0.45f
+        val sc = 1f - 0.15f * t
+        scaleX = sc
+        scaleY = sc
+        alpha = 1f - 0.5f * t
     }
 }
 
@@ -1156,9 +1178,10 @@ private fun HomePage(
                         }
                     },
                     onDoubleTap = {
-                        if (!vm.editMode && vm.settings.doubleTapLock) {
+                        val act = vm.settings.doubleTapAction
+                        if (!vm.editMode && act != "none") {
                             Haptics.confirm(view)
-                            host.lockScreen()
+                            host.gestureAction(act)
                         }
                     },
                     onLongPress = { off ->
@@ -1178,11 +1201,18 @@ private fun HomePage(
                         if (!vm.editMode && vm.openFolderId == null) {
                             if (total < -swipePx && vm.settings.swipeUp != "none") {
                                 Haptics.tick(view)
-                                if (vm.settings.swipeUp == "search") vm.searchFocus = true
-                                vm.overlay = Overlay.DRAWER
+                                val su = vm.settings.swipeUp
+                                if (su != "open" && su != "search") host.gestureAction(su)
+                                else {
+                                    if (su == "search") vm.searchFocus = true
+                                    vm.overlay = Overlay.DRAWER
+                                }
                             } else if (total > swipePx) {
-                                if (vm.settings.swipeDown == "search") vm.overlay = Overlay.DRAWER
-                                else host.expandNotifications()
+                                when (val sd = vm.settings.swipeDown) {
+                                    "search" -> vm.overlay = Overlay.DRAWER
+                                    "notifications" -> host.expandNotifications()
+                                    else -> host.gestureAction(sd)
+                                }
                             }
                         }
                     }
@@ -1213,6 +1243,7 @@ private fun HomePage(
                     // per il solo fotogramma prima dello scatto resta invisibile
                     val waiting = justDropped && (tx != goX || ty != goY)
                     val mod = Modifier.offset(cw * tx, ch * ty).alpha(if (waiting) 0f else if (leaving) 0.35f else 1f)
+                        .then(if (s.pageEffect == "wave") Modifier.waveIcon(pagerState, page, item.x) else Modifier)
                     when (item) {
                         is AppItem -> GridItem(item, vm, host, cw, ch, s.showLabels, hidden, cb, onMenu, mod)
                         is FolderItem ->
@@ -1964,6 +1995,7 @@ internal fun QuickMenu(
                         if (vm.settings.homeMode == "drawer") row("Rimuovi", Icons.Default.Close) { vm.removeWidgetItem(item) }
                         row("Informazioni app", Icons.Default.Info) { host.appInfo(app) }
                         row("Modifica", Icons.Default.Edit) { vm.editMode = true }
+                        row(if (app.id in vm.locked) "Sblocca" else "Blocca con impronta", Icons.Default.Lock) { vm.toggleLock(app.id) }
                         row("Nascondi", Icons.Default.Lock) { vm.hideApp(app.id) }
                         if (app.removable) row("Disinstalla", Icons.Default.Delete, danger = true) { host.uninstall(app) }
                     } else if (item is FolderItem) {

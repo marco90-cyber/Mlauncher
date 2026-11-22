@@ -1150,6 +1150,17 @@ private fun androidx.compose.foundation.layout.BoxScope.DrawerScrollBar(
         touchY = null
         active = null
     }
+    // animazioni: la striscia si "accende" con una pillola dietro, la bolla entra con un piccolo rimbalzo
+    val pillP by androidx.compose.animation.core.animateFloatAsState(if (touching) 1f else 0f, tween(180), label = "pill")
+    val bubbleP by androidx.compose.animation.core.animateFloatAsState(
+        if (touching && active != null) 1f else 0f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 450f),
+        label = "bubble"
+    )
+    var lastBubbleY by remember { mutableStateOf(0f) }
+    var lastBubbleLetter by remember { mutableStateOf(' ') }
+    if (touchY != null) lastBubbleY = touchY!!
+    if (active != null) lastBubbleLetter = active!!
     val thumbH = 56.dp
     val thumbPx = with(dens) { thumbH.toPx() }
     val info = gridState.layoutInfo
@@ -1163,6 +1174,7 @@ private fun androidx.compose.foundation.layout.BoxScope.DrawerScrollBar(
             .padding(vertical = 12.dp)
             .width(30.dp)
             .onSizeChanged { barH = it.height.coerceAtLeast(1) }
+            .background(cs.surfaceContainerHigh.copy(alpha = 0.85f * pillP), RoundedCornerShape(15.dp))
             .pointerInput(letters, byName) {
                 detectTapGestures(onPress = { o ->
                     touch(o.y)
@@ -1223,10 +1235,8 @@ private fun androidx.compose.foundation.layout.BoxScope.DrawerScrollBar(
             }
         }
     }
-    // bolla grande con la lettera attuale, a sinistra del dito
-    val ty = touchY
-    val al = active
-    if (ty != null && al != null && byName) {
+    // bolla grande con la lettera attuale, a sinistra del dito (entra con un rimbalzo, esce in dissolvenza)
+    if (byName && bubbleP > 0.01f) {
         val bubble = 72.dp
         Box(
             Modifier
@@ -1234,15 +1244,22 @@ private fun androidx.compose.foundation.layout.BoxScope.DrawerScrollBar(
                 .offset {
                     IntOffset(
                         -(48.dp.roundToPx()),
-                        (ty + 12.dp.toPx() - bubble.toPx() / 2f).toInt().coerceAtLeast(0)
+                        (lastBubbleY + 12.dp.toPx() - bubble.toPx() / 2f).toInt().coerceAtLeast(0)
                     )
                 }
                 .size(bubble)
+                .graphicsLayer {
+                    val sc = 0.5f + 0.5f * bubbleP
+                    scaleX = sc
+                    scaleY = sc
+                    alpha = bubbleP.coerceIn(0f, 1f)
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0.5f)
+                }
                 .clip(RoundedCornerShape(topStart = 36.dp, bottomStart = 36.dp, topEnd = 36.dp, bottomEnd = 10.dp))
                 .background(cs.primary),
             contentAlignment = Alignment.Center
         ) {
-            Text(al.toString(), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = cs.onPrimary)
+            Text(lastBubbleLetter.toString(), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = cs.onPrimary)
         }
     }
 }

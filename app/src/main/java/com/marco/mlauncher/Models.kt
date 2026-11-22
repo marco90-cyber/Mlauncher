@@ -331,6 +331,10 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var wallDim by mutableIntStateOf(sp.getInt("wallDim", 0))
     var wallBlur by mutableIntStateOf(sp.getInt("wallBlur", 0))
     var wallParallax by mutableStateOf(sp.getBoolean("wallParallax", true))
+    /** profondità: sfondo e icone si muovono inclinando il telefono */
+    var tilt by mutableStateOf(sp.getBoolean("tilt", false))
+    /** apertura delle app: "zoom" = l'icona si ingrandisce con angoli tondi, "scale" = solo l'effetto di Android */
+    var launchAnim by mutableStateOf(sp.getString("launchAnim", "zoom") ?: "zoom")
     /** tema Liquid Glass: dock, cartelle, indicatore e widget in vetro liquido */
     var liquid by mutableStateOf(sp.getBoolean("liquid", false))
     var autoBackup by mutableStateOf(sp.getBoolean("autoBackup", false))
@@ -426,6 +430,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var iconPack by mutableStateOf(sp.getString("iconPack", "") ?: "")
         private set
     var doubleTapLock by mutableStateOf(sp.getBoolean("doubleTapLock", false))
+    /** azione del doppio tocco sulla Home: "none" o una chiave di MLA_ACTIONS (chi aveva "Doppio tocco per bloccare" parte da "lock") */
+    var doubleTapAction by mutableStateOf(sp.getString("doubleTapAction", null) ?: if (sp.getBoolean("doubleTapLock", false)) "lock" else "none")
         private set
     var edgePanel by mutableStateOf(sp.getBoolean("edgePanel", false))
         private set
@@ -588,6 +594,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "stackAutoRotate" -> stackAutoRotate = value as Boolean
             "iconPack" -> iconPack = value as String
             "doubleTapLock" -> doubleTapLock = value as Boolean
+            "doubleTapAction" -> doubleTapAction = value as String
+            "launchAnim" -> launchAnim = value as String
+            "tilt" -> tilt = value as Boolean
             "edgePanel" -> edgePanel = value as Boolean
             "edgeSide" -> edgeSide = value as String
             "edgeHandleSize" -> edgeHandleSize = value as Int

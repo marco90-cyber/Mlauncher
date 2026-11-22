@@ -742,6 +742,7 @@ private fun PageWallpaper(vm: LauncherViewModel, host: Host) {
         run {
             Group("Movimento") { Dependent(bm != null) {
                 SwitchRow("Parallasse", "Lo sfondo scorre piano quando cambi pagina", s.wallParallax) { vm.setSetting("wallParallax", it) }
+                SwitchRow("Profondità (inclinazione)", "Inclinando il telefono sfondo e icone si muovono su livelli diversi", s.tilt) { vm.setSetting("tilt", it) }
                 Text(
                     "Sfoca, scurisci e gli altri effetti sono in \u201cModifica lo sfondo attuale\u201d \u2192 Effetti.",
                     style = MaterialTheme.typography.bodySmall,
@@ -976,6 +977,32 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
         }
     }
     Group("App") {
+        var lockedOpen by remember { mutableStateOf(false) }
+        ListItem(
+            headlineContent = { Text("App bloccate") },
+            trailingContent = { Chevron() },
+            supportingContent = { Text("${vm.locked.size} bloccate · impronta o PIN per aprirle") },
+            colors = prefColors(),
+            modifier = Modifier.clickable { lockedOpen = true }
+        )
+        if (lockedOpen) {
+            AlertDialog(
+                onDismissRequest = { lockedOpen = false },
+                title = { Text("App bloccate") },
+                text = {
+                    Column {
+                        if (vm.locked.isEmpty()) Text("Nessuna app bloccata. Tieni premuta un'app in Home e scegli \"Blocca con impronta\". Il blocco vale solo aprendo l'app da MLauncher: da recenti o notifiche si pu\u00f2 ancora aprire.")
+                        vm.locked.toList().forEach { id ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(vm.apps[id]?.label ?: id, Modifier.weight(1f))
+                                TextButton(onClick = { vm.toggleLock(id) }) { Text("Sblocca") }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { lockedOpen = false }) { Text("Chiudi") } }
+            )
+        }
         var hiddenOpen by remember { mutableStateOf(false) }
         ListItem(
             headlineContent = { Text("App nascoste") },
@@ -1278,24 +1305,26 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
         ) { vm.setSetting("homeOpensDrawer", it) }
         ChoiceRow(
             "Scorri giù nella Home",
-            listOf("notifications" to "Apri le notifiche", "search" to "Cerca app"),
+            listOf("notifications" to "Apri le notifiche", "search" to "Cerca app") +
+                MLA_ACTIONS.filter { it.first != "notif" && it.first != "search" },
             s.swipeDown
         ) { vm.setSetting("swipeDown", it) }
         ChoiceRow(
             "Scorri su nella Home",
-            if (s.homeMode == "drawer") listOf("open" to "Apri il cassetto app", "search" to "Cerca app (con la tastiera)", "none" to "Niente")
-            else listOf("open" to "Apri la ricerca", "search" to "Apri la ricerca con la tastiera", "none" to "Niente"),
+            (if (s.homeMode == "drawer") listOf("open" to "Apri il cassetto app", "search" to "Cerca app (con la tastiera)", "none" to "Niente")
+            else listOf("open" to "Apri la ricerca", "search" to "Apri la ricerca con la tastiera", "none" to "Niente")) +
+                MLA_ACTIONS.filter { it.first != "drawer" && it.first != "search" },
             s.swipeUp
         ) { vm.setSetting("swipeUp", it) }
-        SwitchRow(
-            "Doppio tocco per bloccare",
-            "Tocca due volte uno spazio vuoto della Home",
-            s.doubleTapLock
+        ChoiceRow(
+            "Doppio tocco sulla Home",
+            GESTURE_ACTIONS,
+            s.doubleTapAction
         ) {
-            vm.setSetting("doubleTapLock", it)
-            if (it && !vm.accessibilityEnabled) host.openAccessibilitySettings()
+            vm.setSetting("doubleTapAction", it)
+            if ((it == "lock" || it == "recents") && !vm.accessibilityEnabled) host.openAccessibilitySettings()
         }
-        if (s.doubleTapLock && !vm.accessibilityEnabled) {
+        if ((s.doubleTapAction == "lock" || s.doubleTapAction == "recents") && !vm.accessibilityEnabled) {
             ListItem(
                 headlineContent = { Text("Serve il servizio di accessibilità") },
                 trailingContent = { Chevron() },
@@ -1548,7 +1577,8 @@ private fun PageAnim(vm: LauncherViewModel) {
                 "slide" to "Scorrimento",
                 "fade" to "Dissolvenza",
                 "cube" to "Cubo",
-                "cascade" to "Cascata"
+                "cascade" to "Cascata",
+                "wave" to "Onda"
             ),
             s.pageEffect,
             preview = { EffectPreview(it) }
@@ -1560,6 +1590,11 @@ private fun PageAnim(vm: LauncherViewModel) {
             listOf("0" to "Rilassata", "1" to "Bilanciata", "2" to "Veloce"),
             s.animSpeed.toString()
         ) { vm.setSetting("animSpeed", it.toInt()) }
+        ChoiceRow(
+            "Animazione di apertura app",
+            listOf("zoom" to "Zoom dell'icona", "scale" to "Solo Android"),
+            s.launchAnim
+        ) { vm.setSetting("launchAnim", it) }
         ChoiceRow(
             "Animazione di disinstallazione",
             listOf("boom" to "Esplosione", "fade" to "Dissolvenza", "none" to "Nessuna"),
@@ -1950,6 +1985,7 @@ private fun EffectPreview(key: String) {
                         "cube" -> scaleX = 0.7f
                         "rotate" -> rotationZ = -14f
                         "cascade" -> { scaleX = 0.85f; scaleY = 0.85f }
+                        "wave" -> translationY = -6.dp.toPx()
                     }
                 }
         )

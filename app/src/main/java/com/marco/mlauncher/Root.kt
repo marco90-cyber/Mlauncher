@@ -206,19 +206,31 @@ fun Root(vm: LauncherViewModel, host: Host) {
                         }
                 ) {
                     // sfondo di MLauncher (con quello di Android si vede la finestra trasparente)
-                    if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm)) {
+                    if (wall != null) Box(Modifier.fillMaxSize().returnWall(vm).tiltWall(vm)) {
                         // sfoca e scurisci ora sono effetti dell'editor, dentro l'immagine
                         WallpaperLayer(wall, 0f, 0.dp)
                     }
-                    if (vm.loaded) HomeScreen(vm, host)
+                    if (vm.loaded) Box(Modifier.fillMaxSize().tiltIcons(vm)) { HomeScreen(vm, host) }
                 }
                 }
                 if (vm.loaded) MinusPage(vm, host)
                 FolderOverlay(vm, host)
             }
-            AppsOverlay(vm, host)
-            WidgetPicker(vm, host)
-            SettingsOverlay(vm, host)
+            Box(Modifier.fillMaxSize().graphicsLayer {
+                val b = vm.backProgress
+                if (b > 0f) {
+                    val sc = 1f - 0.1f * b
+                    scaleX = sc
+                    scaleY = sc
+                    alpha = 1f - 0.35f * b
+                }
+            }) {
+                AppsOverlay(vm, host)
+                WidgetPicker(vm, host)
+                SettingsOverlay(vm, host)
+            }
+            LaunchZoomOverlay(vm)
+            TiltSensor(vm)
           }
         }
     }
@@ -235,10 +247,21 @@ fun Root(vm: LauncherViewModel, host: Host) {
     BackHandler(enabled = vm.minusP > 0f) { if (vm.minusEdit) vm.minusEdit = false else vm.closeMinus() }
     BackHandler(enabled = vm.editMode) { vm.exitEdit() }
     BackHandler(enabled = vm.openFolderId != null) { vm.openFolderId = null }
-    BackHandler(enabled = vm.overlay == Overlay.DRAWER) { vm.overlay = Overlay.NONE }
+    // Indietro predittivo: mentre trascini il dito, cassetto e impostazioni si rimpiccioliscono piano
+    androidx.activity.compose.PredictiveBackHandler(enabled = vm.overlay == Overlay.DRAWER) { progress ->
+        try {
+            progress.collect { vm.backProgress = it.progress }
+            vm.overlay = Overlay.NONE
+        } finally { vm.backProgress = 0f }
+    }
     BackHandler(enabled = vm.overlay == Overlay.WIDGETS) { vm.overlay = Overlay.NONE }
-    BackHandler(enabled = vm.overlay == Overlay.SETTINGS && vm.genEdit == null && vm.wallEditSrc == null) {
-        if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
+    androidx.activity.compose.PredictiveBackHandler(
+        enabled = vm.overlay == Overlay.SETTINGS && vm.genEdit == null && vm.wallEditSrc == null
+    ) { progress ->
+        try {
+            progress.collect { vm.backProgress = it.progress }
+            if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
+        } finally { vm.backProgress = 0f }
     }
 }
 

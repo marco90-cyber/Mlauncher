@@ -31,6 +31,9 @@ val MLA_ACTIONS = listOf(
     "overview" to "Anteprima pagine"
 )
 
+/** Azioni scegliibili per i gesti (doppio tocco, scorri su/giù): "Niente" + tutte le azioni. */
+val GESTURE_ACTIONS: List<Pair<String, String>> = listOf("none" to "Niente") + MLA_ACTIONS
+
 /** Pagine raggiungibili con "Vai a pagina". */
 const val ACTION_MAX_PAGE = 9
 

@@ -87,6 +87,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         private set
     val items = mutableStateListOf<HomeItem>()
     val hidden = mutableStateListOf<String>()
+
+    /** app bloccate: per aprirle serve impronta o PIN del telefono (blocco "morbido": resta aggirabile da recenti e notifiche) */
+    val locked = mutableStateListOf<String>()
+
+    fun toggleLock(appId: String) {
+        if (appId in locked) locked.remove(appId) else locked.add(appId)
+        if (!dryRun) sp.edit().putStringSet("lockedApps", HashSet(locked)).apply()
+    }
+
     var pageCount by mutableIntStateOf(1)
         private set
     var loaded by mutableStateOf(false)
@@ -615,6 +624,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     // ---------- animazione di ritorno alla Home ----------
+
+    /** inclinazione del telefono (-1..1) per l'effetto profondità */
+    var tiltX by mutableFloatStateOf(0f)
+    var tiltY by mutableFloatStateOf(0f)
+
+    /** avanzamento del gesto Indietro predittivo (0 = fermo, 1 = quasi chiuso): rimpicciolisce cassetto e impostazioni */
+    var backProgress by mutableFloatStateOf(0f)
+
+    /** icona che si ingrandisce mentre parte l'app (e la sua posizione sullo schermo) */
+    var launchZoom by mutableStateOf<Pair<ImageBitmap, androidx.compose.ui.geometry.Rect>?>(null)
 
     /** avanzamento dell'animazione di ritorno (1 = ferma) */
     var returnP by mutableFloatStateOf(1f)
@@ -2001,6 +2020,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         pageCount = sp.getInt(lk("pages"), 1).coerceAtLeast(1)
         sp.getStringSet("hidden", null)?.let { hidden.addAll(it) }
+        sp.getStringSet("lockedApps", null)?.let { locked.clear(); locked.addAll(it) }
         return true
     }
 
