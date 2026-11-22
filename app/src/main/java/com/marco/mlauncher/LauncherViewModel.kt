@@ -88,6 +88,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val items = mutableStateListOf<HomeItem>()
     val hidden = mutableStateListOf<String>()
 
+    /** voci delle impostazioni già viste o toccate (vedi NEW_SETTINGS): senza puntino "nuovo" */
+    val seenNew = mutableStateListOf<String>()
+
+    init {
+        sp.getStringSet("seenNewSettings", null)?.let { seenNew.addAll(it) }
+        if (!sp.contains("newSettingsInit")) {
+            // prima installazione (nessuna Home salvata): niente è nuovo; dopo un aggiornamento sì
+            if (!sp.contains("layout")) seenNew.addAll(NEW_SETTINGS.keys)
+            sp.edit().putBoolean("newSettingsInit", true).putStringSet("seenNewSettings", HashSet(seenNew)).apply()
+        }
+    }
+
+    fun isNewSetting(title: String) = title in NEW_SETTINGS && title !in seenNew
+    fun hasNewIn(page: String) = NEW_SETTINGS.any { (t, p) -> p == page && t !in seenNew }
+    fun markSeen(title: String) {
+        if (title !in NEW_SETTINGS || title in seenNew) return
+        seenNew.add(title)
+        sp.edit().putStringSet("seenNewSettings", HashSet(seenNew)).apply()
+    }
+
     /** app bloccate: per aprirle serve impronta o PIN del telefono (blocco "morbido": resta aggirabile da recenti e notifiche) */
     val locked = mutableStateListOf<String>()
 

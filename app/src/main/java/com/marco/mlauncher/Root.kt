@@ -227,7 +227,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
             }) {
                 AppsOverlay(vm, host)
                 WidgetPicker(vm, host)
-                SettingsOverlay(vm, host)
+                androidx.compose.runtime.CompositionLocalProvider(LocalNewVm provides vm) { SettingsOverlay(vm, host) }
             }
             LaunchZoomOverlay(vm)
             TiltSensor(vm)

@@ -93,6 +93,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.draw.drawWithContent
 import kotlin.math.roundToInt
 
 private class Cat(val key: String, val title: String, val summary: String, val icon: ImageVector)
@@ -142,11 +145,41 @@ private fun pageTitle(key: String?) = when (key) {
 /** Voce delle impostazioni da evidenziare (arrivando dalla ricerca). */
 private val LocalSettingsHighlight = androidx.compose.runtime.compositionLocalOf<String?> { null }
 
+/** Puntino "nuovo" sulle voci introdotte da un aggiornamento: sparisce con un tocco sulla voce. */
+@Composable
+private fun Modifier.newDot(title: String): Modifier {
+    val vm = LocalNewVm.current ?: return this
+    if (!vm.isNewSetting(title)) return this
+    val c = MaterialTheme.colorScheme.primary
+    return this
+        .pointerInput(title) {
+            androidx.compose.foundation.gestures.awaitEachGesture {
+                // guarda soltanto (non consuma nulla): un tocco senza scorrere segna la voce come vista
+                val down = awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                var moved = false
+                while (true) {
+                    val ev = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                    val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                    if ((ch.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                    if (ch.changedToUp()) {
+                        if (!moved) vm.markSeen(title)
+                        break
+                    }
+                }
+            }
+        }
+        .drawWithContent {
+            drawContent()
+            drawCircle(c, 4.dp.toPx(), androidx.compose.ui.geometry.Offset(size.width - 12.dp.toPx(), 12.dp.toPx()))
+        }
+}
+
 /** Lampeggia e porta in vista la voce cercata. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun Modifier.hl(title: String): Modifier {
-    if (LocalSettingsHighlight.current != title) return this
+    val base = newDot(title)
+    if (LocalSettingsHighlight.current != title) return base
     val req = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     val a = remember { androidx.compose.animation.core.Animatable(0f) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -159,7 +192,7 @@ private fun Modifier.hl(title: String): Modifier {
         a.animateTo(0f, androidx.compose.animation.core.tween(700))
     }
     val c = MaterialTheme.colorScheme.primary
-    return this
+    return base
         .bringIntoViewRequester(req)
         .drawBehind { drawRect(c.copy(alpha = 0.28f * a.value)) }
 }
@@ -366,7 +399,15 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
         Group(title) {
             cats.forEach { c ->
                 ListItem(
-                    headlineContent = { Text(c.title) },
+                    headlineContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(c.title)
+                            if (vm.hasNewIn(c.key)) {
+                                Spacer(Modifier.width(8.dp))
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(cs.primary))
+                            }
+                        }
+                    },
                     supportingContent = { Text(c.summary) },
                     leadingContent = {
                         Box(
@@ -983,7 +1024,7 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
             trailingContent = { Chevron() },
             supportingContent = { Text("${vm.locked.size} bloccate · impronta o PIN per aprirle") },
             colors = prefColors(),
-            modifier = Modifier.clickable { lockedOpen = true }
+            modifier = Modifier.hl("App bloccate").clickable { lockedOpen = true }
         )
         if (lockedOpen) {
             AlertDialog(
