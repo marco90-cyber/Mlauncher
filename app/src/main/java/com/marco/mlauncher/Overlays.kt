@@ -813,7 +813,7 @@ private fun DrawerContent(vm: LauncherViewModel, host: Host, query: String, acti
     // cassetto con il materiale scelto in Stile (sopra la Home sfocata)
     val dm = s.matOf("drawer")
     val matDrawer = !minusLook && !dm.plain
-    // come la pagina −1: velo del colore del tema sopra la Home sfocata, abbastanza coprente
+    // come la pagina dei feed: velo del colore del tema sopra la Home sfocata, abbastanza coprente
     // perché i testi del tema si leggano anche con il tema scuro su uno sfondo chiaro (o il contrario)
     val searchVeil = if (minusLook) readableVeilAlpha(cs.onSurface, cs.surface, vm.searchDimEff / 100f) else 0f
     val surfaceColor = when {
@@ -1561,7 +1561,7 @@ private fun SearchResults(modifier: Modifier, list: List<AppEntry>, query: Strin
  * Ricerca vuota: le app che cerchi più spesso e quelle che usi di più,
  * così spesso non serve nemmeno scrivere.
  */
-/** Risultati nello stile della pagina −1: ogni gruppo nel suo contenitore. */
+/** Risultati nello stile della pagina dei feed: ogni gruppo nel suo contenitore. */
 @Composable
 private fun SearchResultsBoxed(modifier: Modifier, list: List<AppEntry>, query: String, vm: LauncherViewModel, host: Host) {
     val cs = MaterialTheme.colorScheme
@@ -1657,7 +1657,7 @@ private fun SearchSuggestions(modifier: Modifier, vm: LauncherViewModel, host: H
                                 }
                             }
                         }
-                        // come la pagina −1: lo stesso contenitore dei widget
+                        // come la pagina dei feed: lo stesso contenitore dei widget
                         if (minusLook) GlassContainer(vm, pad = 8.dp, content = grid)
                         else Surface(shape = RoundedCornerShape(24.dp), color = cs.surfaceContainerHigh.copy(alpha = 0.7f)) {
                             Box(Modifier.padding(8.dp)) { grid() }

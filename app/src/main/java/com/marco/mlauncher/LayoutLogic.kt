@@ -19,7 +19,7 @@ object LayoutLogic {
     fun overlaps(a: HomeItem, page: Int, x: Int, y: Int, sx: Int, sy: Int): Boolean =
         a.page == page && a.x < x + sx && x < a.x + a.spanX && a.y < y + sy && y < a.y + a.spanY
 
-    /** Il rettangolo sta nella griglia (o nella dock, pagina −1) e non tocca nessun altro elemento. */
+    /** Il rettangolo sta nella griglia (o nella dock, pagina dei feed) e non tocca nessun altro elemento. */
     fun areaFree(list: List<HomeItem>, g: Grid, page: Int, x: Int, y: Int, sx: Int, sy: Int, ignoreId: String? = null): Boolean {
         if (x < 0 || y < 0) return false
         if (page == -1) {

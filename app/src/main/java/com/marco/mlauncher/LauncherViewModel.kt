@@ -1321,11 +1321,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Riferimento per un nuovo widget interno: le note hanno un proprio id per il testo. */
-    // ---------- pagina −1 ----------
+    // ---------- pagina dei feed ----------
 
-    /** apertura della pagina −1: 0 chiusa, 1 aperta (segue il dito) */
+    /** apertura della pagina dei feed: 0 chiusa, 1 aperta (segue il dito) */
     var minusP by mutableFloatStateOf(0f)
-    /** il prossimo widget scelto va nella pagina −1 */
+    /** il prossimo widget scelto va nella pagina dei feed */
     var minusPick by mutableStateOf(false)
     var minusCloseSignal by mutableIntStateOf(0)
         private set
@@ -1352,7 +1352,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 )
             }
         } catch (e: Exception) {
-            AppLog.e("Pagina -1 non letta", e)
+            AppLog.e("Pagina dei feed non letta", e)
         }
     }
 
@@ -1364,7 +1364,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         settings.set("minusWidgets", a.toString())
     }
 
-    /** la pagina −1 è in modifica: bordo, maniglia per ridimensionare, frecce e "togli" */
+    /** la pagina dei feed è in modifica: bordo, maniglia per ridimensionare, frecce e "togli" */
     var minusEdit by mutableStateOf(false)
 
     private fun addToMinus(ref: WidgetRef, sx: Int, sy: Int) {
@@ -1373,7 +1373,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         minusPick = false
         stackTarget = null
         overlay = Overlay.NONE
-        AppLog.i("Widget ${ref.kind} aggiunto alla pagina -1")
+        AppLog.i("Widget ${ref.kind} aggiunto alla pagina dei feed")
     }
 
     fun moveMinus(uid: String, dir: Int) {
@@ -1680,7 +1680,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return minOf(base * settings.iconScale, 96f)
     }
 
-    /** la schermata di ricerca (Home con tutte le app) ha l'aspetto della pagina −1 */
+    /** la schermata di ricerca (Home con tutte le app) ha l'aspetto della pagina dei feed */
     val searchMinusLook: Boolean get() = settings.homeMode == "all" && settings.searchLook == "minus"
     val searchBlurEff: Int get() = if (settings.searchSame) settings.minusBlur else settings.searchBlur
     val searchDimEff: Int get() = if (settings.searchSame) settings.minusDim else settings.searchDim
@@ -2131,7 +2131,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return o.toString(2)
     }
 
-    /** Solo la disposizione: icone, cartelle, widget e pagine (verticale e orizzontale) e pagina −1. Niente impostazioni. */
+    /** Solo la disposizione: icone, cartelle, widget e pagine (verticale e orizzontale) e pagina dei feed. Niente impostazioni. */
     fun buildLayoutBackup(): String {
         val o = JSONObject()
         o.put("version", 1)
@@ -2199,7 +2199,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val e = sp.edit().remove("layout_l").remove("pages_l")
             e.apply()
             o.optJSONArray("minus")?.let { a ->
-                // pagina −1: stessi controlli sui widget delle altre app
+                // pagina dei feed: stessi controlli sui widget delle altre app
                 val keep = JSONArray()
                 for (i in 0 until a.length()) {
                     val m = a.getJSONObject(i)
@@ -2776,7 +2776,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onHomePressed(alreadyHome: Boolean = false) {
-        // pagina −1 aperta: il tasto Home la chiude
+        // pagina dei feed aperta: il tasto Home la chiude
         if (minusP > 0f) {
             closeMinus()
             overlay = Overlay.NONE

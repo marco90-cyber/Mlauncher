@@ -27,11 +27,11 @@ class AppEntry(
 /** Un widget: kind = "clock" | "weather" | "ext" (widget Android vero). */
 data class WidgetRef(val kind: String, val widgetId: Int = -1, val provider: String = "")
 
-/** griglia della pagina −1: colonne e righe massime di un widget */
+/** griglia della pagina dei feed: colonne e righe massime di un widget */
 const val MINUS_COLS = 4
 const val MINUS_ROWS = 5
 
-/** Widget della pagina −1: larghezza [sx] e altezza [sy] in celle, come in Home. */
+/** Widget della pagina dei feed: larghezza [sx] e altezza [sy] in celle, come in Home. */
 data class MinusW(val uid: String, val ref: WidgetRef, val sx: Int, val sy: Int)
 
 sealed class HomeItem {
@@ -163,7 +163,7 @@ val MAT_ELEMENTS = listOf(
     "folder" to "Cartelle",
     "indicator" to "Indicatore di pagina",
     "widgets" to "Widget di MLauncher",
-    "panels" to "Pagina \u22121 e ricerca",
+    "panels" to "Pagina dei feed e ricerca",
     "menus" to "Menu, pulsanti e cartelle aperte",
     "drawer" to "Cassetto app"
 )
@@ -278,7 +278,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
     fun matOf(e: String): Mat =
         if (elFollow(e)) Mat(matStyle, matOpacity, matGlass, matCorner)
         else Mat(elStyle(e), elOpacity(e), elGlass(e), elCorner(e))
-    // pagina −1 (widget a sinistra della prima pagina)
+    // pagina dei feed (widget a sinistra della prima pagina)
     var minusOn by mutableStateOf(sp.getBoolean("minusOn", true))
     var minusGreet by mutableStateOf(sp.getBoolean("minusGreet", true))
     var minusWeather by mutableStateOf(sp.getBoolean("minusWeather", true))
@@ -292,9 +292,9 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var hideStatusBar by mutableStateOf(sp.getBoolean("hideStatusBar", false))
     var hideDock by mutableStateOf(sp.getBoolean("hideDock", false))
     // schermata di ricerca
-    /** "minus" (come la pagina −1) o "classic" */
+    /** "minus" (come la pagina dei feed) o "classic" */
     var searchLook by mutableStateOf(sp.getString("searchLook", "minus") ?: "minus")
-    /** usa contenitore, sfocatura e velo della pagina −1 */
+    /** usa contenitore, sfocatura e velo della pagina dei feed */
     var searchSame by mutableStateOf(sp.getBoolean("searchSame", true))
     var searchStyle by mutableStateOf(sp.getString("searchStyle", "dock") ?: "dock")
     var searchBlur by mutableStateOf(sp.getInt("searchBlur", 24))

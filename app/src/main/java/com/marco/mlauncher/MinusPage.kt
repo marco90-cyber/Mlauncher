@@ -70,7 +70,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/** Animazione di apertura/chiusura della pagina −1 (una sola alla volta). */
+/** Animazione di apertura/chiusura della pagina dei feed (una sola alla volta). */
 object MinusAnim {
     private var job: Job? = null
 
@@ -101,7 +101,7 @@ private fun greeting(h: Int) = when (h) {
 }
 
 /**
- * Pagina −1: si apre scorrendo verso destra dalla prima pagina.
+ * Pagina dei feed: si apre scorrendo verso destra dalla prima pagina.
  * Saluto, data e meteo, ricerca e un contenitore con i widget scelti, in colonna.
  */
 @Composable
@@ -242,7 +242,7 @@ private fun MinusContent(vm: LauncherViewModel, host: Host) {
 private fun MinusContainer(vm: LauncherViewModel, content: @Composable () -> Unit) =
     GlassContainer(vm, content = content)
 
-/** Contenitore della pagina −1 e della ricerca, con il materiale scelto in Stile. */
+/** Contenitore della pagina dei feed e della ricerca, con il materiale scelto in Stile. */
 @Composable
 internal fun GlassContainer(vm: LauncherViewModel, pad: androidx.compose.ui.unit.Dp = 12.dp, content: @Composable () -> Unit) {
     val cs = MaterialTheme.colorScheme

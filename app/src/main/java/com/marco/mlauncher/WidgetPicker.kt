@@ -163,7 +163,7 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                 .background(cs.outlineVariant)
         )
         Text(
-            if (vm.minusPick) "Aggiungi alla pagina \u22121" else if (vm.stackTarget != null) "Aggiungi allo stack" else "Widget",
+            if (vm.minusPick) "Aggiungi alla pagina dei feed" else if (vm.stackTarget != null) "Aggiungi allo stack" else "Widget",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)

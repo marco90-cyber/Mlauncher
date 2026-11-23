@@ -507,7 +507,7 @@ private fun Done(vm: LauncherViewModel, host: Host) {
                     st.homeMode == "drawer" -> "Tutte le app: scorri verso l'alto dalla Home"
                     else -> null
                 },
-                if (st.minusOn) "Pagina \u22121: scorri verso destra dalla prima pagina" else null,
+                if (st.minusOn) "Pagina dei feed: scorri verso destra dalla prima pagina" else null,
                 "Pizzica la Home con due dita: anteprima pagine con sfondi, widget, nuove pagine e pagina principale",
                 "Tieni premuto uno spazio vuoto per spostare icone e widget",
                 "In modifica tocca un widget per ridimensionarlo dai pallini sui lati",
@@ -623,12 +623,12 @@ private fun ToggleRow(title: String, why: String, checked: Boolean, onChange: (B
     }
 }
 
-/** Pagina −1: sì o no; se sì, il nome per il saluto e lo stile del contenitore. */
+/** Pagina dei feed: sì o no; se sì, il nome per il saluto e lo stile del contenitore. */
 @Composable
 private fun PickMinus(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
-    Headline("Pagina \u22121", "Scorri verso destra dalla prima pagina: un saluto, la ricerca e i tuoi widget preferiti.")
+    Headline("Pagina dei feed", "Scorri verso destra dalla prima pagina: un saluto, la ricerca e i tuoi widget preferiti.")
     AB(
         s.minusOn, !s.minusOn, "S\u00ec, la voglio", "No, grazie",
         { vm.setSetting("minusOn", true) }, { vm.setSetting("minusOn", false) },
@@ -658,7 +658,7 @@ private fun PickMinus(vm: LauncherViewModel, host: Host) {
     }
 }
 
-/** Anteprima della pagina −1 (o della Home senza) per la scelta nel benvenuto. */
+/** Anteprima della pagina dei feed (o della Home senza) per la scelta nel benvenuto. */
 @Composable
 private fun BoxScope.MiniMinus(vm: LauncherViewModel, on: Boolean) {
     val cs = MaterialTheme.colorScheme
@@ -908,7 +908,7 @@ private fun Summary(vm: LauncherViewModel) {
         "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
         "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
         "Dock" to (if (s.launcherTheme == "sensation") "Barra a tre tasti" else when (s.dockForm) { "bar" -> "Barra"; "tiles" -> "Tessere"; else -> "Fluttuante" }),
-        "Pagina \u22121" to (if (s.minusOn) "Attiva" else "Spenta"),
+        "Pagina dei feed" to (if (s.minusOn) "Attiva" else "Spenta"),
         "Ritorno alla Home" to (RETURN_ANIMS.firstOrNull { it.first == s.returnAnim }?.second?.substringBefore(" (") ?: "")
     )
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cs.surfaceContainerHigh).padding(16.dp)) {

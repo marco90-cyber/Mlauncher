@@ -612,7 +612,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
         vm.returnP = 1f
     }
 
-    // pagina −1: dalla prima pagina, lo scorrimento verso destra che il pager non usa la apre
+    // pagina dei feed: dalla prima pagina, lo scorrimento verso destra che il pager non usa la apre
     val minusEnabled = rememberUpdatedState(s.minusOn && !edit && drag == null && vm.overlay == Overlay.NONE)
     val minusScope = rememberCoroutineScope()
     val minusConn = remember {
@@ -648,7 +648,7 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
             .fillMaxSize()
             .returnWhole(vm)
             .graphicsLayer {
-                // la Home si sposta un po' mentre arriva la pagina −1
+                // la Home si sposta un po' mentre arriva la pagina dei feed
                 val mp = vm.minusP
                 if (mp > 0f) {
                     translationX = mp * 56.dp.toPx()

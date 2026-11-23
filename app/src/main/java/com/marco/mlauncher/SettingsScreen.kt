@@ -131,7 +131,7 @@ private fun pageTitle(key: String?) = when (key) {
     "folders" -> "Cartelle"
     "drawer" -> "Cassetto app"
     "widgets" -> "Widget e meteo"
-    "minus" -> "Pagina \u22121"
+    "minus" -> "Pagina dei feed"
     "search" -> "Ricerca"
     "gestures" -> "Gesti e vibrazione"
     "look" -> "Tema"
@@ -381,9 +381,9 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
             *(if (s.homeMode == "drawer") arrayOf(
                 Cat("drawer", "Cassetto app", "${if (s.drLayout == "list") "Elenco" else "Griglia"} · ${s.drCols} colonne · ordine, ricerca, app suggerite", Icons.Default.Menu)
             ) else arrayOf(
-                Cat("search", "Ricerca", (if (s.searchLook == "minus") "Come la pagina −1" else "Classica") + " · app cercate e più usate", Icons.Default.Search)
+                Cat("search", "Ricerca", (if (s.searchLook == "minus") "Come la pagina dei feed" else "Classica") + " · app cercate e più usate", Icons.Default.Search)
             )),
-            Cat("minus", "Pagina −1", if (s.minusOn) "Saluto con il tuo nome, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.Person),
+            Cat("minus", "Pagina dei feed", if (s.minusOn) "Saluto con il tuo nome, ricerca e widget a sinistra della prima pagina" else "Spenta", Icons.Default.Person),
             Cat("widgets", "Widget e meteo", "Città del meteo, stack di widget", Icons.Default.Add)
         ),
         "Comportamento" to listOf(
@@ -464,7 +464,7 @@ private val SEARCH_SYNONYMS = mapOf(
     "salva" to "backup", "ripristin" to "ripristina", "esporta" to "esporta backup", "reset" to "ripristina",
     "nomi" to "nomi", "etichett" to "nomi", "label" to "nomi",
     "animazion" to "animazione", "effetto" to "effetto animazione", "velocità" to "velocità",
-    "pagina -1" to "pagina \u22121", "pagina meno" to "pagina \u22121", "-1" to "\u22121", "saluto" to "saluto",
+    "pagina -1" to "pagina dei feed", "pagina meno" to "pagina dei feed", "-1" to "pagina dei feed", "feed" to "pagina dei feed", "saluto" to "saluto",
     "dock" to "dock", "barra" to "dock barra", "interruttor" to "interruttori", "switch" to "interruttori",
     "material you" to "material you", "temi" to "tema", "stile" to "tema stile", "aspetto" to "aspetto",
     "log" to "registro", "errori" to "registro", "crash" to "registro"
@@ -1651,7 +1651,7 @@ private fun PageSearch(vm: LauncherViewModel) {
     Group("Aspetto") {
         ChoiceRow(
             "Stile della ricerca",
-            listOf("minus" to "Come la pagina \u22121 (Home sfocata e contenitori)", "classic" to "Classico (sfondo pieno)"),
+            listOf("minus" to "Come la pagina dei feed (Home sfocata e contenitori)", "classic" to "Classico (sfondo pieno)"),
             s.searchLook
         ) { vm.setSetting("searchLook", it) }
         StyleLink(vm, "Materiale, sfocatura e velo", "mat_panels")
@@ -1665,7 +1665,7 @@ private fun PageSearch(vm: LauncherViewModel) {
 private fun PageMinus(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     Group(null) {
-        SwitchRow("Pagina −1", "Scorri verso destra dalla prima pagina per aprirla", s.minusOn) { vm.setSetting("minusOn", it) }
+        SwitchRow("Pagina dei feed", "Scorri verso destra dalla prima pagina per aprirla", s.minusOn) { vm.setSetting("minusOn", it) }
     }
     Group("Intestazione") {
         Dependent(s.minusOn) {
@@ -1735,7 +1735,7 @@ private fun PageMinus(vm: LauncherViewModel, host: Host) {
                 modifier = Modifier.hl("Aggiungi un widget").clickable { vm.minusP = 1f; vm.openMinusPicker() }
             )
             ListItem(
-                headlineContent = { Text("Apri la pagina −1") },
+                headlineContent = { Text("Apri la pagina dei feed") },
                 supportingContent = { Text("Tieni premuto un widget per spostarlo, cambiarne la grandezza o toglierlo") },
                 trailingContent = { Chevron() },
                 colors = prefColors(),
@@ -1764,7 +1764,7 @@ private fun PageBackup(vm: LauncherViewModel, host: Host) {
     Group("Solo la disposizione") {
         ListItem(
             headlineContent = { Text("Salva la disposizione della Home") },
-            supportingContent = { Text("Posizione di icone e cartelle, widget, pagine e pagina \u22121. Le impostazioni non vengono toccate") },
+            supportingContent = { Text("Posizione di icone e cartelle, widget, pagine e pagina dei feed. Le impostazioni non vengono toccate") },
             colors = prefColors(),
             modifier = Modifier.hl("Salva la disposizione della Home").clickable { host.exportLayout() }
         )
@@ -2536,7 +2536,7 @@ private fun PageMatPanels(vm: LauncherViewModel) {
             if (v != s.minusDim) vm.setSetting("minusDim", v)
         }
         Text(
-            "Valgono per la pagina −1, per la ricerca e per il cassetto quando ha un materiale.",
+            "Valgono per la pagina dei feed, per la ricerca e per il cassetto quando ha un materiale.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 10.dp)

@@ -260,7 +260,7 @@ class MainActivity : ComponentActivity(), Host {
                     else -> null
                 },
                 if (vm.openFolderId != null) "cartella" else null,
-                if (vm.minusP > 0f) "pagina −1" else null,
+                if (vm.minusP > 0f) "pagina dei feed" else null,
                 if (vm.showOverview) "anteprima pagine" else null,
                 if (vm.editMode) "modifica" else null
             ).ifEmpty { listOf("Home, pagina ${vm.currentPage + 1}") }.joinToString(", ")

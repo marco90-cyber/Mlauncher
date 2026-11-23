@@ -94,7 +94,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
         Box(Modifier.fillMaxSize().onSizeChanged { rootSize = it; vm.screenPx = it }) {
           androidx.compose.runtime.CompositionLocalProvider(LocalBackdropWall provides wall) {
             androidx.compose.runtime.CompositionLocalProvider(LocalWall provides wall) {
-                // ricerca come la pagina −1: la Home dietro si sfoca
+                // ricerca come la pagina dei feed: la Home dietro si sfoca
                 val searchBlur by androidx.compose.animation.core.animateDpAsState(
                     if (vm.overlay == Overlay.DRAWER && vm.searchMinusLook) vm.searchBlurEff.dp
                     else if (vm.overlay == Overlay.DRAWER && !vm.settings.matOf("drawer").plain) vm.settings.minusBlur.dp
@@ -102,7 +102,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
                     androidx.compose.animation.core.tween(Motion.ALL_APPS_OPEN, easing = Motion.Standard),
                     label = "searchBlur"
                 )
-                // Sfocatura "a foto": appena serve (cartella, cassetto, pagina −1) si fotografa la Home una volta,
+                // Sfocatura "a foto": appena serve (cartella, cassetto, pagina dei feed) si fotografa la Home una volta,
                 // la si sfoca piccola in background e la si disegna sopra in dissolvenza. Prima la Home veniva
                 // sfocata a grandezza piena a ogni fotogramma: era il lavoro più pesante per la scheda grafica.
                 val homeLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
