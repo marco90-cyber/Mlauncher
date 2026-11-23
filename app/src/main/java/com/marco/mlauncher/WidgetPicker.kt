@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.layout.heightIn
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -184,37 +186,54 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
         )
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            if (internal.isNotEmpty() || stacks) item {
-                SectionTitle("MLauncher")
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    internal.forEach { (t, k, sz) -> item { InternalCard(vm, host, t, k, sz.first, sz.second) } }
-                    if (stacks) item { EmptyStackCard(vm, 2, 2) }
-                    if (stacks) item { EmptyStackCard(vm, 4, 2) }
-                    if (stacks) item { EmptyStackCard(vm, 2, 1) }
-                    if (stacks) item { EmptyStackCard(vm, 4, 4) }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-            // azioni di MLauncher (come le Azioni Nova): icone in Home che fanno qualcosa
-            if (!vm.minusPick && vm.stackTarget == null && (actions.isNotEmpty() || pageAction)) item {
-                SectionTitle("Azioni MLauncher")
+            // «Azione MLauncher» (come in Nova): una voce sola; si sceglie l'azione e l'icona nasce in Home
+            if (!vm.minusPick && vm.stackTarget == null &&
+                (q.isEmpty() || actions.isNotEmpty() || pageAction || "azione".contains(q) || "mlauncher".contains(q))
+            ) item {
+                var menu by remember { mutableStateOf(false) }
                 var pickPage by remember { mutableStateOf(false) }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    actions.forEach { (k, l) -> item { ActionCard(vm, k, l) { vm.addActionToHome(k) } } }
-                    if (pageAction) item { ActionCard(vm, "page:1", "Vai a pagina\u2026") { pickPage = true } }
+                val generic = remember { actionIcon(ctx, "generic").toBitmap(192, 192).asImageBitmap() }
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp)) {
+                    item {
+                        Column(
+                            Modifier.width(96.dp).clip(RoundedCornerShape(16.dp)).clickable { menu = true }.padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Image(generic, null, Modifier.size(56.dp))
+                            Text(
+                                "Azione MLauncher",
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 2,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)
+                            )
+                        }
+                    }
                 }
-                Text(
-                    "\u201cApp recenti\u201d e \u201cBlocca schermo\u201d usano il servizio di accessibilità di MLauncher.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = cs.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-                )
+                if (menu) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { menu = false },
+                        title = { Text("Azione MLauncher") },
+                        text = {
+                            LazyColumn(Modifier.heightIn(max = 440.dp)) {
+                                items(MLA_ACTIONS, key = { it.first }) { (k, l) ->
+                                    ActionRow(vm, k, l) { menu = false; vm.addActionToHome(k) }
+                                }
+                                item { ActionRow(vm, "page:1", "Vai a pagina\u2026") { menu = false; pickPage = true } }
+                                item {
+                                    Text(
+                                        "\u201cApp recenti\u201d e \u201cBlocca schermo\u201d usano il servizio di accessibilità di MLauncher.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = cs.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 8.dp)
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { menu = false }) { Text("Annulla") } }
+                    )
+                }
                 if (pickPage) {
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = { pickPage = false },
@@ -236,6 +255,20 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                         confirmButton = {},
                         dismissButton = { androidx.compose.material3.TextButton(onClick = { pickPage = false }) { Text("Annulla") } }
                     )
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+            if (internal.isNotEmpty() || stacks) item {
+                SectionTitle("MLauncher")
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    internal.forEach { (t, k, sz) -> item { InternalCard(vm, host, t, k, sz.first, sz.second) } }
+                    if (stacks) item { EmptyStackCard(vm, 2, 2) }
+                    if (stacks) item { EmptyStackCard(vm, 4, 2) }
+                    if (stacks) item { EmptyStackCard(vm, 2, 1) }
+                    if (stacks) item { EmptyStackCard(vm, 4, 4) }
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -422,21 +455,15 @@ private fun ExtCard(vm: LauncherViewModel, host: Host, info: AppWidgetProviderIn
 }
 
 
-/** Un'azione di MLauncher nel selettore: tocca per metterla in Home. */
+/** Una riga del menu «Azione MLauncher»: icona e nome dell'azione. */
 @Composable
-private fun ActionCard(vm: LauncherViewModel, spec: String, label: String, onClick: () -> Unit) {
+private fun ActionRow(vm: LauncherViewModel, spec: String, label: String, onClick: () -> Unit) {
     val entry = vm.apps.values.firstOrNull { it.isAction && it.cls == ACTION_PREFIX + spec }
-    Column(
-        Modifier.width(84.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        if (entry != null) Image(entry.icon, null, Modifier.size(52.dp)) else Spacer(Modifier.size(52.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 2,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)
-        )
+        if (entry != null) Image(entry.icon, null, Modifier.size(40.dp)) else Spacer(Modifier.size(40.dp))
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 14.dp))
     }
 }

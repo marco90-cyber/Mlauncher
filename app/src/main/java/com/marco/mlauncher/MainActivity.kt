@@ -650,6 +650,46 @@ class MainActivity : ComponentActivity(), Host {
             "home" -> vm.goToPage(vm.homePageIdx)
             "page" -> vm.goToPage((spec.substringAfter(":").toIntOrNull() ?: 1) - 1)
             "overview" -> vm.showOverview = true
+            "feed" -> if (!vm.settings.minusOn) {
+                Toast.makeText(this, "Attiva la pagina dei feed nelle impostazioni", Toast.LENGTH_SHORT).show()
+            } else {
+                vm.openFolderId = null
+                vm.overlay = Overlay.NONE
+                vm.minusP = 1f
+            }
+            "torch" -> toggleTorch()
+            "settings" -> { vm.openFolderId = null; vm.overlay = Overlay.SETTINGS }
+        }
+    }
+
+    private var torchOn = false
+    private var torchCb: android.hardware.camera2.CameraManager.TorchCallback? = null
+
+    /** Accende o spegne la torcia (non serve nessun permesso). */
+    private fun toggleTorch() {
+        try {
+            val cm = getSystemService(CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            val id = cm.cameraIdList.firstOrNull {
+                cm.getCameraCharacteristics(it).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            }
+            if (id == null) {
+                Toast.makeText(this, "Questo telefono non ha la torcia", Toast.LENGTH_SHORT).show()
+                return
+            }
+            if (torchCb == null) {
+                // tiene allineato lo stato anche se la torcia viene accesa da fuori
+                val cb = object : android.hardware.camera2.CameraManager.TorchCallback() {
+                    override fun onTorchModeChanged(cameraId: String, enabled: Boolean) { if (cameraId == id) torchOn = enabled }
+                }
+                torchCb = cb
+                cm.registerTorchCallback(cb, null)
+            }
+            torchOn = !torchOn
+            cm.setTorchMode(id, torchOn)
+        } catch (e: Exception) {
+            torchOn = false
+            AppLog.e("Torcia non disponibile", e)
+            Toast.makeText(this, "Torcia non disponibile", Toast.LENGTH_SHORT).show()
         }
     }
 

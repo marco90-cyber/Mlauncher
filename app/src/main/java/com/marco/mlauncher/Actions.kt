@@ -28,7 +28,10 @@ val MLA_ACTIONS = listOf(
     "statusbar" to "Barra di stato",
     "dock" to "Mostra/nascondi dock",
     "home" to "Pagina principale",
-    "overview" to "Anteprima pagine"
+    "overview" to "Anteprima pagine",
+    "feed" to "Pagina dei feed",
+    "torch" to "Torcia",
+    "settings" to "Impostazioni MLauncher"
 )
 
 /** Azioni scegliibili per i gesti (doppio tocco, scorri su/giù): "Niente" + tutte le azioni. */
@@ -62,6 +65,9 @@ private fun actionColor(key: String): Int = when (key) {
     "recents", "overview" -> 0xFF6D4CC2.toInt()
     "lock" -> 0xFF37474F.toInt()
     "statusbar", "dock" -> 0xFF0277BD.toInt()
+    "feed" -> 0xFF7B1FA2.toInt()
+    "torch" -> 0xFFF9A825.toInt()
+    "settings" -> 0xFF546E7A.toInt()
     else -> 0xFFE65100.toInt()
 }
 
@@ -146,6 +152,37 @@ private fun drawGlyph(c: Canvas, key: String, arg: String, s: Float) {
         "overview" -> for (i in -1..1) {
             val x = cx + i * u * 0.95f
             c.drawRoundRect(RectF(x - u * 0.38f, cy - u * 0.9f, x + u * 0.38f, cy + u * 0.9f), u * 0.15f, u * 0.15f, if (i == 0) f else p)
+        }
+        "feed" -> for (i in -1..1) {
+            val y = cy + i * u * 0.9f
+            c.drawRoundRect(RectF(cx - u * 1.15f, y - u * 0.33f, cx + u * 1.15f, y + u * 0.33f), u * 0.2f, u * 0.2f, if (i == -1) f else p)
+        }
+        "torch" -> {
+            val head = Path()
+            head.moveTo(cx - u * 0.85f, cy - u * 0.95f)
+            head.lineTo(cx + u * 0.85f, cy - u * 0.95f)
+            head.lineTo(cx + u * 0.5f, cy - u * 0.2f)
+            head.lineTo(cx - u * 0.5f, cy - u * 0.2f)
+            head.close()
+            c.drawPath(head, f)
+            c.drawRoundRect(RectF(cx - u * 0.5f, cy - u * 0.2f, cx + u * 0.5f, cy + u * 1.3f), u * 0.2f, u * 0.2f, f)
+            c.drawLine(cx, cy - u * 1.5f, cx, cy - u * 1.2f, p)
+            c.drawLine(cx - u * 0.95f, cy - u * 1.35f, cx - u * 0.75f, cy - u * 1.15f, p)
+            c.drawLine(cx + u * 0.95f, cy - u * 1.35f, cx + u * 0.75f, cy - u * 1.15f, p)
+        }
+        "settings" -> {
+            c.drawCircle(cx, cy, u * 0.55f, p)
+            for (k in 0 until 8) {
+                val a = Math.toRadians(k * 45.0)
+                val dx = Math.cos(a).toFloat()
+                val dy = Math.sin(a).toFloat()
+                c.drawLine(cx + dx * u * 0.9f, cy + dy * u * 0.9f, cx + dx * u * 1.35f, cy + dy * u * 1.35f, p)
+            }
+            c.drawCircle(cx, cy, u * 0.9f, p)
+        }
+        "generic" -> {
+            c.drawLine(cx - u * 1.1f, cy, cx + u * 1.1f, cy, p)
+            c.drawLine(cx, cy - u * 1.1f, cx, cy + u * 1.1f, p)
         }
         "page" -> {
             c.drawRoundRect(RectF(cx - u * 1.0f, cy - u * 1.3f, cx + u * 1.0f, cy + u * 1.3f), u * 0.3f, u * 0.3f, p)
