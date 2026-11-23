@@ -2034,6 +2034,7 @@ internal fun QuickMenu(
                         MenuRow(text, icon, bmp, danger) { onDismiss(); click() }
                     }
                     if (app != null && app.isVirtual) {
+                        if (app.isAction && item is AppItem) row("Cambia azione", Icons.Default.Edit) { vm.changeActionItem = item }
                         row("Rimuovi", Icons.Default.Close) { if (app.isPin) vm.removePin(app, item) else vm.removeWidgetItem(item) }
                         row("Modifica", Icons.Default.Edit) { vm.editMode = true }
                     } else if (app != null) {

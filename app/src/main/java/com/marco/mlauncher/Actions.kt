@@ -31,7 +31,7 @@ val MLA_ACTIONS = listOf(
     "overview" to "Anteprima pagine",
     "feed" to "Pagina dei feed",
     "torch" to "Torcia",
-    "settings" to "Impostazioni MLauncher"
+    "settings" to "Impostazioni Home"
 )
 
 /** Azioni scegliibili per i gesti (doppio tocco, scorri su/giù): "Niente" + tutte le azioni. */
@@ -67,13 +67,14 @@ private fun actionColor(key: String): Int = when (key) {
     "statusbar", "dock" -> 0xFF0277BD.toInt()
     "feed" -> 0xFF7B1FA2.toInt()
     "torch" -> 0xFFF9A825.toInt()
-    "settings" -> 0xFF546E7A.toInt()
     else -> 0xFFE65100.toInt()
 }
 
 /** Icona adattiva dell'azione (prende la forma scelta per le icone come le altre app). */
 fun actionIcon(ctx: Context, spec: String): Drawable {
     val key = spec.substringBefore(":")
+    // «Impostazioni Home» ha la sua icona di sempre
+    if (key == "settings") ctx.getDrawable(R.drawable.ic_home_settings)?.let { return it }
     val arg = spec.substringAfter(":", "")
     val size = 432
     val fg = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -169,16 +170,6 @@ private fun drawGlyph(c: Canvas, key: String, arg: String, s: Float) {
             c.drawLine(cx, cy - u * 1.5f, cx, cy - u * 1.2f, p)
             c.drawLine(cx - u * 0.95f, cy - u * 1.35f, cx - u * 0.75f, cy - u * 1.15f, p)
             c.drawLine(cx + u * 0.95f, cy - u * 1.35f, cx + u * 0.75f, cy - u * 1.15f, p)
-        }
-        "settings" -> {
-            c.drawCircle(cx, cy, u * 0.55f, p)
-            for (k in 0 until 8) {
-                val a = Math.toRadians(k * 45.0)
-                val dx = Math.cos(a).toFloat()
-                val dy = Math.sin(a).toFloat()
-                c.drawLine(cx + dx * u * 0.9f, cy + dy * u * 0.9f, cx + dx * u * 1.35f, cy + dy * u * 1.35f, p)
-            }
-            c.drawCircle(cx, cy, u * 0.9f, p)
         }
         "generic" -> {
             c.drawLine(cx - u * 1.1f, cy, cx + u * 1.1f, cy, p)

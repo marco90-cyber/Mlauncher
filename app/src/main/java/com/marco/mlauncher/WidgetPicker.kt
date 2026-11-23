@@ -191,7 +191,6 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                 (q.isEmpty() || actions.isNotEmpty() || pageAction || "azione".contains(q) || "mlauncher".contains(q))
             ) item {
                 var menu by remember { mutableStateOf(false) }
-                var pickPage by remember { mutableStateOf(false) }
                 val generic = remember { actionIcon(ctx, "generic").toBitmap(192, 192).asImageBitmap() }
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp)) {
                     item {
@@ -210,52 +209,7 @@ internal fun PickerContent(vm: LauncherViewModel, host: Host, header: Boolean = 
                         }
                     }
                 }
-                if (menu) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { menu = false },
-                        title = { Text("Azione MLauncher") },
-                        text = {
-                            LazyColumn(Modifier.heightIn(max = 440.dp)) {
-                                items(MLA_ACTIONS, key = { it.first }) { (k, l) ->
-                                    ActionRow(vm, k, l) { menu = false; vm.addActionToHome(k) }
-                                }
-                                item { ActionRow(vm, "page:1", "Vai a pagina\u2026") { menu = false; pickPage = true } }
-                                item {
-                                    Text(
-                                        "\u201cApp recenti\u201d e \u201cBlocca schermo\u201d usano il servizio di accessibilità di MLauncher.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = cs.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 8.dp)
-                                    )
-                                }
-                            }
-                        },
-                        confirmButton = {},
-                        dismissButton = { androidx.compose.material3.TextButton(onClick = { menu = false }) { Text("Annulla") } }
-                    )
-                }
-                if (pickPage) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { pickPage = false },
-                        title = { Text("Vai a quale pagina?") },
-                        text = {
-                            Column {
-                                (1..ACTION_MAX_PAGE).chunked(3).forEach { row ->
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        row.forEach { n ->
-                                            androidx.compose.material3.FilledTonalButton(
-                                                onClick = { pickPage = false; vm.addActionToHome("page:$n") },
-                                                modifier = Modifier.weight(1f)
-                                            ) { Text("$n") }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {},
-                        dismissButton = { androidx.compose.material3.TextButton(onClick = { pickPage = false }) { Text("Annulla") } }
-                    )
-                }
+                if (menu) ActionMenuDialog(vm, "Azione MLauncher", { menu = false }) { vm.addActionToHome(it) }
                 Spacer(Modifier.height(12.dp))
             }
             if (internal.isNotEmpty() || stacks) item {
@@ -465,5 +419,58 @@ private fun ActionRow(vm: LauncherViewModel, spec: String, label: String, onClic
     ) {
         if (entry != null) Image(entry.icon, null, Modifier.size(40.dp)) else Spacer(Modifier.size(40.dp))
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 14.dp))
+    }
+}
+
+
+/** Menu con tutte le azioni (e «Vai a pagina…»): serve sia per aggiungerne una in Home sia per cambiarla. */
+@Composable
+internal fun ActionMenuDialog(vm: LauncherViewModel, title: String, onDismiss: () -> Unit, onPick: (String) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    var pickPage by remember { mutableStateOf(false) }
+    if (!pickPage) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 440.dp)) {
+                    items(MLA_ACTIONS, key = { it.first }) { (k, l) ->
+                        ActionRow(vm, k, l) { onDismiss(); onPick(k) }
+                    }
+                    item { ActionRow(vm, "page:1", "Vai a pagina\u2026") { pickPage = true } }
+                    item {
+                        Text(
+                            "\u201cApp recenti\u201d e \u201cBlocca schermo\u201d usano il servizio di accessibilità di MLauncher.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = cs.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Annulla") } }
+        )
+    } else {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Vai a quale pagina?") },
+            text = {
+                Column {
+                    (1..ACTION_MAX_PAGE).chunked(3).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { n ->
+                                androidx.compose.material3.FilledTonalButton(
+                                    onClick = { onDismiss(); onPick("page:$n") },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("$n") }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Annulla") } }
+        )
     }
 }

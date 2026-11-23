@@ -255,6 +255,8 @@ fun Root(vm: LauncherViewModel, host: Host) {
         } finally { vm.backProgress = 0f }
     }
     BackHandler(enabled = vm.overlay == Overlay.WIDGETS) { vm.overlay = Overlay.NONE }
+    // «Cambia azione» dal menu dell'icona-azione in Home
+    vm.changeActionItem?.let { it0 -> ActionMenuDialog(vm, "Cambia azione", { vm.changeActionItem = null }) { spec -> vm.changeAction(it0, spec) } }
     androidx.activity.compose.PredictiveBackHandler(
         enabled = vm.overlay == Overlay.SETTINGS && vm.genEdit == null && vm.wallEditSrc == null
     ) { progress ->

@@ -68,12 +68,15 @@ object BadgeStore {
 class ShortcutEntry(val info: ShortcutInfo, val label: String, val icon: ImageBitmap?)
 
 const val SETTINGS_CLS = "mlauncher.settings"
+/** «Impostazioni Home» è ora un'azione: si può togliere e rimettere come le altre */
+const val SETTINGS_ACTION_SPEC = "settings"
 
 class IconPackData(val res: Resources, val packName: String, val map: Map<String, String>)
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
     private val ctx: Context = application.applicationContext
+    private val SETTINGS_ACTION_ID: String get() = "${ctx.packageName}/$ACTION_PREFIX$SETTINGS_ACTION_SPEC"
     private val pm: PackageManager = ctx.packageManager
     private val sp: SharedPreferences = ctx.getSharedPreferences("mlauncher_state", Context.MODE_PRIVATE)
     val settings = LauncherSettings(ctx.getSharedPreferences("mlauncher_settings", Context.MODE_PRIVATE))
@@ -750,6 +753,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         overlay = Overlay.NONE
         AppLog.i("Azione $spec aggiunta in Home")
     }
+    /** icona-azione di cui si sta scegliendo un'altra azione (menu «Cambia azione») */
+    var changeActionItem by mutableStateOf<AppItem?>(null)
+
+    /** Cambia l'azione di un'icona già in Home, lasciandola dov'è. */
+    fun changeAction(item: AppItem, spec: String) {
+        val id = "${ctx.packageName}/$ACTION_PREFIX$spec"
+        if (id !in apps) return
+        replace(item, item.copy(appId = id))
+        saveLayout()
+        AppLog.i("Azione cambiata in $spec")
+    }
+
     var currentPage by mutableIntStateOf(0)
     var isDefaultHome by mutableStateOf(false)
     var listenerEnabled by mutableStateOf(false)
@@ -959,14 +974,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
         }
         if (pkg == null || pkg == ctx.packageName) {
-            try {
-                val sd = ctx.getDrawable(R.drawable.ic_home_settings)!!
-                val r = renderIcons(sd)
-                result.add(AppEntry(ctx.packageName, SETTINGS_CLS, "Impostazioni Home", r.first, r.second, false, renderRaw(sd)))
-            } catch (e: Exception) {
-                AppLog.quiet("icona di Impostazioni Home", e)
-                // senza icona dell'app
-            }
             // azioni di MLauncher (non compaiono nel cassetto: solo se le aggiungi tu)
             val specs = MLA_ACTIONS.map { it.first to it.second } + (1..ACTION_MAX_PAGE).map { "page:$it" to "Pagina $it" }
             for ((spec, label) in specs) {
@@ -1955,7 +1962,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             ).mapNotNull { app(it)?.id }
             val row = ArrayList<HomeItem>()
             if (folderApps.size >= 2) row.add(FolderItem(UUID.randomUUID().toString(), "Google", folderApps, 0, 0, rows - 1))
-            apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }
+            apps[SETTINGS_ACTION_ID]
                 ?.let { row.add(AppItem(it.id, 0, 0, rows - 1)) }
             app("com.google.android.apps.photos")?.let { row.add(AppItem(it.id, 0, 0, rows - 1)) }
             app("com.android.vending")?.let { row.add(AppItem(it.id, 0, 0, rows - 1)) }
@@ -1966,7 +1973,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             // la prima pagina resta pulita: le altre app partono dalla seconda
             arrangeHomeApps()
         }
-        apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
+        apps[SETTINGS_ACTION_ID]?.let {
             if (it.id !in placedAppIds()) addApp(it.id)
         }
         sp.edit().putBoolean("settingsIcon", true).apply()
@@ -1982,6 +1989,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             hasLayout = true
             saveLayout()
             return
+        }
+        // la vecchia icona-app «Impostazioni Home» diventa l'azione omonima (stesso posto, anche nelle cartelle)
+        val oldSettings = "${ctx.packageName}/$SETTINGS_CLS"
+        for (item in items.toList()) {
+            if (item is AppItem && item.appId == oldSettings) replace(item, item.copy(appId = SETTINGS_ACTION_ID))
+            else if (item is FolderItem && oldSettings in item.appIds)
+                replace(item, item.copy(appIds = item.appIds.map { if (it == oldSettings) SETTINGS_ACTION_ID else it }))
         }
         for (item in items.toList()) {
             when (item) {
@@ -2007,7 +2021,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         migrateSearchBar()
         if (!sp.getBoolean("settingsIcon", false)) {
-            apps.values.firstOrNull { it.pkg == ctx.packageName && it.cls == SETTINGS_CLS }?.let {
+            apps[SETTINGS_ACTION_ID]?.let {
                 if (it.id !in placedAppIds()) addApp(it.id)
                 sp.edit().putBoolean("settingsIcon", true).apply()
             }
