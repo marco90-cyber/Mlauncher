@@ -421,7 +421,11 @@ fun FolderOverlay(vm: LauncherViewModel, host: Host) {
                                             .padding(vertical = 8.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        AppIcon(app, folderIcon, s.themedIcons)
+                                        Box {
+                                            AppIcon(app, folderIcon, s.themedIcons)
+                                            // lo stesso pallino della Home: dice quale app dentro la cartella ha le notifiche
+                                            NotifBadge(BadgeStore.counts[app.pkg] ?: 0, s.badges, Modifier.align(Alignment.TopEnd))
+                                        }
                                         Text(
                                             app.label,
                                             fontSize = if (s.folderSize == "large") 12.sp else 11.sp,
