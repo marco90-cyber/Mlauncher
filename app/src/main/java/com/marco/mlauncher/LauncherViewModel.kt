@@ -2578,6 +2578,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (reorderPreview.isNotEmpty()) reorderPreview.clear()
     }
 
+    /** la Home è uscita dal primo piano: avvisa la schermata, che azzera trascinamenti e menu rimasti a metà */
+    var stopSignal by mutableIntStateOf(0)
+        private set
+
+    fun onHomeStopped() {
+        drawerDrag = null
+        clearReorderPreview()
+        stopSignal += 1
+    }
+
     // ---------- icone portate fuori da una cartella aperta ----------
 
     /** La cartella aperta si chiude e le app trascinate passano sulla Home (il dito resta sull'icona). */

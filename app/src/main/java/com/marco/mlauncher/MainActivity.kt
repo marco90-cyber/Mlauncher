@@ -246,7 +246,7 @@ class MainActivity : ComponentActivity(), Host {
         } catch (e: Exception) { AppLog.quiet("ascolto dello sblocco", e) }
         vm.checkUpdate(auto = true)
         vm.loadCrash()
-        AppLog.i("Launcher avviato (Home n. $instanceNo)" + if (savedInstanceState != null) " (ricreato)" else "")
+        AppLog.i("Launcher avviato (Home n. $instanceNo, task $taskId, intent ${intent?.action}/0x${Integer.toHexString(intent?.flags ?: 0)})" + if (savedInstanceState != null) " (ricreato)" else "")
         // ogni disegno della finestra: serve al controllo «la Home si vede davvero?»
         window.decorView.viewTreeObserver.addOnDrawListener { lastDrawAt = android.os.SystemClock.uptimeMillis() }
         Perf.attach(window)
@@ -388,6 +388,7 @@ class MainActivity : ComponentActivity(), Host {
             vm.disarmReturn()
         }
         vm.widgetHost.listen(false)
+        vm.onHomeStopped()
         AppLog.i("Home in background")
         MainWatchdog.active = false
         super.onStop()

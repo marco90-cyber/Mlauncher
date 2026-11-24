@@ -259,6 +259,17 @@ fun HomeScreen(vm: LauncherViewModel, host: Host) {
     var menuItem by remember { mutableStateOf<HomeItem?>(null) }
     var menuFading by remember { mutableStateOf(false) }
     var menuRect by remember { mutableStateOf(Rect.Zero) }
+    // uscendo dalla Home (app aperta, schermo spento) un trascinamento o un menu a metà non devono restare:
+    // senza il dito che li finisce, al ritorno bloccavano lo scorrimento e i tocchi
+    LaunchedEffect(vm.stopSignal) {
+        if (vm.stopSignal == 0) return@LaunchedEffect
+        if (drag != null || menuItem != null || menuFading) {
+            AppLog.i("Home in background con " + (if (drag != null) "un trascinamento" else "un menu") + " a metà: azzerato")
+        }
+        drag = null
+        menuItem = null
+        menuFading = false
+    }
     val edit = vm.editMode
     val topPad = 6.dp
     // anteprima pagine (come Nova): la Home si rimpicciolisce
