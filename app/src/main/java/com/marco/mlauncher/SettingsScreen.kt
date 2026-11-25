@@ -207,6 +207,8 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
         }
     }
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // l'elenco principale (e le pagine da cui si entra in un sottomenu) ricordano dov'eri: tornando indietro non ripartono dall'inizio
+    val keptScroll = remember { HashMap<String?, androidx.compose.foundation.ScrollState>() }
     androidx.compose.runtime.CompositionLocalProvider(LocalSettingsHighlight provides vm.settingsHighlight) {
     Scaffold(
         containerColor = cs.surface,
@@ -252,7 +254,11 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
             Column(
                 Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(
+                        if (p == null || p == "material" || p == "iconstyle")
+                            keptScroll.getOrPut(p) { androidx.compose.foundation.ScrollState(0) }
+                        else rememberScrollState()
+                    )
                     .padding(vertical = 8.dp)
                     .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
