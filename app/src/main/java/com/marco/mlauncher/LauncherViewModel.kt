@@ -145,6 +145,76 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // ---------- tema personale ----------
+
+    /** C'è un tema personale salvato. */
+    var myThemeSaved by mutableStateOf(sp.contains("myTheme"))
+        private set
+
+    /** Salva l'aspetto di adesso come tema personale (uno solo: sostituisce il precedente). */
+    fun saveMyTheme() {
+        sp.edit().putString("myTheme", MyTheme.snapshot(settings).toString()).apply()
+        myThemeSaved = true
+        AppLog.i("Tema personale salvato")
+    }
+
+    private fun packInstalled(pkg: String): Boolean = try {
+        ctx.packageManager.getPackageInfo(pkg, 0)
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Rimette l'aspetto del tema personale. Falso se non ce n'è uno (o non si legge). */
+    fun applyMyTheme(): Boolean {
+        val o = try {
+            sp.getString("myTheme", null)?.let { MyTheme.sanitize(JSONObject(it)) }
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        // se prima c'era un tema con la sua disposizione (Sensation) si esce come per ogni altro cambio
+        applyLauncherTheme("custom")
+        for (k in o.keys()) {
+            val e = o.getJSONObject(k)
+            var v: Any = when (e.getString("t")) {
+                "i" -> e.getInt("v")
+                "b" -> e.getBoolean("v")
+                else -> e.getString("v")
+            }
+            // il carattere personale o il pacchetto di icone potrebbero non esserci su questo telefono
+            if (k == "fontKey" && v == "custom" && !AppFonts.customFile(ctx).exists()) v = "default"
+            if (k == "iconPack" && v != "" && !packInstalled(v as String)) continue
+            setSetting(k, v)
+        }
+        setSetting("fontRev", settings.fontRev + 1)
+        AppLog.i("Tema personale applicato")
+        return true
+    }
+
+    /** Il tema personale come file da esportare. */
+    fun myThemeJson(): String? {
+        val o = try {
+            sp.getString("myTheme", null)?.let { MyTheme.sanitize(JSONObject(it)) }
+        } catch (e: Exception) {
+            null
+        } ?: return null
+        return JSONObject().put("type", "theme").put("version", 1).put("theme", o).toString(2)
+    }
+
+    /** Legge un file di tema, lo tiene come tema personale e lo applica. */
+    fun importMyTheme(text: String): Boolean {
+        val o = try {
+            val r = JSONObject(text)
+            if (r.optString("type") != "theme") return false
+            MyTheme.sanitize(r.getJSONObject("theme"))
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        sp.edit().putString("myTheme", o.toString()).apply()
+        myThemeSaved = true
+        return applyMyTheme()
+    }
+
     /** Un elemento smette (o riprende) di seguire il tema: la prima volta parte dal materiale del tema. */
     /**
      * Applica uno dei temi della Home (Stile → Tema), come in Expressive Launcher:
@@ -2133,6 +2203,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         o.put("hidden", JSONArray(hidden.toList()))
         o.put("notes", JSONObject().apply { notes.forEach { (k, n) -> put(k, JSONObject().put("t", n.text).put("c", n.color).put("s", n.size)) } })
         o.put("settings", settings.dump())
+        try {
+            sp.getString("myTheme", null)?.let { o.put("myTheme", JSONObject(it)) }
+        } catch (e: Exception) { AppLog.quiet("tema personale nel backup", e) }
         return o.toString(2)
     }
 
@@ -2241,6 +2314,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val packBefore = settings.iconPack
             settings.load(o.getJSONObject("settings"))
             loadMinus()
+            o.optJSONObject("myTheme")?.let { MyTheme.sanitize(it) }?.let {
+                sp.edit().putString("myTheme", it.toString()).apply()
+                myThemeSaved = true
+            }
             layoutLand = false
             items.clear()
             items.addAll(list)

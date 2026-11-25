@@ -103,6 +103,37 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    private val exportThemeLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val t = vm.myThemeJson()
+                if (t == null) Toast.makeText(this, "Prima salva il tema", Toast.LENGTH_SHORT).show()
+                else {
+                    contentResolver.openOutputStream(uri)?.use { it.write(t.toByteArray()) }
+                    Toast.makeText(this, "Tema salvato nel file", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Salvataggio non riuscito", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private val importThemeLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val text = contentResolver.openInputStream(uri)?.use { String(it.readBytes().take(300_000).toByteArray()) } ?: ""
+                val ok = vm.importMyTheme(text)
+                Toast.makeText(this, if (ok) "Tema importato e applicato" else "Non è un file di tema valido", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Importazione non riuscita", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private val exportLayoutLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -899,6 +930,22 @@ class MainActivity : ComponentActivity(), Host {
             folderLauncher.launch(null)
         } catch (e: Exception) {
             Toast.makeText(this, "Nessuna app per scegliere le cartelle", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun exportTheme() {
+        try {
+            exportThemeLauncher.launch("mio-tema-mlauncher.json")
+        } catch (e: Exception) {
+            Toast.makeText(this, "Nessuna app per scegliere i file", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun importTheme() {
+        try {
+            importThemeLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Nessuna app per scegliere i file", Toast.LENGTH_SHORT).show()
         }
     }
 

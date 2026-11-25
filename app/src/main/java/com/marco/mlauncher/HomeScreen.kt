@@ -138,6 +138,8 @@ interface Host {
     fun exportBackup()
     fun importBackup()
     fun pickFont()
+    fun exportTheme()
+    fun importTheme()
     fun pickBackupFolder()
     fun pickWallpaperImage()
     fun openListenerSettings()

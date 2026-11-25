@@ -274,7 +274,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "minus" -> PageMinus(vm, host)
                     "search" -> PageSearch(vm)
                     "gestures" -> PageGestures(vm, host)
-                    "look", "theme" -> PageTheme(vm)
+                    "look", "theme" -> PageTheme(vm, host)
                     "material" -> PageMaterial(vm)
                     "mat_dock" -> PageMatDock(vm)
                     "mat_folder" -> PageMatFolder(vm)
@@ -1486,7 +1486,7 @@ private fun SensationSettings(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun PageTheme(vm: LauncherViewModel) {
+private fun PageTheme(vm: LauncherViewModel, host: Host) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val spec = LauncherThemes.of(s.launcherTheme)
@@ -1617,6 +1617,38 @@ private fun PageTheme(vm: LauncherViewModel) {
             preview = { SwitchStylePreview(it) }
         ) { vm.setSetting("switchStyle", it) }
         StyleLink(vm, "Personalizza tema", "material")
+    }
+    MyThemeGroup(vm, host)
+}
+
+/** Il tema personale: si salva l'aspetto di adesso, si riapplica, si esporta in un file e si importa. */
+@Composable
+private fun MyThemeGroup(vm: LauncherViewModel, host: Host) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Group("Il mio tema") {
+        @Composable
+        fun action(title: String, sub: String, onClick: () -> Unit) = ListItem(
+            headlineContent = { Text(title) },
+            supportingContent = { Text(sub) },
+            trailingContent = { Chevron() },
+            colors = prefColors(),
+            modifier = Modifier.hl(title).clickable { onClick() }
+        )
+        action(
+            "Salva il tema attuale",
+            if (vm.myThemeSaved) "Sostituisce il tema salvato con l'aspetto di adesso" else "Ricorda pannelli, forme, colori, carattere, sfondo e icone di adesso"
+        ) {
+            vm.saveMyTheme()
+            android.widget.Toast.makeText(ctx, "Tema salvato", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        if (vm.myThemeSaved) {
+            action("Applica il mio tema", "Rimette l'aspetto che hai salvato") {
+                val ok = vm.applyMyTheme()
+                android.widget.Toast.makeText(ctx, if (ok) "Tema applicato" else "Tema non leggibile", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            action("Esporta in un file", "Un file da tenere o passare a un altro telefono") { host.exportTheme() }
+        }
+        action("Importa da un file", "Legge un file di tema e lo applica (sostituisce il tema salvato)") { host.importTheme() }
     }
 }
 
