@@ -118,6 +118,7 @@ private fun pageTitle(key: String?) = when (key) {
     "dock" -> "Dock"
     "icons" -> "Notifiche e app nascoste"
     "theme" -> "Tema"
+    "mytheme" -> "Personale"
     "material" -> "Personalizza tema"
     "iconstyle" -> "Icone e nomi delle app"
     "fonts" -> "Caratteri"
@@ -274,7 +275,8 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "minus" -> PageMinus(vm, host)
                     "search" -> PageSearch(vm)
                     "gestures" -> PageGestures(vm, host)
-                    "look", "theme" -> PageTheme(vm, host)
+                    "look", "theme" -> PageTheme(vm)
+                    "mytheme" -> PageMine(vm, host)
                     "material" -> PageMaterial(vm)
                     "mat_dock" -> PageMatDock(vm)
                     "mat_folder" -> PageMatFolder(vm)
@@ -366,7 +368,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     }
     // Un solo elenco, diviso per argomento: prima c'erano due schede (Impostazioni e Stile) e chi non conosceva
     // MLauncher non trovava metà delle voci. Ogni voce dice cosa c'è dentro, con le parole che uno cercherebbe.
-    val themeTitle = LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"
+    val themeTitle = LauncherThemes.of(s.launcherTheme)?.title ?: "Personale"
     val sections = listOf(
         "Aspetto" to listOf(
             Cat("theme", "Tema", "$themeTitle · ${(themeNames[s.theme] ?: "").lowercase()} · colori, chiaro o scuro, interruttori", Icons.Default.Star),
@@ -1486,16 +1488,16 @@ private fun SensationSettings(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun PageTheme(vm: LauncherViewModel, host: Host) {
+private fun PageTheme(vm: LauncherViewModel) {
     val s = vm.settings
     val cs = MaterialTheme.colorScheme
     val spec = LauncherThemes.of(s.launcherTheme)
     SectionTitle("Scegli il tema")
-    ThemeCards(s.launcherTheme, s, vm = vm) { vm.applyLauncherTheme(it.key) }
+    ThemeCards(s.launcherTheme, s, vm = vm, showMine = true, onMine = { vm.openMine() }) { vm.applyLauncherTheme(it.key) }
     if (spec == null) {
         Text(
-            "Ora usi una combinazione tua (materiale, icone e interruttori scelti a mano). Tocca un tema per applicarlo: " +
-                "poi puoi cambiare ancora ogni dettaglio.",
+            "Stai usando il tema Personale. Tocca la scheda in cima per cambiare ogni dettaglio: si salva da solo. " +
+                "Toccando un altro tema lo lasci, e puoi ritrovarlo qui.",
             style = MaterialTheme.typography.bodySmall,
             color = cs.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 32.dp)
@@ -1618,37 +1620,91 @@ private fun PageTheme(vm: LauncherViewModel, host: Host) {
         ) { vm.setSetting("switchStyle", it) }
         StyleLink(vm, "Personalizza tema", "material")
     }
-    MyThemeGroup(vm, host)
 }
 
-/** Il tema personale: si salva l'aspetto di adesso, si riapplica, si esporta in un file e si importa. */
+/** Collegamento a una pagina d'impostazioni da Personale: il tasto indietro riporta a Personale. */
 @Composable
-private fun MyThemeGroup(vm: LauncherViewModel, host: Host) {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    Group("Il mio tema") {
-        @Composable
-        fun action(title: String, sub: String, onClick: () -> Unit) = ListItem(
-            headlineContent = { Text(title) },
-            supportingContent = { Text(sub) },
+private fun MineLink(vm: LauncherViewModel, title: String, subtitle: String, page: String) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        trailingContent = { Chevron() },
+        colors = prefColors(),
+        modifier = Modifier.hl(title).clickable {
+            vm.mineBack = true
+            vm.settingsPage = page
+        }
+    )
+}
+
+/** La pagina del tema Personale: tutto quello che serve per farlo tuo. Ogni cambio si salva da solo. */
+@Composable
+private fun PageMine(vm: LauncherViewModel, host: Host) {
+    val s = vm.settings
+    val cs = MaterialTheme.colorScheme
+    Box(Modifier.padding(horizontal = 16.dp)) {
+        MiniDesktop(LauncherThemes.Mine, s, Modifier.fillMaxWidth().height(150.dp), vm)
+    }
+    Text(
+        "Quello che cambi qui si salva da solo nel tuo tema Personale. Puoi lasciarlo per un altro tema e ritrovarlo nell'elenco.",
+        style = MaterialTheme.typography.bodySmall,
+        color = cs.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 32.dp)
+    )
+    Group("Pannelli") {
+        ChoiceRow("Materiale", MATERIALS, s.matStyle, preview = { MaterialPreview(it) }) { vm.setSetting("matStyle", it) }
+        Dependent(s.matStyle != "none") {
+            SwitchRow("Effetto vetro", "Riflesso e bordo luminoso come il vetro", s.matGlass) { vm.setSetting("matGlass", it) }
+            SliderRow("Trasparenza", "${100 - s.matOpacity}%", s.matOpacity.toFloat(), 0f..100f, 19) {
+                val v = (it / 5f).roundToInt() * 5
+                if (v != s.matOpacity) vm.setSetting("matOpacity", v)
+            }
+            SliderRow("Arrotondamento", "${s.matCorner} dp", s.matCorner.toFloat(), 0f..40f, 0) {
+                val v = it.roundToInt()
+                if (v != s.matCorner) vm.setSetting("matCorner", v)
+            }
+        }
+        MineLink(vm, "Un materiale diverso per ogni elemento", "Dock, cartelle, widget, menu, cassetto", "material")
+    }
+    Group("Icone") {
+        ChoiceRow("Forma delle icone", ICON_SHAPES, s.iconShape, preview = { ShapePreview(it, 30.dp) }) { vm.setSetting("iconShape", it) }
+        SwitchRow("Icone Material You", "Tutte le icone con i colori del tema", s.themedIcons) { vm.setSetting("themedIcons", it) }
+        Dependent(s.themedIcons) {
+            ChoiceRow("Colore delle icone", THEMED_ICON_COLORS, s.themedIconColor, preview = { IconShapeSwatch(s.iconShape, colorKey = it) }) {
+                vm.setSetting("themedIconColor", it)
+            }
+        }
+        MineLink(vm, "Pacchetto icone e nomi delle app", "Pacchetto di icone, colore dei nomi", "iconstyle")
+    }
+    Group("Colori e modo") {
+        ChoiceRow("Colori", accentsFor(s.launcherTheme), s.accent, preview = { AccentPreview(it) }) { vm.setSetting("accent", it) }
+        ChoiceRow(
+            "Chiaro o scuro",
+            listOf("auto" to "Automatico", "light" to "Chiaro", "dark" to "Scuro"),
+            s.theme,
+            preview = { ThemePreview(it) }
+        ) { vm.setSetting("theme", it) }
+        ChoiceRow("Stile degli interruttori", SWITCH_STYLES, s.switchStyle, preview = { SwitchStylePreview(it) }) { vm.setSetting("switchStyle", it) }
+    }
+    Group("Carattere e sfondo") {
+        MineLink(vm, "Carattere dell'interfaccia", AppFonts.label(s.fontKey, s.fontCustomName), "fonts")
+        MineLink(vm, "Sfondo", "Quello di Android o uno disegnato da MLauncher", "wallpaper")
+    }
+    Group("File") {
+        ListItem(
+            headlineContent = { Text("Esporta in un file") },
+            supportingContent = { Text("Un file da tenere o passare a un altro telefono") },
             trailingContent = { Chevron() },
             colors = prefColors(),
-            modifier = Modifier.hl(title).clickable { onClick() }
+            modifier = Modifier.hl("Esporta in un file").clickable { host.exportTheme() }
         )
-        action(
-            "Salva il tema attuale",
-            if (vm.myThemeSaved) "Sostituisce il tema salvato con l'aspetto di adesso" else "Ricorda pannelli, forme, colori, carattere, sfondo e icone di adesso"
-        ) {
-            vm.saveMyTheme()
-            android.widget.Toast.makeText(ctx, "Tema salvato", android.widget.Toast.LENGTH_SHORT).show()
-        }
-        if (vm.myThemeSaved) {
-            action("Applica il mio tema", "Rimette l'aspetto che hai salvato") {
-                val ok = vm.applyMyTheme()
-                android.widget.Toast.makeText(ctx, if (ok) "Tema applicato" else "Tema non leggibile", android.widget.Toast.LENGTH_SHORT).show()
-            }
-            action("Esporta in un file", "Un file da tenere o passare a un altro telefono") { host.exportTheme() }
-        }
-        action("Importa da un file", "Legge un file di tema e lo applica (sostituisce il tema salvato)") { host.importTheme() }
+        ListItem(
+            headlineContent = { Text("Importa da un file") },
+            supportingContent = { Text("Legge un file di tema e sostituisce il tuo Personale") },
+            trailingContent = { Chevron() },
+            colors = prefColors(),
+            modifier = Modifier.hl("Importa da un file").clickable { host.importTheme() }
+        )
     }
 }
 
@@ -2268,7 +2324,7 @@ private fun ChoiceRow(
 //  Stile: tema, materiale degli elementi, icone, orologio, animazioni
 // =====================================================================
 
-private val STYLE_PAGES = setOf("theme", "look", "wallpaper", "material", "iconstyle", "clock", "anim")
+private val STYLE_PAGES = setOf("theme", "mytheme", "look", "wallpaper", "material", "iconstyle", "clock", "anim")
 
 /** Pagina della scheda "Stile" (serve per tornare alla scheda giusta). */
 internal fun isStylePage(page: String?) = page != null && (page in STYLE_PAGES || page.startsWith("mat_"))

@@ -140,8 +140,43 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val p = settingsPage
         settingsPage = when {
             p != null && p.startsWith("mat_") -> "material"
+            // venendo dalla pagina «Personale» si torna lì
+            mineBack && p != null && p != "mytheme" -> {
+                mineBack = false
+                "mytheme"
+            }
             p == "fonts" -> "iconstyle"
-            else -> null
+            p == "mytheme" -> "theme"
+            else -> {
+                mineBack = false
+                null
+            }
+        }
+    }
+
+    /** Si sta modificando il tema Personale da una pagina collegata: il tasto indietro torna alla sua pagina. */
+    var mineBack = false
+
+    /** Apre il tema Personale: lo applica (o parte da come sei ora, se non ne hai uno salvato) e mostra la sua pagina. */
+    fun openMine() {
+        if (settings.launcherTheme != "custom") {
+            if (!(myThemeSaved && applyMyTheme())) {
+                applyLauncherTheme("custom")
+                saveMyTheme()
+            }
+        } else if (!myThemeSaved) saveMyTheme()
+        mineBack = false
+        settingsPage = "mytheme"
+    }
+
+    private var mineSaveJob: kotlinx.coroutines.Job? = null
+
+    /** Quello che cambi mentre modifichi Personale si salva da solo (con una breve attesa, per non scrivere a ogni passo di uno slider). */
+    private fun scheduleMineSave() {
+        mineSaveJob?.cancel()
+        mineSaveJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(700)
+            saveMyTheme()
         }
     }
 
@@ -155,7 +190,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun saveMyTheme() {
         sp.edit().putString("myTheme", MyTheme.snapshot(settings).toString()).apply()
         myThemeSaved = true
-        AppLog.i("Tema personale salvato")
     }
 
     private fun packInstalled(pkg: String): Boolean = try {
@@ -2967,6 +3001,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             "iconPack" -> reloadIcons()
             "autoUpdateCheck" -> UpdateJob.schedule(ctx, value as Boolean)
         }
+        if ((settingsPage == "mytheme" || mineBack) && settings.launcherTheme == "custom" &&
+            (key in MyTheme.KEYS || key.startsWith("el_"))
+        ) scheduleMineSave()
     }
 
     /** Esegue [block] sul layout dell'orientamento [land] (anche se non è quello attivo). */

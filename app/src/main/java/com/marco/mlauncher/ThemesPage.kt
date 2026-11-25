@@ -119,7 +119,33 @@ val SensationIcon = glyph(
 /** Rombo (Material Symbols "diamond", semplificato): Vetro. */
 val GlassIcon = glyph("GlassTheme", "M12,2L2,10l10,12l10,-12L12,2z")
 
+/** Matita (Material Symbols "edit"): il tema Personale. */
+val PencilIcon = glyph(
+    "Pencil",
+    "M3,17.25V21h3.75L17.81,9.94l-3.75,-3.75L3,17.25zM20.71,7.04c0.39,-0.39 0.39,-1.02 0,-1.41l-2.34,-2.34c-0.39,-0.39 -1.02,-0.39 -1.41,0l-1.83,1.83 3.75,3.75 1.83,-1.83z"
+)
+
 object LauncherThemes {
+    /** Il tema Personale: non è nell'elenco dei temi pronti, ha la sua scheda in cima e la sua pagina. */
+    val Mine = ThemeSpec(
+        "custom", "Personale", "Il tuo tema: apri per cambiare e salvare ogni dettaglio",
+        PencilIcon, glass = false, expressive = false, lite = false
+    )
+
+    /** Con quale tema pronto disegnare l'anteprima di Personale (il più vicino a come è fatto ora). */
+    fun previewOf(s: LauncherSettings): ThemeSpec = when (s.matStyle) {
+        "liquid" -> LiquidGlass
+        "glass" -> Glass
+        "fluent" -> Fluent
+        "sense" -> Sensation
+        "none" -> Plain
+        else -> when {
+            s.themedIcons && s.iconShape in setOf("cookie9", "cookie12", "clover", "puffy", "flower", "sunny", "gem") -> Expressive
+            !s.themedIcons && s.iconShape == "circle" -> Lite
+            else -> Tonal
+        }
+    }
+
     val LiquidGlass = ThemeSpec(
         "liquid", "Liquid Glass", "Vetro liquido come iOS 26: lente, bordi arcobaleno, riflessi",
         WaterDropIcon, glass = true, expressive = false, lite = false
@@ -158,8 +184,17 @@ object LauncherThemes {
 
 /** Le schede dei temi, ognuna con la sua mini Home; quella scelta è evidenziata. */
 @Composable
-fun ThemeCards(selected: String, s: LauncherSettings, previewHeight: Dp = 150.dp, vm: LauncherViewModel? = null, onSelect: (ThemeSpec) -> Unit) {
+fun ThemeCards(
+    selected: String,
+    s: LauncherSettings,
+    previewHeight: Dp = 150.dp,
+    vm: LauncherViewModel? = null,
+    showMine: Boolean = false,
+    onMine: () -> Unit = {},
+    onSelect: (ThemeSpec) -> Unit
+) {
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (showMine) ThemeCard(LauncherThemes.Mine, selected == "custom", s, previewHeight, vm) { onMine() }
         for (spec in LauncherThemes.all) {
             ThemeCard(spec, spec.key == selected, s, previewHeight, vm) { onSelect(spec) }
         }
@@ -234,7 +269,11 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
  * e dock vengono dalle impostazioni [s].
  */
 @Composable
-fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modifier, vm: LauncherViewModel? = null) {
+fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modifier, vm: LauncherViewModel? = null) =
+    MiniDesktopBody(if (spec.key == "custom") LauncherThemes.previewOf(s) else spec, s, modifier, vm)
+
+@Composable
+private fun MiniDesktopBody(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier, vm: LauncherViewModel?) {
     val cs = MaterialTheme.colorScheme
     val outer = when {
         spec.uniformCorner != null -> RoundedCornerShape(spec.uniformCorner!!)

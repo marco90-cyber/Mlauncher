@@ -979,7 +979,7 @@ private fun Summary(vm: LauncherViewModel) {
     val cs = MaterialTheme.colorScheme
     val rows = listOf(
         "Modalità" to when (s.theme) { "light" -> "Chiaro"; "dark" -> "Scuro"; else -> "Automatico" },
-        "Tema" to (LauncherThemes.of(s.launcherTheme)?.title ?: "Personalizzato"),
+        "Tema" to (LauncherThemes.of(s.launcherTheme)?.title ?: "Personale"),
         "Colori" to (accentsFor(s.launcherTheme).firstOrNull { it.first == s.accent }?.second ?: ""),
         "App" to (if (s.homeMode == "all") "Tutte in Home" + (if (s.autoFolders) ", cartelle intelligenti" else "") else "Home e cassetto"),
         "Griglia" to "${s.colsOf(false)} × ${s.rowsOf(false)}",
