@@ -270,10 +270,12 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
  */
 @Composable
 fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modifier, vm: LauncherViewModel? = null) =
-    MiniDesktopBody(if (spec.key == "custom") LauncherThemes.previewOf(s) else spec, s, modifier, vm)
+    MiniDesktopBody(if (spec.key == "custom") LauncherThemes.previewOf(s) else spec, s, modifier, vm, spec.key == "custom")
 
 @Composable
-private fun MiniDesktopBody(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier, vm: LauncherViewModel?) {
+private fun MiniDesktopBody(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier, vm: LauncherViewModel?, mine: Boolean = false) {
+    // per Personale l'anteprima segue le impostazioni vere: forma delle icone, pannello, trasparenza, vetro, angoli
+    val look: LauncherSettings? = if (mine) s else null
     val cs = MaterialTheme.colorScheme
     val outer = when {
         spec.uniformCorner != null -> RoundedCornerShape(spec.uniformCorner!!)
@@ -317,7 +319,7 @@ private fun MiniDesktopBody(spec: ThemeSpec, s: LauncherSettings, modifier: Modi
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 for (i in 0 until columns) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        MiniIcon(spec, i, glyphs[i % glyphs.size], iconSize, real.getOrNull(i))
+                        MiniIcon(spec, i, glyphs[i % glyphs.size], iconSize, real.getOrNull(i), look)
                         if (s.showLabels) {
                             Spacer(Modifier.height(3.dp))
                             if (spec.key == "sensation") {
@@ -331,7 +333,7 @@ private fun MiniDesktopBody(spec: ThemeSpec, s: LauncherSettings, modifier: Modi
                 }
             }
             if (spec.key == "sensation") MiniSenseBar()
-            else if (!s.hideDock) MiniDock(spec, columns.coerceAtMost(5), iconSize, glyphs, real)
+            else if (!s.hideDock) MiniDock(spec, columns.coerceAtMost(5), iconSize, glyphs, real, look)
         }
     }
 }
@@ -359,13 +361,24 @@ private fun MiniClock(spec: ThemeSpec, modifier: Modifier) {
 
 /** Icona dell'anteprima: tessera di vetro, forma espressiva o semplice cerchio, secondo il tema. */
 @Composable
-private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp, real: AppEntry? = null) {
+private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp, real: AppEntry? = null, look: LauncherSettings? = null) {
     val cs = MaterialTheme.colorScheme
     val expressiveShapes = remember { listOf("cookie9", "clover", "puffy", "flower", "sunny", "cookie12", "gem").map { iconShapeOf(it) } }
     val shape: Shape
     val bg: Color
     val fg: Color
     when {
+        // Personale: la forma e i colori scelti davvero
+        look != null -> {
+            shape = if (look.iconShape == "original") RoundedCornerShape(size * 0.22f) else iconShapeOf(look.iconShape)
+            if (look.themedIcons) {
+                val (b, f) = themedIconColors(look.themedIconColor)
+                bg = b; fg = f
+            } else {
+                bg = listOf(Color(0xFF4285F4), Color(0xFFEA4335), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFF8E5CF7))[index % 5]
+                fg = Color.White
+            }
+        }
         spec.glass -> { shape = RoundedCornerShape(size * 0.3f); bg = Color.White.copy(alpha = 0.22f); fg = Color.White }
         // Sensation: icone normali con gli angoli piccoli, come quelle dei telefoni HTC
         spec.key == "sensation" -> {
@@ -404,6 +417,7 @@ private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp, 
         Modifier.size(size).clip(shape).background(bg)
             .then(
                 when {
+                    look != null -> Modifier
                     spec.glass -> Modifier.border(1.dp, Color.White.copy(alpha = 0.45f), shape)
                     spec.key == "fluent" -> Modifier.border(1.dp, fluentOutline(fluentDark()), shape)
                     else -> Modifier
@@ -419,10 +433,21 @@ private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp, 
 }
 
 @Composable
-private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<ImageVector>, real: List<AppEntry> = emptyList()) {
+private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<ImageVector>, real: List<AppEntry> = emptyList(), look: LauncherSettings? = null) {
     val cs = MaterialTheme.colorScheme
-    val shape = spec.uniformCorner?.let { RoundedCornerShape(it) } ?: RoundedCornerShape(50)
+    val shape = if (look != null) RoundedCornerShape(look.matCorner.dp)
+        else spec.uniformCorner?.let { RoundedCornerShape(it) } ?: RoundedCornerShape(50)
+    // Personale: densità, materiale e vetro scelti (la trasparenza è l'opposto della densità)
+    val a = ((look?.matOpacity ?: 60) / 100f).coerceIn(0.05f, 1f)
     val bg = when {
+        look != null -> when (look.matStyle) {
+            "none" -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+            "liquid", "glass" -> Brush.verticalGradient(
+                listOf(Color.White.copy(alpha = 0.10f + 0.40f * a), Color.White.copy(alpha = 0.06f + 0.20f * a))
+            )
+            "fluent" -> fluentBase(fluentDark()).copy(alpha = a.coerceAtLeast(0.3f)).let { Brush.verticalGradient(listOf(it, it)) }
+            else -> cs.surfaceContainerHigh.copy(alpha = a).let { Brush.verticalGradient(listOf(it, it)) }
+        }
         spec.glass -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.16f)))
         // Lite: la dock non ha un pannello, le icone stanno direttamente sullo sfondo
         spec.lite || spec.key == "none" -> Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
@@ -435,6 +460,13 @@ private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<Ima
         Modifier.fillMaxWidth().clip(shape).background(bg)
             .then(
                 when {
+                    look != null -> when {
+                        look.matStyle == "none" -> Modifier
+                        look.matStyle == "fluent" -> Modifier.border(1.dp, fluentOutline(fluentDark()), shape)
+                        look.matGlass || look.matStyle == "liquid" || look.matStyle == "glass" ->
+                            Modifier.border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.12f))), shape)
+                        else -> Modifier
+                    }
                     spec.glass -> Modifier.border(1.dp, Color.White.copy(alpha = 0.5f), shape)
                     spec.key == "glass" -> Modifier.border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.75f), Color.White.copy(alpha = 0.1f))), shape)
                     spec.key == "fluent" -> Modifier.border(1.dp, fluentOutline(fluentDark()), shape)
@@ -444,7 +476,7 @@ private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<Ima
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        for (i in 0 until count) MiniIcon(spec, i + 3, glyphs[(i + 3) % glyphs.size], iconSize * 0.85f, real.getOrNull(i + 3))
+        for (i in 0 until count) MiniIcon(spec, i + 3, glyphs[(i + 3) % glyphs.size], iconSize * 0.85f, real.getOrNull(i + 3), look)
     }
 }
 
