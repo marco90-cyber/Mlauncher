@@ -1435,18 +1435,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     null
                 }
                 if (n.isNullOrBlank() || n.trim().lowercase() in generic) n = null
-                if (n == null && ctx.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
-                ) {
-                    n = try {
-                        ctx.contentResolver.query(
-                            android.provider.ContactsContract.Profile.CONTENT_URI,
-                            arrayOf(android.provider.ContactsContract.Profile.DISPLAY_NAME), null, null, null
-                        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
                 n?.trim()?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() }
             }
         }

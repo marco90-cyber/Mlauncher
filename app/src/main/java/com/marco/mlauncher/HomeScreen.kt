@@ -161,7 +161,6 @@ interface Host {
     fun requestBluetooth()
     fun webSearch(query: String)
     fun restartLauncher()
-    fun requestContactsName()
     fun exportLayout()
     fun importLayout()
     fun reconfigureWidget(widgetId: Int)

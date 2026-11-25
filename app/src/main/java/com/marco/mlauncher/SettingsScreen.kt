@@ -1706,9 +1706,6 @@ private fun PageMinus(vm: LauncherViewModel, host: Host) {
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(top = 8.dp)
                                 )
-                                TextButton(onClick = { host.requestContactsName() }) {
-                                    Text("Prendi il nome dal profilo del telefono")
-                                }
                             }
                         },
                         confirmButton = {

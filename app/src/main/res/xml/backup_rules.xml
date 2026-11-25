@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backup automatico di Android (Android 11 e precedenti): niente registro, errori, cache, file temporanei -->
+<full-backup-content>
+    <exclude domain="file" path="app_log.txt" />
+    <exclude domain="file" path="last_crash.txt" />
+    <exclude domain="sharedpref" path="pending_widget.xml" />
+    <exclude domain="sharedpref" path="mlauncher_perf.xml" />
+    <exclude domain="sharedpref" path="mlauncher_start.xml" />
+</full-backup-content>

@@ -647,13 +647,10 @@ private fun PickMinus(vm: LauncherViewModel, host: Host) {
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier.fillMaxWidth()
         )
-        // se il telefono lo trova dopo il permesso, lo scrivo nel campo
+        // se il telefono ha un nome proprietario, lo scrivo nel campo
         LaunchedEffect(vm.autoName) {
             val a = vm.autoName
             if (a != null && t.isBlank()) { t = a; vm.setSetting("minusName", a) }
-        }
-        if (vm.autoName == null) TextButton(onClick = { host.requestContactsName() }) {
-            Text("Prendi il nome dal profilo del telefono")
         }
     }
 }
