@@ -907,8 +907,9 @@ private fun PageHome(vm: LauncherViewModel) {
             listOf("drawer" to "Home e cassetto app", "all" to "Tutte le app in Home"),
             s.homeMode
         ) {
+            val changed = it != s.homeMode
             vm.setSetting("homeMode", it)
-            if (it == "all") askOrder = true
+            if (changed && it == "all") askOrder = true
         }
         }
         if (s.homeMode == "all") {

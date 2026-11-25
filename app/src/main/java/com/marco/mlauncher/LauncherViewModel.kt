@@ -2202,6 +2202,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             items.addAll(list)
             pageCount = o.optInt("pages", 1).coerceAtLeast(1)
             val e = sp.edit().remove("layout_l").remove("pages_l")
+            clearStashes(e)
             e.apply()
             o.optJSONArray("minus")?.let { a ->
                 // pagina dei feed: stessi controlli sui widget delle altre app
@@ -2245,6 +2246,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             items.addAll(list)
             pageCount = o.optInt("pages", 1).coerceAtLeast(1)
             val e = sp.edit().remove("layout_l").remove("pages_l")
+            clearStashes(e)
             e.apply()
             o.optJSONObject("notes")?.let { no ->
                 for (k in no.keys()) no.optJSONObject(k)?.let { n ->
@@ -2403,8 +2405,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return true
     }
 
-    /** Riporta la Home all'impostazione pulita: widget in alto, poche app, dock. */
-    /** [keepWidgets]: i widget restano legati, perché la Home che li usa è conservata (cambio di modalità). */
+    /** Riporta la Home all'impostazione pulita: widget in alto, poche app, dock. [keepWidgets]: i widget restano legati, perché la Home che li usa è conservata (cambio di modalità). */
     fun resetHome(keepWidgets: Boolean = false) {
         if (!keepWidgets) {
             items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
@@ -2822,6 +2823,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         sp.edit().putString("stash_layout_$mode", layout).putInt("stash_pages_$mode", sp.getInt("pages", 1)).apply()
     }
 
+    /** Dopo un ripristino le Home messe da parte non valgono più: la Home è quella appena ripristinata. */
+    private fun clearStashes(e: android.content.SharedPreferences.Editor) {
+        for (m in listOf("drawer", "all")) e.remove("stash_layout_$m").remove("stash_pages_$m")
+    }
+
     /** Rimette la Home messa da parte per [mode]. Restituisce false se non ce n'è una (o non si legge). */
     private fun applyStash(mode: String): Boolean {
         val s = sp.getString("stash_layout_$mode", null) ?: return false
@@ -2850,6 +2856,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun setSetting(key: String, value: Any) {
         val oldMode = settings.homeMode
+        // stessa modalità toccata di nuovo: non c'è niente da cambiare (prima rifaceva la Home da capo)
+        if (key == "homeMode" && value == oldMode) return
         settings.set(key, value)
         when (key) {
             "homeMode" -> {
