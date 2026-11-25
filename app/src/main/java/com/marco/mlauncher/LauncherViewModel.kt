@@ -2404,9 +2404,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Riporta la Home all'impostazione pulita: widget in alto, poche app, dock. */
-    fun resetHome() {
-        items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
-        items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
+    /** [keepWidgets]: i widget restano legati, perché la Home che li usa è conservata (cambio di modalità). */
+    fun resetHome(keepWidgets: Boolean = false) {
+        if (!keepWidgets) {
+            items.filterIsInstance<WidgetItem>().filter { it.ref.kind == "ext" }.forEach { discardWidgetId(it.ref.widgetId) }
+            items.filterIsInstance<StackItem>().forEach { st -> st.refs.filter { it.kind == "ext" }.forEach { discardWidgetId(it.widgetId) } }
+        }
         if (!layoutLand) dropLegacyLand()
         editMode = false
         openFolderId = null
@@ -2811,14 +2814,54 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         homeSignal += 1
     }
 
+    /** Mette da parte la Home della modalità [mode], così tornando lì la ritrovi com'era. */
+    private fun stashLayout(mode: String) {
+        if (dryRun) return
+        saveLayout()
+        val layout = sp.getString("layout", null) ?: return
+        sp.edit().putString("stash_layout_$mode", layout).putInt("stash_pages_$mode", sp.getInt("pages", 1)).apply()
+    }
+
+    /** Rimette la Home messa da parte per [mode]. Restituisce false se non ce n'è una (o non si legge). */
+    private fun applyStash(mode: String): Boolean {
+        val s = sp.getString("stash_layout_$mode", null) ?: return false
+        return try {
+            val (list, lost) = reviveItems(decodeItems(JSONArray(s), false))
+            editMode = false
+            openFolderId = null
+            layoutLand = false
+            items.clear()
+            items.addAll(list)
+            pageCount = sp.getInt("stash_pages_$mode", 1).coerceAtLeast(1)
+            sp.edit().remove("layout_l").remove("pages_l").apply()
+            hasLayout = true
+            saveLayout()
+            if (settings.actualLand) swapTo(true)
+            // le app installate o tolte nel frattempo si riallineano
+            if (loaded) reconcile() else refresh(null)
+            homeSignal += 1
+            AppLog.i("Home di «$mode» rimessa com'era" + if (lost > 0) " ($lost widget non disponibili)" else "")
+            true
+        } catch (e: Exception) {
+            AppLog.e("Home messa da parte non leggibile", e)
+            false
+        }
+    }
+
     fun setSetting(key: String, value: Any) {
+        val oldMode = settings.homeMode
         settings.set(key, value)
         when (key) {
             "homeMode" -> {
-                if (value == "drawer") {
+                val newMode = value as String
+                // ogni modalità ricorda la sua Home: icone e widget messi a mano non si perdono più
+                if (newMode != oldMode) stashLayout(oldMode)
+                if (newMode != oldMode && applyStash(newMode)) {
+                    // fatto: è la Home di prima
+                } else if (newMode == "drawer") {
                     // con il cassetto in Home restano solo le icone predefinite
-                    resetHome()
-                } else if (value == "all") {
+                    resetHome(keepWidgets = newMode != oldMode)
+                } else if (newMode == "all") {
                     arrangeHomeApps()
                     dropOtherLayout()
                 }
