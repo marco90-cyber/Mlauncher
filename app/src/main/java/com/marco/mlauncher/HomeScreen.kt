@@ -1340,7 +1340,7 @@ private fun Dock(
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(start = margin, end = margin, top = 6.dp, bottom = if (bar) 0.dp else 6.dp + nav)
+            .padding(start = margin, end = margin, top = 6.dp, bottom = if (bar) 0.dp else 6.dp + nav + st.dockBottom.dp)
             .height(92.dp * st.dockSize + (if (bar) nav else 0.dp))
             .then(
                 if (tiles) Modifier

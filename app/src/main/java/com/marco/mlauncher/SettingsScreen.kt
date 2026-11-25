@@ -992,6 +992,10 @@ private fun PageDock(vm: LauncherViewModel) {
             val v = it.roundToInt()
             if (v != s.dockSlots) vm.setSetting("dockSlots", v)
         }
+        SliderRow("Distanza dal bordo", "${s.dockBottom} dp", s.dockBottom.toFloat(), 0f..24f, 5) {
+            val v = (it / 4f).roundToInt() * 4
+            if (v != s.dockBottom) vm.setSetting("dockBottom", v)
+        }
     }
 }
 

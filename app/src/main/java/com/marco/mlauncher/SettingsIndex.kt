@@ -25,6 +25,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Aspetto della dock", "dock", "", ""),
     SettingEntry("Grandezza", "dock", "Dimensioni", ""),
     SettingEntry("Icone nella dock", "dock", "Dimensioni", ""),
+    SettingEntry("Distanza dal bordo", "dock", "Dimensioni", "Spazio sotto la dock fluttuante"),
     SettingEntry("Badge delle notifiche", "icons", "Notifiche", ""),
     SettingEntry("Serve l'accesso alle notifiche", "icons", "Notifiche", ""),
     SettingEntry("App nascoste", "icons", "App", ""),

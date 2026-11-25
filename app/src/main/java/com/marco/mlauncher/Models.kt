@@ -291,6 +291,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     // azioni: barra di stato e dock nascoste
     var hideStatusBar by mutableStateOf(sp.getBoolean("hideStatusBar", false))
     var hideDock by mutableStateOf(sp.getBoolean("hideDock", false))
+    /** spazio in più sotto la dock fluttuante, in dp (come in ARK-launcher) */
+    var dockBottom by mutableStateOf(sp.getInt("dockBottom", 0))
     // schermata di ricerca
     /** "minus" (come la pagina dei feed) o "classic" */
     var searchLook by mutableStateOf(sp.getString("searchLook", "minus") ?: "minus")
@@ -513,6 +515,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "searchLook" -> searchLook = value as String
             "hideStatusBar" -> hideStatusBar = value as Boolean
             "hideDock" -> hideDock = value as Boolean
+            "dockBottom" -> dockBottom = value as Int
             "searchSame" -> searchSame = value as Boolean
             "searchStyle" -> searchStyle = value as String
             "searchBlur" -> searchBlur = value as Int

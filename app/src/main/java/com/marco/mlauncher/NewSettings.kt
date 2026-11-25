@@ -14,7 +14,8 @@ val NEW_SETTINGS: Map<String, String> = mapOf(
     "Scorri giù nella Home" to "gestures",
     "Scorri su nella Home" to "gestures",
     "App bloccate" to "icons",
-    "Profondità (inclinazione)" to "wallpaper"
+    "Profondità (inclinazione)" to "wallpaper",
+    "Distanza dal bordo" to "dock"
 )
 
 /** Il ViewModel per i puntini "nuovo" delle impostazioni (le righe non lo ricevono come parametro). */
