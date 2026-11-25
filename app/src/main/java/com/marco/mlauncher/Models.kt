@@ -358,6 +358,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var badgeColor by mutableStateOf(sp.getString("badgeColor", "error") ?: "error")
     /** carattere dell'interfaccia (idea da Lawnchair e ARK-launcher) */
     var fontKey by mutableStateOf(sp.getString("fontKey", "default") ?: "default")
+    var fontRev by mutableStateOf(sp.getInt("fontRev", 0))
+    var fontCustomName by mutableStateOf(sp.getString("fontCustomName", "") ?: "")
     var homeOpensDrawer by mutableStateOf(sp.getBoolean("homeOpensDrawer", true))
     var newAppDot by mutableStateOf(sp.getBoolean("newAppDot", true))
     var autoUpdateCheck by mutableStateOf(sp.getBoolean("autoUpdateCheck", true))
@@ -566,6 +568,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "badgeSize" -> badgeSize = value as Int
             "badgeColor" -> badgeColor = value as String
             "fontKey" -> fontKey = value as String
+            "fontRev" -> fontRev = value as Int
+            "fontCustomName" -> fontCustomName = value as String
             "homeOpensDrawer" -> homeOpensDrawer = value as Boolean
             "newAppDot" -> newAppDot = value as Boolean
             "autoUpdateCheck" -> autoUpdateCheck = value as Boolean

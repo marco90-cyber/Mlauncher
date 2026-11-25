@@ -82,6 +82,27 @@ class MainActivity : ComponentActivity(), Host {
         }
     }
 
+    private val fontLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            // la copia e il controllo del file si fanno fuori dal thread principale
+            Thread {
+                val name = AppFonts.importFrom(applicationContext, uri)
+                runOnUiThread {
+                    if (name != null) {
+                        vm.setSetting("fontCustomName", name)
+                        vm.setSetting("fontRev", vm.settings.fontRev + 1)
+                        vm.setSetting("fontKey", "custom")
+                        Toast.makeText(this, "Carattere caricato", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "Non è un carattere valido (.ttf o .otf, al massimo 15 MB)", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.start()
+        }
+    }
+
     private val exportLayoutLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -259,7 +280,7 @@ class MainActivity : ComponentActivity(), Host {
         } catch (e: Exception) { AppLog.quiet("spegnimento del content capture", e) }
         handlePinRequest(intent)
         setContent {
-            MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null, fluent = vm.settings.launcherTheme == "fluent", sense = vm.settings.launcherTheme == "sensation", font = vm.settings.fontKey) {
+            MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null, fluent = vm.settings.launcherTheme == "fluent", sense = vm.settings.launcherTheme == "sensation", font = vm.settings.fontKey + "#" + vm.settings.fontRev) {
                 // la durata della pressione lunga si regola dalle impostazioni (Gesti)
                 val baseVc = androidx.compose.ui.platform.LocalViewConfiguration.current
                 val lpScale = vm.settings.longPressScale
@@ -876,6 +897,14 @@ class MainActivity : ComponentActivity(), Host {
             folderLauncher.launch(null)
         } catch (e: Exception) {
             Toast.makeText(this, "Nessuna app per scegliere le cartelle", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun pickFont() {
+        try {
+            fontLauncher.launch(arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Nessuna app per scegliere i file", Toast.LENGTH_SHORT).show()
         }
     }
 

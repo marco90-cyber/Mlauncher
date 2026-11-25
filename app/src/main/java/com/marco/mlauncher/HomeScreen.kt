@@ -137,6 +137,7 @@ interface Host {
     fun addWidget(info: AppWidgetProviderInfo)
     fun exportBackup()
     fun importBackup()
+    fun pickFont()
     fun pickBackupFolder()
     fun pickWallpaperImage()
     fun openListenerSettings()

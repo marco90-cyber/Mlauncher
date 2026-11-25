@@ -138,7 +138,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Indietro nelle impostazioni: dai sottomenu dei materiali si torna a "Personalizza tema". */
     fun settingsBack() {
         val p = settingsPage
-        settingsPage = if (p != null && p.startsWith("mat_")) "material" else null
+        settingsPage = when {
+            p != null && p.startsWith("mat_") -> "material"
+            p == "fonts" -> "iconstyle"
+            else -> null
+        }
     }
 
     /** Un elemento smette (o riprende) di seguire il tema: la prima volta parte dal materiale del tema. */

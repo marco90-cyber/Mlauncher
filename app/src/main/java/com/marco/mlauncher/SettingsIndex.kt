@@ -142,6 +142,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Dimensione dei nomi sulla Home", "iconstyle", "Nomi delle app", "Grandezza dei nomi sulla Home"),
     SettingEntry("Nomi su due righe", "iconstyle", "Nomi delle app", ""),
     SettingEntry("Carattere dell'interfaccia", "iconstyle", "Carattere", "Font di tutta l'interfaccia"),
+    SettingEntry("Carica un carattere personale", "fonts", "Il tuo carattere", "File .ttf o .otf dal telefono"),
     SettingEntry("Sfocatura dello sfondo", "mat_folder", "Cartella aperta", ""),
     SettingEntry("Indicatore di pagina", "mat_indicator", "Indicatore", ""),
     SettingEntry("Stile del widget orologio", "mat_widgets", "Note", ""),

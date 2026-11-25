@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Create
@@ -119,6 +120,7 @@ private fun pageTitle(key: String?) = when (key) {
     "theme" -> "Tema"
     "material" -> "Personalizza tema"
     "iconstyle" -> "Icone e nomi delle app"
+    "fonts" -> "Caratteri"
     "clock" -> "Orologio"
     "anim" -> "Animazioni"
     "folders" -> "Cartelle"
@@ -276,6 +278,7 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
                     "mat_menus" -> PageMatMenus(vm)
                     "mat_drawer" -> PageMatDrawer(vm)
                     "iconstyle" -> PageIconStyle(vm)
+                    "fonts" -> PageFonts(vm, host)
                     "clock" -> PageClock(vm, host)
                     "anim" -> PageAnim(vm)
                     "wallpaper" -> PageWallpaper(vm, host)
@@ -2598,6 +2601,58 @@ private fun PageMatDrawer(vm: LauncherViewModel) {
     }
 }
 
+/** Una riga della scelta del carattere: il nome e una frase d'esempio, scritti proprio con quel carattere. */
+@Composable
+private fun FontRow(vm: LauncherViewModel, key: String, label: String, extra: (@Composable () -> Unit)? = null) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val s = vm.settings
+    val family = remember(key, s.fontRev) { AppFonts.family(ctx, key) }
+    val selected = s.fontKey == key
+    ListItem(
+        headlineContent = {
+            Text(label, fontSize = 20.sp, fontFamily = family, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+        },
+        supportingContent = { Text("L'orologio, le app e il meteo 0123456789", fontFamily = family) },
+        trailingContent = {
+            if (selected) Icon(androidx.compose.material.icons.Icons.Filled.Check, contentDescription = "Scelto", tint = MaterialTheme.colorScheme.primary)
+            else if (extra != null) extra()
+        },
+        colors = prefColors(),
+        modifier = Modifier.clickable { vm.setSetting("fontKey", key) }
+    )
+}
+
+@Composable
+private fun PageFonts(vm: LauncherViewModel, host: Host) {
+    val s = vm.settings
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Group("Caratteri incorporati") {
+        FontRow(vm, "default", "Predefinito del telefono")
+        APP_FONTS.forEach { FontRow(vm, it.key, it.label) }
+    }
+    Group("Il tuo carattere") {
+        val has = remember(s.fontRev, s.fontCustomName, s.fontKey) { AppFonts.customFile(ctx).exists() }
+        if (has) FontRow(vm, "custom", AppFonts.label("custom", s.fontCustomName))
+        ListItem(
+            headlineContent = { Text(if (has) "Carica un altro file…" else "Carica un file…") },
+            supportingContent = { Text("Un carattere .ttf o .otf preso dal telefono, al massimo 15 MB") },
+            trailingContent = { Chevron() },
+            colors = prefColors(),
+            modifier = Modifier.hl("Carica un carattere personale").clickable { host.pickFont() }
+        )
+        if (has) ListItem(
+            headlineContent = { Text("Rimuovi il carattere personale") },
+            colors = prefColors(),
+            modifier = Modifier.clickable {
+                AppFonts.removeCustom(ctx)
+                if (s.fontKey == "custom") vm.setSetting("fontKey", "default")
+                vm.setSetting("fontCustomName", "")
+                vm.setSetting("fontRev", s.fontRev + 1)
+            }
+        )
+    }
+}
+
 @Composable
 private fun PageIconStyle(vm: LauncherViewModel) {
     val s = vm.settings
@@ -2640,7 +2695,13 @@ private fun PageIconStyle(vm: LauncherViewModel) {
         }
     }
     Group("Carattere") {
-        ChoiceRow("Carattere dell'interfaccia", FONT_CHOICES, s.fontKey) { vm.setSetting("fontKey", it) }
+        ListItem(
+            headlineContent = { Text("Carattere dell'interfaccia") },
+            supportingContent = { Text(AppFonts.label(s.fontKey, s.fontCustomName)) },
+            trailingContent = { Chevron() },
+            colors = prefColors(),
+            modifier = Modifier.hl("Carattere dell'interfaccia").clickable { vm.settingsPage = "fonts" }
+        )
     }
     Group("Grandezza") {
         StyleLink(vm, "Dimensione delle icone e griglia", "home")
