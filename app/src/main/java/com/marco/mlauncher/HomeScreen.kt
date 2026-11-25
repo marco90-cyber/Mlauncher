@@ -1,40 +1,31 @@
 package com.marco.mlauncher
 
 import android.appwidget.AppWidgetProviderInfo
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -55,9 +46,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -72,7 +60,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -1716,12 +1703,37 @@ private fun WidgetCell(
     val animH by animateFloatAsState(item.spanY.toFloat(), sizeSpec, label = "wch")
     // cornice che segue il dito in modo continuo mentre trascini un pallino (il widget intanto si aggancia alle celle)
     var ghost by remember { mutableStateOf<ResizeGhost?>(null) }
+    // al rilascio la cornice scivola sul bordo del widget e svanisce (150 ms), come in Lawnchair
+    val ghostScope = rememberCoroutineScope()
+    val ghostJob = remember { arrayOfNulls<kotlinx.coroutines.Job>(1) }
+    fun releaseGhost() {
+        val g = ghost ?: return
+        ghostJob[0]?.cancel()
+        ghostJob[0] = ghostScope.launch {
+            val cur = curItem
+            val tl = (cur.x - g.x0) * cwPx
+            val tt = (cur.y - g.y0) * chPx
+            val tr = tl + cur.spanX * cwPx
+            val tb = tt + cur.spanY * chPx
+            androidx.compose.animation.core.animate(0f, 1f, animationSpec = tween(150, easing = Motion.Standard)) { v, _ ->
+                fun mix(a: Float, b: Float) = a + (b - a) * v
+                ghost = ResizeGhost(mix(g.l, tl), mix(g.t, tt), mix(g.r, tr), mix(g.b, tb), g.x0, g.y0, 1f - v)
+            }
+            ghost = null
+        }
+    }
 
+    // margine del widget nella cella: fisso, oppure quello delle icone, così i bordi coincidono
+    val ws = vm.settings
+    val iconBase = if (ws.showLabels) minOf(cellW * 0.62f, cellH * 0.50f) else minOf(cellW * 0.82f, cellH * 0.72f)
+    val iconDp = minOf(iconBase * ws.iconScale, 96.dp)
+    val padH = if (ws.widgetAlign) ((cellW - iconDp) / 2).coerceAtLeast(5.dp) else 5.dp
+    val padV = if (ws.widgetAlign) minOf(padH, cellH / 4).coerceAtLeast(5.dp) else 5.dp
     Box(
         modifier
             .returnItem(vm, item)
             .size(cellW * animW, cellH * animH)
-            .padding(5.dp)
+            .padding(horizontal = padH, vertical = padV)
             .alpha(if (hidden) 0f else 1f)
     ) {
         Box(
@@ -1809,8 +1821,8 @@ private fun WidgetCell(
                         val tl = Offset(g.l - sx, g.t - sy)
                         val sz = androidx.compose.ui.geometry.Size((g.r - g.l).coerceAtLeast(cwPx * 0.5f), (g.b - g.t).coerceAtLeast(chPx * 0.5f))
                         val cr = androidx.compose.ui.geometry.CornerRadius(28.dp.toPx())
-                        drawRoundRect(cs.primary.copy(alpha = 0.16f), tl, sz, cr)
-                        drawRoundRect(cs.primary, tl, sz, cr, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+                        drawRoundRect(cs.primary.copy(alpha = 0.16f * g.a), tl, sz, cr)
+                        drawRoundRect(cs.primary.copy(alpha = g.a), tl, sz, cr, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
                     }
                 )
                 // pallini a metà dei lati: 0 sinistra, 1 sopra, 2 destra, 3 sotto
@@ -1836,13 +1848,14 @@ private fun WidgetCell(
                                 var acc = Offset.Zero
                                 detectDragGestures(
                                     onDragStart = {
+                                        ghostJob[0]?.cancel()
                                         x0 = curItem.x; y0 = curItem.y
                                         sx0 = curItem.spanX; sy0 = curItem.spanY
                                         acc = Offset.Zero
                                         ghost = ResizeGhost(0f, 0f, sx0 * cwPx, sy0 * chPx, x0, y0)
                                     },
-                                    onDragEnd = { ghost = null },
-                                    onDragCancel = { ghost = null },
+                                    onDragEnd = { releaseGhost() },
+                                    onDragCancel = { releaseGhost() },
                                     onDrag = { c, d ->
                                         c.consume()
                                         acc += d
@@ -2414,4 +2427,4 @@ private fun OverviewButton(icon: androidx.compose.ui.graphics.vector.ImageVector
 }
 
 /** Cornice di ridimensionamento che segue il dito (in pixel, relativa al widget com'era a inizio trascinamento). */
-private class ResizeGhost(val l: Float, val t: Float, val r: Float, val b: Float, val x0: Int, val y0: Int)
+private class ResizeGhost(val l: Float, val t: Float, val r: Float, val b: Float, val x0: Int, val y0: Int, val a: Float = 1f)

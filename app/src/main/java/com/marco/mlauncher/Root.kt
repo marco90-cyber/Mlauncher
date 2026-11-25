@@ -15,7 +15,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -73,6 +72,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
         LocalThemedIconColor provides vm.settings.themedIconColor,
         LocalGlassStrength provides vm.settings.glassHighlight / 100f,
         LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg),
+        LocalFolderOpacity provides vm.settings.folderOpacity,
         LocalFolderShape provides vm.settings.folderShape,
         // cartelle, widget: il materiale scelto in Stile (generale o proprio dell'elemento)
         LocalFolderDock provides vm.settings.matOf("folder").let { m -> if (m.plain) null else DockLookSpec(m.style, m.opacity, m.glass, m.corner) },

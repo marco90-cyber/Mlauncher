@@ -19,7 +19,6 @@ import androidx.compose.ui.geometry.Rect
 import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
-import android.content.pm.PackageManager
 import android.provider.AlarmClock
 
 class MainActivity : ComponentActivity(), Host {

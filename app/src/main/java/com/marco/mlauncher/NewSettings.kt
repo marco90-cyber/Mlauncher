@@ -16,7 +16,9 @@ val NEW_SETTINGS: Map<String, String> = mapOf(
     "App bloccate" to "icons",
     "Profondità (inclinazione)" to "wallpaper",
     "Distanza dal bordo" to "dock",
-    "Durata pressione lunga" to "gestures"
+    "Durata pressione lunga" to "gestures",
+    "Trasparenza dello sfondo" to "folders",
+    "Allinea i widget alle icone" to "widgets"
 )
 
 /** Il ViewModel per i puntini "nuovo" delle impostazioni (le righe non lo ricevono come parametro). */

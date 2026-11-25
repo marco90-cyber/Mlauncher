@@ -3,9 +3,7 @@ package com.marco.mlauncher
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -28,7 +26,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -252,17 +249,19 @@ fun AppIcon(app: AppEntry, iconSize: Dp, themed: Boolean, modifier: Modifier = M
 
 val LocalFolderShape = androidx.compose.runtime.compositionLocalOf { "squircle" }
 val LocalFolderStyle = androidx.compose.runtime.compositionLocalOf { "grid" to "tonal" }
+val LocalFolderOpacity = androidx.compose.runtime.compositionLocalOf { 100 }
 
 @Composable
 fun FolderIcon(folder: FolderItem, apps: Map<String, AppEntry>, iconSize: Dp, themed: Boolean) {
     val cs = MaterialTheme.colorScheme
     val (preview, bgKey) = LocalFolderStyle.current
-    val bg = when (bgKey) {
+    val bg0 = when (bgKey) {
         "primary" -> cs.primaryContainer
         "dark" -> androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f)
         "glass" -> androidx.compose.ui.graphics.Color.White.copy(alpha = 0.28f)
         else -> cs.surfaceContainerHighest.copy(alpha = 0.6f)
     }
+    val bg = bg0.copy(alpha = bg0.alpha * LocalFolderOpacity.current / 100f)
     val dock = LocalFolderDock.current
     val shapeKey = LocalFolderShape.current
     val shape = folderShapeOf(shapeKey)

@@ -1,6 +1,5 @@
 package com.marco.mlauncher
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,13 +36,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
@@ -63,14 +59,11 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -1317,6 +1310,13 @@ private fun PageWidgets(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.clickable { cityDlg = true }
         )
     }
+    Group("Posizione") {
+        SwitchRow(
+            "Allinea i widget alle icone",
+            "I bordi dei widget coincidono con quelli delle icone invece che con quelli della cella",
+            s.widgetAlign
+        ) { vm.setSetting("widgetAlign", it) }
+    }
     Group("Orologio") { StyleLink(vm, "Stile del widget orologio", "clock") }
     Group("Ricerca") {
         Text(
@@ -2466,6 +2466,10 @@ private fun PageMatFolder(vm: LauncherViewModel) {
                 s.folderBg,
                 preview = { FolderPreview(s.folderPreview, it, s.folderShape) }
             ) { vm.setSetting("folderBg", it) }
+            SliderRow("Trasparenza dello sfondo", "${s.folderOpacity}%", s.folderOpacity.toFloat(), 20f..100f, 7) {
+                val v = (it / 10f).roundToInt() * 10
+                if (v != s.folderOpacity) vm.setSetting("folderOpacity", v)
+            }
         }
     }
     Group("Cartella aperta") {

@@ -25,7 +25,6 @@ import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Process
-import android.provider.MediaStore
 import android.util.Xml
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf

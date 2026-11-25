@@ -135,6 +135,8 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Forma della cartella", "mat_folder", "Icona della cartella", ""),
     SettingEntry("Anteprima della cartella", "mat_folder", "Icona della cartella", ""),
     SettingEntry("Sfondo della cartella", "mat_folder", "Icona della cartella", ""),
+    SettingEntry("Trasparenza dello sfondo", "folders", "Anteprima della cartella", "Quanto si vede lo sfondo delle cartelle sulla Home"),
+    SettingEntry("Allinea i widget alle icone", "widgets", "Posizione", "Bordi dei widget come quelli delle icone"),
     SettingEntry("Sfocatura dello sfondo", "mat_folder", "Cartella aperta", ""),
     SettingEntry("Indicatore di pagina", "mat_indicator", "Indicatore", ""),
     SettingEntry("Stile del widget orologio", "mat_widgets", "Note", ""),

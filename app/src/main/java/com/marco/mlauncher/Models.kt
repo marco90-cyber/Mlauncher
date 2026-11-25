@@ -2,7 +2,6 @@ package com.marco.mlauncher
 
 import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -293,6 +292,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     // azioni: barra di stato e dock nascoste
     var hideStatusBar by mutableStateOf(sp.getBoolean("hideStatusBar", false))
     var hideDock by mutableStateOf(sp.getBoolean("hideDock", false))
+    /** i bordi dei widget si allineano a quelli delle icone invece che a quelli della cella (idea da ARK-launcher) */
+    var widgetAlign by mutableStateOf(sp.getBoolean("widgetAlign", false))
     /** spazio in più sotto la dock fluttuante, in dp (come in ARK-launcher) */
     var dockBottom by mutableStateOf(sp.getInt("dockBottom", 0))
     // schermata di ricerca
@@ -420,6 +421,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var glassHighlight by mutableIntStateOf(sp.getInt("glassHighlight", 70))
     var folderPreview by mutableStateOf(sp.getString("folderPreview", "grid") ?: "grid")
     var folderBg by mutableStateOf(sp.getString("folderBg", "tonal") ?: "tonal")
+    /** trasparenza dello sfondo delle cartelle sulla Home, in percento (100 = com'era), idea da Lawnchair */
+    var folderOpacity by mutableStateOf(sp.getInt("folderOpacity", 100))
     var folderShape by mutableStateOf(sp.getString("folderShape", "squircle") ?: "squircle")
     var folderCols by mutableStateOf(sp.getInt("folderCols", 3))
         private set
@@ -517,6 +520,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "searchLook" -> searchLook = value as String
             "hideStatusBar" -> hideStatusBar = value as Boolean
             "hideDock" -> hideDock = value as Boolean
+            "widgetAlign" -> widgetAlign = value as Boolean
+            "folderOpacity" -> folderOpacity = value as Int
             "longPressScale" -> longPressScale = value as Float
             "dockBottom" -> dockBottom = value as Int
             "searchSame" -> searchSame = value as Boolean
