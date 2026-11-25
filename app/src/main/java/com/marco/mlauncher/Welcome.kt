@@ -288,7 +288,7 @@ private fun PickTheme(vm: LauncherViewModel) {
     )
     // le schede hanno già il loro margine laterale: qui si annulla quello del benvenuto
     Box(Modifier.fillMaxWidth().padding(horizontal = 0.dp)) {
-        ThemeCards(s.launcherTheme, s, previewHeight = 120.dp) { vm.applyLauncherTheme(it.key) }
+        ThemeCards(s.launcherTheme, s, previewHeight = 120.dp, vm = vm) { vm.applyLauncherTheme(it.key) }
     }
     Spacer(Modifier.height(8.dp))
 }

@@ -1462,7 +1462,7 @@ private fun PageTheme(vm: LauncherViewModel) {
     val cs = MaterialTheme.colorScheme
     val spec = LauncherThemes.of(s.launcherTheme)
     SectionTitle("Scegli il tema")
-    ThemeCards(s.launcherTheme, s) { vm.applyLauncherTheme(it.key) }
+    ThemeCards(s.launcherTheme, s, vm = vm) { vm.applyLauncherTheme(it.key) }
     if (spec == null) {
         Text(
             "Ora usi una combinazione tua (materiale, icone e interruttori scelti a mano). Tocca un tema per applicarlo: " +

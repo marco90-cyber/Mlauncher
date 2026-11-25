@@ -158,16 +158,16 @@ object LauncherThemes {
 
 /** Le schede dei temi, ognuna con la sua mini Home; quella scelta è evidenziata. */
 @Composable
-fun ThemeCards(selected: String, s: LauncherSettings, previewHeight: Dp = 150.dp, onSelect: (ThemeSpec) -> Unit) {
+fun ThemeCards(selected: String, s: LauncherSettings, previewHeight: Dp = 150.dp, vm: LauncherViewModel? = null, onSelect: (ThemeSpec) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         for (spec in LauncherThemes.all) {
-            ThemeCard(spec, spec.key == selected, s, previewHeight) { onSelect(spec) }
+            ThemeCard(spec, spec.key == selected, s, previewHeight, vm) { onSelect(spec) }
         }
     }
 }
 
 @Composable
-private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, previewHeight: Dp, onClick: () -> Unit) {
+private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, previewHeight: Dp, vm: LauncherViewModel?, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -202,7 +202,7 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
             .clickable(interactionSource = interaction, indication = ripple()) { onClick() }
             .padding(10.dp)
     ) {
-        MiniDesktop(spec, s, Modifier.fillMaxWidth().height(previewHeight))
+        MiniDesktop(spec, s, Modifier.fillMaxWidth().height(previewHeight), vm)
         Row(
             Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 12.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -234,7 +234,7 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
  * e dock vengono dalle impostazioni [s].
  */
 @Composable
-fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modifier) {
+fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modifier, vm: LauncherViewModel? = null) {
     val cs = MaterialTheme.colorScheme
     val outer = when {
         spec.uniformCorner != null -> RoundedCornerShape(spec.uniformCorner!!)
@@ -242,8 +242,24 @@ fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modif
         else -> RoundedCornerShape(24.dp)
     }
     val wallpaper = Brush.linearGradient(listOf(cs.primaryContainer, cs.tertiaryContainer, cs.secondaryContainer))
+    // le app vere dell'utente: prima quelle della prima pagina, poi quelle della dock
+    val real: List<AppEntry> = remember(vm?.items?.toList(), vm?.apps) {
+        if (vm == null) emptyList() else {
+            val ids = vm.items.filterIsInstance<AppItem>()
+                .sortedWith(compareBy({ it.page != 0 }, { it.page }, { it.y }, { it.x }))
+                .map { it.appId }.distinct()
+            ids.mapNotNull { vm.apps[it] }.take(10)
+        }
+    }
+    val wall = if (vm != null && vm.customWallActive) vm.wallBitmap else null
     Box(modifier.clip(outer).background(wallpaper)) {
-        if (spec.glass || spec.key == "glass") {
+        // lo sfondo vero, se ne hai scelto uno tuo
+        if (wall != null) androidx.compose.foundation.Image(
+            wall, contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.matchParentSize()
+        )
+        if (wall == null && (spec.glass || spec.key == "glass")) {
             // macchie morbide dello "sfondo": sotto il vetro si vede che è trasparente
             Box(Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp).size(70.dp).clip(CircleShape).background(cs.tertiary.copy(alpha = 0.55f)))
             Box(Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(54.dp).clip(CircleShape).background(cs.primary.copy(alpha = 0.45f)))
@@ -262,7 +278,7 @@ fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modif
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 for (i in 0 until columns) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        MiniIcon(spec, i, glyphs[i % glyphs.size], iconSize)
+                        MiniIcon(spec, i, glyphs[i % glyphs.size], iconSize, real.getOrNull(i))
                         if (s.showLabels) {
                             Spacer(Modifier.height(3.dp))
                             if (spec.key == "sensation") {
@@ -276,7 +292,7 @@ fun MiniDesktop(spec: ThemeSpec, s: LauncherSettings, modifier: Modifier = Modif
                 }
             }
             if (spec.key == "sensation") MiniSenseBar()
-            else if (!s.hideDock) MiniDock(spec, columns.coerceAtMost(5), iconSize, glyphs)
+            else if (!s.hideDock) MiniDock(spec, columns.coerceAtMost(5), iconSize, glyphs, real)
         }
     }
 }
@@ -304,7 +320,7 @@ private fun MiniClock(spec: ThemeSpec, modifier: Modifier) {
 
 /** Icona dell'anteprima: tessera di vetro, forma espressiva o semplice cerchio, secondo il tema. */
 @Composable
-private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp) {
+private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp, real: AppEntry? = null) {
     val cs = MaterialTheme.colorScheme
     val expressiveShapes = remember { listOf("cookie9", "clover", "puffy", "flower", "sunny", "cookie12", "gem").map { iconShapeOf(it) } }
     val shape: Shape
@@ -356,12 +372,15 @@ private fun MiniIcon(spec: ThemeSpec, index: Int, glyph: ImageVector, size: Dp) 
             ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(glyph, null, tint = fg, modifier = Modifier.size(size * 0.55f))
+        if (real != null) androidx.compose.foundation.Image(
+            real.icon, contentDescription = null,
+            modifier = Modifier.size(size)
+        ) else Icon(glyph, null, tint = fg, modifier = Modifier.size(size * 0.55f))
     }
 }
 
 @Composable
-private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<ImageVector>) {
+private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<ImageVector>, real: List<AppEntry> = emptyList()) {
     val cs = MaterialTheme.colorScheme
     val shape = spec.uniformCorner?.let { RoundedCornerShape(it) } ?: RoundedCornerShape(50)
     val bg = when {
@@ -386,7 +405,7 @@ private fun MiniDock(spec: ThemeSpec, count: Int, iconSize: Dp, glyphs: List<Ima
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        for (i in 0 until count) MiniIcon(spec, i + 3, glyphs[(i + 3) % glyphs.size], iconSize * 0.85f)
+        for (i in 0 until count) MiniIcon(spec, i + 3, glyphs[(i + 3) % glyphs.size], iconSize * 0.85f, real.getOrNull(i + 3))
     }
 }
 
