@@ -18,7 +18,11 @@ val NEW_SETTINGS: Map<String, String> = mapOf(
     "Distanza dal bordo" to "dock",
     "Durata pressione lunga" to "gestures",
     "Trasparenza dello sfondo" to "folders",
-    "Allinea i widget alle icone" to "widgets"
+    "Allinea i widget alle icone" to "widgets",
+    "Dimensione del badge" to "icons",
+    "Colore del badge" to "icons",
+    "Nomi su due righe" to "iconstyle",
+    "Carattere dell'interfaccia" to "iconstyle"
 )
 
 /** Il ViewModel per i puntini "nuovo" delle impostazioni (le righe non lo ricevono come parametro). */

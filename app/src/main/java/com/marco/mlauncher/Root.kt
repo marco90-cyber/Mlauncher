@@ -73,6 +73,7 @@ fun Root(vm: LauncherViewModel, host: Host) {
         LocalGlassStrength provides vm.settings.glassHighlight / 100f,
         LocalFolderStyle provides (vm.settings.folderPreview to vm.settings.folderBg),
         LocalFolderOpacity provides vm.settings.folderOpacity,
+        LocalBadgeLook provides (vm.settings.badgeSize to vm.settings.badgeColor),
         LocalFolderShape provides vm.settings.folderShape,
         // cartelle, widget: il materiale scelto in Stile (generale o proprio dell'elemento)
         LocalFolderDock provides vm.settings.matOf("folder").let { m -> if (m.plain) null else DockLookSpec(m.style, m.opacity, m.glass, m.corner) },

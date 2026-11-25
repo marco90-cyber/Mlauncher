@@ -1433,22 +1433,39 @@ private fun Modifier.itemGestures(
         }
 }
 
+/** grandezza (percento) e colore del pallino delle notifiche */
+val LocalBadgeLook = androidx.compose.runtime.compositionLocalOf { 100 to "error" }
+
 @Composable
 fun NotifBadge(count: Int, mode: String, modifier: Modifier) {
     if (count <= 0 || mode == "off") return
     val cs = MaterialTheme.colorScheme
+    val (pct, colorKey) = LocalBadgeLook.current
+    val k = pct / 100f
+    val bg = when (colorKey) {
+        "primary" -> cs.primary
+        "tertiary" -> cs.tertiary
+        "secondary" -> cs.secondary
+        else -> cs.error
+    }
+    val fg = when (colorKey) {
+        "primary" -> cs.onPrimary
+        "tertiary" -> cs.onTertiary
+        "secondary" -> cs.onSecondary
+        else -> cs.onError
+    }
     if (mode == "dot") {
-        Box(modifier.size(11.dp).clip(CircleShape).background(cs.error))
+        Box(modifier.size(11.dp * k).clip(CircleShape).background(bg))
     } else {
         Box(
-            modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(CircleShape).background(cs.error),
+            modifier.heightIn(min = 18.dp * k).widthIn(min = 18.dp * k).clip(CircleShape).background(bg),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 if (count > 99) "99+" else "$count",
-                color = cs.onError,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                color = fg,
+                fontSize = 10.sp * k,
+                modifier = Modifier.padding(horizontal = 4.dp * k)
             )
         }
     }
@@ -1473,7 +1490,7 @@ private fun GridItem(
     val curItem by rememberUpdatedState(item)
     val edit = vm.editMode
     // misure proporzionali alla cella: si adattano a qualsiasi schermo
-    val base = if (labels) minOf(cellW * 0.62f, cellH * 0.50f) else minOf(cellW * 0.82f, cellH * 0.72f)
+    val base = if (labels) minOf(cellW * 0.62f, cellH * (if (s.labelTwoLines) 0.42f else 0.50f)) else minOf(cellW * 0.82f, cellH * 0.72f)
     val iconSize = minOf(base * s.iconScale * scale, 96.dp)
     val app = (item as? AppItem)?.let { vm.apps[it.appId] }
     if (item is AppItem && app == null) return
@@ -1570,8 +1587,8 @@ private fun GridItem(
                     Text(
                         text = label,
                         color = Color.White,
-                        fontSize = 11.sp,
-                        maxLines = 1,
+                        fontSize = s.labelSize.sp,
+                        maxLines = if (s.labelTwoLines) 2 else 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
@@ -1584,8 +1601,8 @@ private fun GridItem(
                 Text(
                     text = label,
                     color = if (darkText) Color(0xFF15171C) else Color.White,
-                    fontSize = 11.sp,
-                    maxLines = 1,
+                    fontSize = s.labelSize.sp,
+                    maxLines = if (s.labelTwoLines) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                     style = TextStyle(
@@ -1725,7 +1742,7 @@ private fun WidgetCell(
 
     // margine del widget nella cella: fisso, oppure quello delle icone, così i bordi coincidono
     val ws = vm.settings
-    val iconBase = if (ws.showLabels) minOf(cellW * 0.62f, cellH * 0.50f) else minOf(cellW * 0.82f, cellH * 0.72f)
+    val iconBase = if (ws.showLabels) minOf(cellW * 0.62f, cellH * (if (ws.labelTwoLines) 0.42f else 0.50f)) else minOf(cellW * 0.82f, cellH * 0.72f)
     val iconDp = minOf(iconBase * ws.iconScale, 96.dp)
     val padH = if (ws.widgetAlign) ((cellW - iconDp) / 2).coerceAtLeast(5.dp) else 5.dp
     val padV = if (ws.widgetAlign) minOf(padH, cellH / 4).coerceAtLeast(5.dp) else 5.dp

@@ -40,6 +40,7 @@ fun MLauncherTheme(
     seed: Int? = null,
     fluent: Boolean = false,
     sense: Boolean = false,
+    font: String = "default",
     content: @Composable () -> Unit
 ) {
     // ogni testo deve leggersi sul suo fondo, qualunque tavolozza dia il sistema
@@ -60,8 +61,39 @@ fun MLauncherTheme(
         else -> androidx.compose.material3.Shapes()
     }
     CompositionLocalProvider(LocalSwitchStyle provides SwitchLook.style, LocalFluent provides fluent, LocalSense provides sense) {
-        MaterialTheme(colorScheme = scheme, typography = Typography(), shapes = shapes, content = content)
+        MaterialTheme(colorScheme = scheme, typography = androidx.compose.runtime.remember(font) { typographyFor(font) }, shapes = shapes, content = content)
     }
+}
+
+/** Scelte del carattere: chiave, nome mostrato. */
+val FONT_CHOICES = listOf(
+    "default" to "Predefinito",
+    "serif" to "Con grazie",
+    "mono" to "A spaziatura fissa",
+    "condensed" to "Stretto",
+    "casual" to "Informale",
+    "cursive" to "Corsivo"
+)
+
+/** Tipografia di Material con il carattere scelto su tutti gli stili. */
+private fun typographyFor(font: String): Typography {
+    val base = Typography()
+    val family: androidx.compose.ui.text.font.FontFamily = when (font) {
+        "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+        "mono" -> androidx.compose.ui.text.font.FontFamily.Monospace
+        "cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+        "condensed" -> androidx.compose.ui.text.font.FontFamily(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL))
+        "casual" -> androidx.compose.ui.text.font.FontFamily(android.graphics.Typeface.create("casual", android.graphics.Typeface.NORMAL))
+        else -> return base
+    }
+    fun androidx.compose.ui.text.TextStyle.f() = copy(fontFamily = family)
+    return base.copy(
+        displayLarge = base.displayLarge.f(), displayMedium = base.displayMedium.f(), displaySmall = base.displaySmall.f(),
+        headlineLarge = base.headlineLarge.f(), headlineMedium = base.headlineMedium.f(), headlineSmall = base.headlineSmall.f(),
+        titleLarge = base.titleLarge.f(), titleMedium = base.titleMedium.f(), titleSmall = base.titleSmall.f(),
+        bodyLarge = base.bodyLarge.f(), bodyMedium = base.bodyMedium.f(), bodySmall = base.bodySmall.f(),
+        labelLarge = base.labelLarge.f(), labelMedium = base.labelMedium.f(), labelSmall = base.labelSmall.f()
+    )
 }
 
 /** Angoli piccoli di Windows 11: 4 dp per i controlli, 8 dp per schede e finestre. */

@@ -259,7 +259,7 @@ class MainActivity : ComponentActivity(), Host {
         } catch (e: Exception) { AppLog.quiet("spegnimento del content capture", e) }
         handlePinRequest(intent)
         setContent {
-            MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null, fluent = vm.settings.launcherTheme == "fluent", sense = vm.settings.launcherTheme == "sensation") {
+            MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null, fluent = vm.settings.launcherTheme == "fluent", sense = vm.settings.launcherTheme == "sensation", font = vm.settings.fontKey) {
                 // la durata della pressione lunga si regola dalle impostazioni (Gesti)
                 val baseVc = androidx.compose.ui.platform.LocalViewConfiguration.current
                 val lpScale = vm.settings.longPressScale

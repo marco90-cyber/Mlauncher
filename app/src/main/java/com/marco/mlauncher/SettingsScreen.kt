@@ -1005,6 +1005,17 @@ private fun PageIcons(vm: LauncherViewModel, host: Host) {
             vm.setSetting("badges", it)
             if (it != "off" && !vm.listenerEnabled) host.openListenerSettings()
         }
+        Dependent(s.badges != "off") {
+            SliderRow("Dimensione del badge", "${s.badgeSize}%", s.badgeSize.toFloat(), 70f..160f, 8) {
+                val v = (it / 10f).roundToInt() * 10
+                if (v != s.badgeSize) vm.setSetting("badgeSize", v)
+            }
+            ChoiceRow(
+                "Colore del badge",
+                listOf("error" to "Rosso", "primary" to "Colore principale", "secondary" to "Colore secondario", "tertiary" to "Colore terziario"),
+                s.badgeColor
+            ) { vm.setSetting("badgeColor", it) }
+        }
         if (s.badges != "off" && !vm.listenerEnabled) {
             ListItem(
                 headlineContent = { Text("Serve l'accesso alle notifiche") },
@@ -2621,7 +2632,15 @@ private fun PageIconStyle(vm: LauncherViewModel) {
                 listOf("auto" to "Automatico (in base allo sfondo)", "white" to "Sempre bianchi", "dark" to "Sempre scuri"),
                 s.labelColor
             ) { vm.setSetting("labelColor", it) }
+            SliderRow("Dimensione dei nomi sulla Home", "${s.labelSize} sp", s.labelSize.toFloat(), 9f..15f, 5) {
+                val v = it.roundToInt()
+                if (v != s.labelSize) vm.setSetting("labelSize", v)
+            }
+            SwitchRow("Nomi su due righe", "I nomi lunghi vanno a capo invece di essere tagliati", s.labelTwoLines) { vm.setSetting("labelTwoLines", it) }
         }
+    }
+    Group("Carattere") {
+        ChoiceRow("Carattere dell'interfaccia", FONT_CHOICES, s.fontKey) { vm.setSetting("fontKey", it) }
     }
     Group("Grandezza") {
         StyleLink(vm, "Dimensione delle icone e griglia", "home")

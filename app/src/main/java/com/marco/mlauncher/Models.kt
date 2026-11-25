@@ -350,6 +350,14 @@ class LauncherSettings(private val sp: SharedPreferences) {
     var backupDir by mutableStateOf(sp.getString("backupDir", "") ?: "")
     /** colore dei nomi in Home: auto (dallo sfondo), white, dark */
     var labelColor by mutableStateOf(sp.getString("labelColor", "auto") ?: "auto")
+    /** testo dei nomi sulla Home: grandezza in sp e due righe (idea da ARK-launcher) */
+    var labelSize by mutableStateOf(sp.getInt("labelSize", 11))
+    var labelTwoLines by mutableStateOf(sp.getBoolean("labelTwoLines", false))
+    /** pallino delle notifiche: grandezza in percento e colore */
+    var badgeSize by mutableStateOf(sp.getInt("badgeSize", 100))
+    var badgeColor by mutableStateOf(sp.getString("badgeColor", "error") ?: "error")
+    /** carattere dell'interfaccia (idea da Lawnchair e ARK-launcher) */
+    var fontKey by mutableStateOf(sp.getString("fontKey", "default") ?: "default")
     var homeOpensDrawer by mutableStateOf(sp.getBoolean("homeOpensDrawer", true))
     var newAppDot by mutableStateOf(sp.getBoolean("newAppDot", true))
     var autoUpdateCheck by mutableStateOf(sp.getBoolean("autoUpdateCheck", true))
@@ -553,6 +561,11 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "backupKeep" -> backupKeep = value as Int
             "backupDir" -> backupDir = value as String
             "labelColor" -> labelColor = value as String
+            "labelSize" -> labelSize = value as Int
+            "labelTwoLines" -> labelTwoLines = value as Boolean
+            "badgeSize" -> badgeSize = value as Int
+            "badgeColor" -> badgeColor = value as String
+            "fontKey" -> fontKey = value as String
             "homeOpensDrawer" -> homeOpensDrawer = value as Boolean
             "newAppDot" -> newAppDot = value as Boolean
             "autoUpdateCheck" -> autoUpdateCheck = value as Boolean
