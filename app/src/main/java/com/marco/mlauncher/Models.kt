@@ -225,6 +225,8 @@ class LauncherSettings(private val sp: SharedPreferences) {
     private var dockCornerP by mutableStateOf(sp.getInt("dockCorner", 30))
     val dockCorner: Int get() = dockCornerP
     var haptics by mutableStateOf(sp.getBoolean("haptics", true))
+    /** quanto dura la pressione lunga rispetto al tempo del sistema (1 = come il sistema), idea da ARK-launcher */
+    var longPressScale by mutableStateOf(sp.getFloat("longPressScale", 1f))
     var hapPress by mutableStateOf(sp.getBoolean("hapPress", true))
     var hapDrop by mutableStateOf(sp.getBoolean("hapDrop", true))
     var hapTick by mutableStateOf(sp.getBoolean("hapTick", true))
@@ -515,6 +517,7 @@ class LauncherSettings(private val sp: SharedPreferences) {
             "searchLook" -> searchLook = value as String
             "hideStatusBar" -> hideStatusBar = value as Boolean
             "hideDock" -> hideDock = value as Boolean
+            "longPressScale" -> longPressScale = value as Float
             "dockBottom" -> dockBottom = value as Int
             "searchSame" -> searchSame = value as Boolean
             "searchStyle" -> searchStyle = value as String

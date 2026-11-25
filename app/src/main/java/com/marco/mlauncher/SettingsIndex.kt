@@ -24,6 +24,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("Indicatore di pagina", "home", "Schermo", ""),
     SettingEntry("Aspetto della dock", "dock", "", ""),
     SettingEntry("Grandezza", "dock", "Dimensioni", ""),
+    SettingEntry("Durata pressione lunga", "gestures", "Gesti", "Quanto tenere premuto per menu e spostamenti"),
     SettingEntry("Icone nella dock", "dock", "Dimensioni", ""),
     SettingEntry("Distanza dal bordo", "dock", "Dimensioni", "Spazio sotto la dock fluttuante"),
     SettingEntry("Badge delle notifiche", "icons", "Notifiche", ""),

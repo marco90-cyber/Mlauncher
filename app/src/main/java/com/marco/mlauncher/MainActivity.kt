@@ -261,7 +261,17 @@ class MainActivity : ComponentActivity(), Host {
         handlePinRequest(intent)
         setContent {
             MLauncherTheme(vm.settings.theme, vm.settings.accent, if (vm.customWallActive) vm.wallSeed else null, fluent = vm.settings.launcherTheme == "fluent", sense = vm.settings.launcherTheme == "sensation") {
-                Root(vm, this@MainActivity)
+                // la durata della pressione lunga si regola dalle impostazioni (Gesti)
+                val baseVc = androidx.compose.ui.platform.LocalViewConfiguration.current
+                val lpScale = vm.settings.longPressScale
+                val scaledVc = androidx.compose.runtime.remember(baseVc, lpScale) {
+                    object : androidx.compose.ui.platform.ViewConfiguration by baseVc {
+                        override val longPressTimeoutMillis: Long get() = (baseVc.longPressTimeoutMillis * lpScale).toLong()
+                    }
+                }
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalViewConfiguration provides scaledVc) {
+                    Root(vm, this@MainActivity)
+                }
                 AppUpdateHost()
                 val hideSb = vm.settings.hideStatusBar
                 androidx.compose.runtime.LaunchedEffect(hideSb) { applyStatusBar(hideSb) }

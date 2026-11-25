@@ -1349,6 +1349,10 @@ private fun PageGestures(vm: LauncherViewModel, host: Host) {
             "Se sei già sulla pagina principale della Home",
             s.homeOpensDrawer
         ) { vm.setSetting("homeOpensDrawer", it) }
+        SliderRow("Durata pressione lunga", "${(s.longPressScale * 100).roundToInt()}% del tempo del sistema", s.longPressScale, 0.5f..2f, 5) {
+            val v = (it * 4).roundToInt() / 4f
+            if (v != s.longPressScale) vm.setSetting("longPressScale", v)
+        }
         ChoiceRow(
             "Scorri giù nella Home",
             listOf("notifications" to "Apri le notifiche", "search" to "Cerca app") +
