@@ -3,6 +3,8 @@ package com.marco.mlauncher
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.fadeIn
@@ -36,6 +38,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -85,11 +94,14 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
     //  - con Sensation le app stanno sempre nel cassetto e al posto della dock c'è la barra a tre tasti
     //    (senza indicatore di pagina), quindi niente domande su dove mettere le app e sulla dock.
     val sense = vm.settings.launcherTheme == "sensation"
-    val steps = Step.entries.filter {
-        when (it) {
-            Step.FOLDERS -> vm.settings.homeMode == "all" && !sense
-            Step.MODE, Step.DOCK -> !sense
-            else -> true
+    val homeMode = vm.settings.homeMode
+    val steps = remember(homeMode, sense) {
+        Step.entries.filter {
+            when (it) {
+                Step.FOLDERS -> homeMode == "all" && !sense
+                Step.MODE, Step.DOCK -> !sense
+                else -> true
+            }
         }
     }
     fun go(to: Step) {
@@ -104,7 +116,17 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
     LaunchedEffect(Unit) { vm.settings.previewLand = false }
 
     Surface(color = cs.surface, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        val glowA = cs.primary.copy(alpha = 0.16f)
+        val glowB = cs.tertiary.copy(alpha = 0.13f)
+        Column(
+            Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    drawRect(Brush.radialGradient(listOf(glowA, Color.Transparent), center = Offset(size.width * 0.9f, size.height * 0.02f), radius = size.width * 0.95f))
+                    drawRect(Brush.radialGradient(listOf(glowB, Color.Transparent), center = Offset(size.width * 0.05f, size.height * 0.98f), radius = size.width * 0.9f))
+                }
+                .statusBarsPadding().navigationBarsPadding()
+        ) {
             // barra in alto: indietro e salta
             Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (step != Step.HELLO) TextButton(onClick = { back() }) { Text("Indietro") }
@@ -142,20 +164,21 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
             }
             // avanzamento e pulsante principale
             Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.weight(1f)) {
-                    steps.forEach { s ->
-                        val on = s == step
-                        val w by animateDpAsState(if (on) 20.dp else 7.dp, label = "dot")
-                        Box(
-                            Modifier.padding(end = 6.dp).size(w, 7.dp).clip(CircleShape)
-                                .background(if (on) cs.primary else cs.outlineVariant)
-                        )
+                val idx = steps.indexOfFirst { it.ordinal >= step.ordinal }.let { if (it < 0) steps.size - 1 else it }
+                val frac by animateFloatAsState((idx + 1f) / steps.size, spring(stiffness = 260f), label = "progress")
+                Column(Modifier.weight(1f).padding(end = 20.dp)) {
+                    Text(
+                        "${idx + 1} di ${steps.size}", style = MaterialTheme.typography.labelMedium,
+                        color = cs.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(cs.surfaceContainerHighest)) {
+                        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(CircleShape).background(Brush.horizontalGradient(listOf(cs.primary, cs.tertiary))))
                     }
                 }
                 when (step) {
                     Step.HELLO -> {}
-                    Step.DONE -> Button(onClick = { vm.finishWelcome() }) { Text("Vai alla Home") }
-                    else -> Button(onClick = { next() }) { Text("Avanti") }
+                    Step.DONE -> Button(onClick = { vm.finishWelcome() }, modifier = Modifier.height(48.dp)) { Text("Vai alla Home", fontSize = 16.sp) }
+                    else -> Button(onClick = { next() }, modifier = Modifier.height(48.dp)) { Text("Avanti", fontSize = 16.sp) }
                 }
             }
         }
@@ -169,7 +192,7 @@ fun WelcomeScreen(vm: LauncherViewModel, host: Host) {
 @Composable
 private fun Headline(big: String, small: String) {
     Spacer(Modifier.height(12.dp))
-    Text(big, fontSize = 34.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 40.sp)
+    Text(big, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, lineHeight = 42.sp, letterSpacing = (-0.5).sp)
     Spacer(Modifier.height(10.dp))
     Text(small, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
     Spacer(Modifier.height(28.dp))
@@ -187,8 +210,13 @@ private fun Logo(size: Dp = 120.dp) {
         androidx.compose.animation.core.infiniteRepeatable(tween(2600, easing = Motion.Standard), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "breath"
     )
+    val halo = cs.primary.copy(alpha = 0.30f)
     Box(
         Modifier
+            .drawBehind {
+                drawCircle(Brush.radialGradient(listOf(halo, Color.Transparent), center = center, radius = this.size.minDimension * 0.95f))
+            }
+            .padding(size * 0.12f)
             .graphicsLayer {
                 val sc = enter.value * (1f + 0.035f * breath)
                 scaleX = sc; scaleY = sc
@@ -205,13 +233,63 @@ private fun Logo(size: Dp = 120.dp) {
 
 @Composable
 private fun Hello(onStart: () -> Unit, onBackup: () -> Unit) {
-    Spacer(Modifier.height(48.dp))
-    Logo()
-    Spacer(Modifier.height(36.dp))
+    Spacer(Modifier.height(8.dp))
+    Logo(104.dp)
+    Spacer(Modifier.height(16.dp))
     Headline("Ciao!", "Benvenuto in MLauncher. Rispondi a qualche domanda e la Home sarà subito come piace a te.")
-    Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Iniziamo", fontSize = 16.sp) }
-    Spacer(Modifier.height(10.dp))
+    Highlights()
+    Spacer(Modifier.height(24.dp))
+    Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Iniziamo", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) }
+    Spacer(Modifier.height(6.dp))
     TextButton(onClick = onBackup) { Text("Ho già un backup di MLauncher") }
+    Spacer(Modifier.height(12.dp))
+}
+
+private class Highlight(val icon: androidx.compose.ui.graphics.vector.ImageVector, val title: String, val text: String)
+
+private val HIGHLIGHTS = listOf(
+    Highlight(Icons.Default.Star, "Temi su misura", "Liquid Glass, Fluent, Sensation e altri, con l'anteprima del tuo sfondo"),
+    Highlight(Icons.Default.Home, "Pagina dei feed e widget", "Widget Material You, pile scorrevoli e l'Azione MLauncher"),
+    Highlight(Icons.Default.Settings, "Gesti e animazioni", "Onda tra le pagine, zoom di apertura, back predittivo e pressione lunga regolabile"),
+    Highlight(Icons.Default.Lock, "Blocco app con impronta", "Proteggi le app che vuoi, senza permessi in più"),
+)
+
+/** Le novità in evidenza: quattro righe che entrano una dopo l'altra. */
+@Composable
+private fun Highlights() {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainerLow).padding(vertical = 8.dp)
+    ) {
+        Text(
+            "In evidenza", style = MaterialTheme.typography.labelLarge, color = cs.primary,
+            modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 4.dp)
+        )
+        HIGHLIGHTS.forEachIndexed { i, h ->
+            val enter = remember { androidx.compose.animation.core.Animatable(0f) }
+            LaunchedEffect(Unit) {
+                delay(120L + i * 90L)
+                enter.animateTo(1f, tween(Motion.SHEET, easing = Motion.EmphasizedDecelerate))
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 24.dp.toPx() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(cs.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) { Icon(h.icon, contentDescription = null, tint = cs.onPrimaryContainer, modifier = Modifier.size(24.dp)) }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(h.title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+                    Text(h.text, color = cs.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
 }
 
 /** Due anteprime affiancate: si tocca quella preferita e la scelta si applica subito (si va avanti con "Avanti"). */
@@ -236,12 +314,14 @@ private fun AB(
 private fun PickCard(selected: Boolean, label: String, modifier: Modifier, onClick: () -> Unit, content: @Composable BoxScope.() -> Unit) {
     val cs = MaterialTheme.colorScheme
     val bw by animateDpAsState(if (selected) 3.dp else 1.dp, label = "bw")
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    val pop by animateFloatAsState(if (selected) 1.02f else 1f, spring(dampingRatio = 0.5f, stiffness = 400f), label = "pop")
+    Column(modifier.graphicsLayer { scaleX = pop; scaleY = pop }, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(0.52f)
                 .clip(RoundedCornerShape(26.dp))
+                .background(if (selected) cs.primary.copy(alpha = 0.08f) else cs.surfaceContainerLow)
                 .border(bw, if (selected) cs.primary else cs.outlineVariant, RoundedCornerShape(26.dp))
                 .clickable(onClick = onClick)
                 .padding(6.dp)
