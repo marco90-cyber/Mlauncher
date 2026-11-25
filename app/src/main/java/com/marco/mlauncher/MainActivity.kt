@@ -253,6 +253,7 @@ class MainActivity : ComponentActivity(), Host {
             registerReceiver(unlockReceiver, android.content.IntentFilter(Intent.ACTION_USER_PRESENT))
         } catch (e: Exception) { AppLog.quiet("ascolto dello sblocco", e) }
         vm.checkUpdate(auto = true)
+        UpdateJob.schedule(applicationContext, vm.settings.autoUpdateCheck)
         vm.loadCrash()
         AppLog.i("Launcher avviato (Home n. $instanceNo, task $taskId, intent ${intent?.action}/0x${Integer.toHexString(intent?.flags ?: 0)})" + if (savedInstanceState != null) " (ricreato)" else "")
         // ogni disegno della finestra: serve al controllo «la Home si vede davvero?»
@@ -453,6 +454,7 @@ class MainActivity : ComponentActivity(), Host {
     override fun onResume() {
         super.onResume()
         Perf.onResume(this)
+        vm.refreshUpdateFromCache()
         applyStatusBar(vm.settings.hideStatusBar)
         // configurazione aperta a parte: al ritorno il widget si aggiunge
         if (waitConfigReturn && android.os.SystemClock.uptimeMillis() - configOpenedAt > 1500L) {

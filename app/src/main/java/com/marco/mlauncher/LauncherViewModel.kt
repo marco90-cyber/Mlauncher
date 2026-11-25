@@ -2888,6 +2888,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
             } else inOrientation(false) { fit() }
             "iconPack" -> reloadIcons()
+            "autoUpdateCheck" -> UpdateJob.schedule(ctx, value as Boolean)
         }
     }
 
@@ -3471,36 +3472,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         updateChecking = true
         viewModelScope.launch {
-            val res = withContext(Dispatchers.IO) {
-                try {
-                    val conn = URL("https://api.github.com/repos/marco90-cyber/Mlauncher/releases/latest")
-                        .openConnection() as HttpURLConnection
-                    conn.connectTimeout = 8000
-                    conn.readTimeout = 8000
-                    conn.setRequestProperty("Accept", "application/vnd.github+json")
-                    val j = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                    val tag = j.getString("tag_name").removePrefix("v")
-                    val code = tag.substringAfterLast('.').toIntOrNull() ?: 0
-                    val assets = j.optJSONArray("assets")
-                    var url = ""
-                    if (assets != null) for (i in 0 until assets.length()) {
-                        val a = assets.getJSONObject(i)
-                        if (a.optString("name").endsWith(".apk")) url = a.optString("browser_download_url")
-                    }
-                    UpdateInfo(tag, code, url, j.optString("html_url"))
-                } catch (e: Exception) {
-                    null
-                }
-            }
+            val res = withContext(Dispatchers.IO) { UpdateFetcher.fetch() }
             updateChecking = false
             AppLog.i(if (res == null) "Controllo aggiornamenti non riuscito" else "Ultima versione su GitHub: ${res.version}")
             if (res == null) {
                 updateUpToDate = false
                 return@launch
             }
-            sp.edit().putLong("updateCheckTime", System.currentTimeMillis())
-                .putString("updateCache", JSONObject().put("v", res.version).put("c", res.code).put("u", res.url).put("p", res.page).toString())
-                .apply()
+            UpdateFetcher.save(ctx, res)
             applyUpdate(res)
         }
     }
@@ -3513,6 +3492,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             updateInfo = null
             updateUpToDate = true
         }
+    }
+
+    /** Il controllo in background può aver trovato una versione nuova mentre la Home restava aperta: la leggo da lì. */
+    fun refreshUpdateFromCache() {
+        if (settings.autoUpdateCheck && !updateChecking) restoreUpdateCache()
     }
 
     private fun restoreUpdateCache() {

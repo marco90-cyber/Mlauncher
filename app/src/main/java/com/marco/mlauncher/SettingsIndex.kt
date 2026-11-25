@@ -125,7 +125,7 @@ val SETTINGS_INDEX = listOf(
     SettingEntry("MLauncher", "info", "", ""),
     SettingEntry("Barra di ricerca", "info", "Impostazioni", "\u00abCerca nelle impostazioni\u00bb in cima all'elenco"),
     SettingEntry("Rivedi il benvenuto", "info", "Guida", ""),
-    SettingEntry("Controlla all'avvio", "info", "Aggiornamenti", "Al massimo una volta ogni 6 ore"),
+    SettingEntry("Controlla in automatico", "info", "Aggiornamenti", "Cerca nuove versioni di tanto in tanto, anche a Home aperta da giorni"),
     SettingEntry("Segue il tema", "material", "Materiale", "Dentro ogni elemento: dock, cartelle, widget, menu…"),
     SettingEntry("Materiale di questo elemento", "material", "Materiale", "Dentro ogni elemento: dock, cartelle, widget, menu…"),
     SettingEntry("Effetto glass", "material", "Materiale", "Riflesso e bordo luminoso come il vetro"),

@@ -1963,8 +1963,8 @@ private fun PageInfo(vm: LauncherViewModel, host: Host) {
             modifier = Modifier.hl("Cerca aggiornamenti").clickable { AppUpdate.open(ctx) }
         )
         SwitchRow(
-            "Controlla all'avvio",
-            "Al massimo una volta ogni 6 ore",
+            "Controlla in automatico",
+            "Cerca nuove versioni di tanto in tanto, anche a Home aperta da giorni",
             vm.settings.autoUpdateCheck
         ) { vm.setSetting("autoUpdateCheck", it) }
     }
