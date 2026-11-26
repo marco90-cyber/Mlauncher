@@ -130,7 +130,7 @@ val PencilIcon = glyph(
 object LauncherThemes {
     /** Il tema Personale: non è nell'elenco dei temi pronti, ha la sua scheda in cima e la sua pagina. */
     val Mine = ThemeSpec(
-        "custom", "Personale", "Tocca per modificare, tieni premuto per rinominare",
+        "custom", "Personale", "Tocca l'immagine per modificare, il nome per usarlo",
         PencilIcon, glass = false, expressive = false, lite = false
     )
 
@@ -193,7 +193,9 @@ fun ThemeCards(
     vm: LauncherViewModel? = null,
     showMine: Boolean = false,
     mineTitle: String = LauncherThemes.Mine.title,
+    /** Tocco sull'immagine: apre la pagina per personalizzarlo. */
     onMine: () -> Unit = {},
+    /** Tocco sul nome: lo mette in uso senza aprire altro. */
     onMineApply: () -> Unit = {},
     onMineRename: () -> Unit = {},
     onSelect: (ThemeSpec) -> Unit
@@ -201,8 +203,8 @@ fun ThemeCards(
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (showMine) ThemeCard(
             LauncherThemes.Mine, selected == "custom", s, previewHeight, vm,
-            title = mineTitle, onCheck = onMineApply, onLongClick = onMineRename
-        ) { onMine() }
+            title = mineTitle, onPreviewClick = onMine, onLongClick = onMineRename
+        ) { onMineApply() }
         for (spec in LauncherThemes.all) {
             ThemeCard(spec, spec.key == selected, s, previewHeight, vm) { onSelect(spec) }
         }
@@ -218,8 +220,8 @@ private fun ThemeCard(
     previewHeight: Dp,
     vm: LauncherViewModel?,
     title: String = spec.title,
-    /** Tondino a destra anche quando la scheda non è scelta: toccandolo il tema si applica senza aprire altro. */
-    onCheck: (() -> Unit)? = null,
+    /** Se c'è, l'immagine ha un suo tocco (apre le impostazioni) e il resto della scheda (il nome) applica. */
+    onPreviewClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -267,7 +269,21 @@ private fun ThemeCard(
             )
             .padding(10.dp)
     ) {
-        MiniDesktop(spec, s, Modifier.fillMaxWidth().height(previewHeight), vm)
+        MiniDesktop(
+            spec, s,
+            Modifier.fillMaxWidth().height(previewHeight).then(
+                if (onPreviewClick == null) Modifier else Modifier.combinedClickable(
+                    onClick = { onPreviewClick() },
+                    onLongClick = onLongClick?.let { f ->
+                        {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            f()
+                        }
+                    }
+                )
+            ),
+            vm
+        )
         Row(
             Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 12.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -284,17 +300,7 @@ private fun ThemeCard(
                     color = if (selected) cs.onPrimaryContainer.copy(alpha = 0.8f) else cs.onSurfaceVariant
                 )
             }
-            if (onCheck != null) {
-                // il tondino si tocca da solo: applica il tema (se non è già quello in uso) senza aprire le impostazioni
-                Box(
-                    Modifier.size(44.dp).clip(CircleShape).clickable(enabled = !selected) { onCheck() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (selected) Box(Modifier.size(28.dp).clip(CircleShape).background(cs.primary), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Check, null, tint = cs.onPrimary, modifier = Modifier.size(18.dp))
-                    } else Box(Modifier.size(28.dp).clip(CircleShape).border(2.dp, cs.outline, CircleShape))
-                }
-            } else if (selected) {
+            if (selected) {
                 Box(Modifier.size(28.dp).clip(CircleShape).background(cs.primary), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Check, null, tint = cs.onPrimary, modifier = Modifier.size(18.dp))
                 }
