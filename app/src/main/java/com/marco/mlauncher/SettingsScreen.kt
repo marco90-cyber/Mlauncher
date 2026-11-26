@@ -216,11 +216,11 @@ fun SettingsScreen(vm: LauncherViewModel, host: Host) {
         // la barra Sense non si richiude: senza la barra grande lo scorrimento non va collegato (lo bloccherebbe)
         modifier = if (LocalSense.current) Modifier else Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            if (LocalSense.current) SenseTitleBar(pageTitle(page)) {
+            if (LocalSense.current) SenseTitleBar(if (page == "mytheme") vm.myThemeName else pageTitle(page)) {
                 if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
             } else
             LargeTopAppBar(
-                title = { Text(pageTitle(page), fontWeight = FontWeight.SemiBold) },
+                title = { Text(if (page == "mytheme") vm.myThemeName else pageTitle(page), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (vm.settingsPage != null) vm.settingsBack() else vm.overlay = Overlay.NONE
@@ -368,7 +368,7 @@ private fun Dashboard(vm: LauncherViewModel, host: Host) {
     }
     // Un solo elenco, diviso per argomento: prima c'erano due schede (Impostazioni e Stile) e chi non conosceva
     // MLauncher non trovava metà delle voci. Ogni voce dice cosa c'è dentro, con le parole che uno cercherebbe.
-    val themeTitle = LauncherThemes.of(s.launcherTheme)?.title ?: "Personale"
+    val themeTitle = LauncherThemes.of(s.launcherTheme)?.title ?: vm.myThemeName
     val sections = listOf(
         "Aspetto" to listOf(
             Cat("theme", "Tema", "$themeTitle · ${(themeNames[s.theme] ?: "").lowercase()} · colori, chiaro o scuro, interruttori", Icons.Default.Star),
@@ -1493,7 +1493,30 @@ private fun PageTheme(vm: LauncherViewModel) {
     val cs = MaterialTheme.colorScheme
     val spec = LauncherThemes.of(s.launcherTheme)
     SectionTitle("Scegli il tema")
-    ThemeCards(s.launcherTheme, s, vm = vm, showMine = true, onMine = { vm.openMine() }) { vm.applyLauncherTheme(it.key) }
+    var renaming by remember { mutableStateOf(false) }
+    ThemeCards(
+        s.launcherTheme, s, vm = vm, showMine = true, mineTitle = vm.myThemeName,
+        onMine = { vm.openMine() }, onMineApply = { vm.applyMine() }, onMineRename = { renaming = true }
+    ) { vm.applyLauncherTheme(it.key) }
+    if (renaming) {
+        var text by remember { mutableStateOf(vm.myThemeName) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renaming = false },
+            title = { Text("Nome del tema") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = text, onValueChange = { text = it.take(24) }, singleLine = true,
+                    label = { Text("Nome") }
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { vm.renameMyTheme(text); renaming = false }) { Text("Salva") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { renaming = false }) { Text("Annulla") }
+            }
+        )
+    }
     if (spec == null) {
         Text(
             "Stai usando il tema Personale. Tocca la scheda in cima per cambiare ogni dettaglio: si salva da solo. " +

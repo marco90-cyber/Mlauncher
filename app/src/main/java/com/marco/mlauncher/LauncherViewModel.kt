@@ -159,14 +159,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Apre il tema Personale: lo applica (o parte da come sei ora, se non ne hai uno salvato) e mostra la sua pagina. */
     fun openMine() {
+        applyMine()
+        mineBack = false
+        settingsPage = "mytheme"
+    }
+
+    /** Mette Personale in uso senza aprire la sua pagina (se non c'è ancora, parte da come sei ora). */
+    fun applyMine() {
         if (settings.launcherTheme != "custom") {
             if (!(myThemeSaved && applyMyTheme())) {
                 applyLauncherTheme("custom")
                 saveMyTheme()
             }
         } else if (!myThemeSaved) saveMyTheme()
-        mineBack = false
-        settingsPage = "mytheme"
+    }
+
+    /** Il nome del tema Personale (si cambia tenendo premuta la sua scheda). */
+    var myThemeName by mutableStateOf(sp.getString("myThemeName", null) ?: "Personale")
+        private set
+
+    fun renameMyTheme(name: String) {
+        val n = name.trim().take(24).ifEmpty { "Personale" }
+        myThemeName = n
+        sp.edit().putString("myThemeName", n).apply()
     }
 
     private var mineSaveJob: kotlinx.coroutines.Job? = null
@@ -232,7 +247,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         } catch (e: Exception) {
             null
         } ?: return null
-        return JSONObject().put("type", "theme").put("version", 1).put("theme", o).toString(2)
+        return JSONObject().put("type", "theme").put("version", 1).put("name", myThemeName).put("theme", o).toString(2)
     }
 
     /** Legge un file di tema, lo tiene come tema personale e lo applica. */
@@ -240,6 +255,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val o = try {
             val r = JSONObject(text)
             if (r.optString("type") != "theme") return false
+            r.optString("name").trim().takeIf { it.isNotEmpty() }?.let { renameMyTheme(it) }
             MyTheme.sanitize(r.getJSONObject("theme"))
         } catch (e: Exception) {
             null
@@ -2239,6 +2255,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         o.put("settings", settings.dump())
         try {
             sp.getString("myTheme", null)?.let { o.put("myTheme", JSONObject(it)) }
+            o.put("myThemeName", myThemeName)
         } catch (e: Exception) { AppLog.quiet("tema personale nel backup", e) }
         return o.toString(2)
     }
@@ -2348,6 +2365,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val packBefore = settings.iconPack
             settings.load(o.getJSONObject("settings"))
             loadMinus()
+            o.optString("myThemeName").takeIf { it.isNotBlank() }?.let { renameMyTheme(it) }
             o.optJSONObject("myTheme")?.let { MyTheme.sanitize(it) }?.let {
                 sp.edit().putString("myTheme", it.toString()).apply()
                 myThemeSaved = true

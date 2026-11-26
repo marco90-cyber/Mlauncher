@@ -6,7 +6,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -128,7 +130,7 @@ val PencilIcon = glyph(
 object LauncherThemes {
     /** Il tema Personale: non è nell'elenco dei temi pronti, ha la sua scheda in cima e la sua pagina. */
     val Mine = ThemeSpec(
-        "custom", "Personale", "Il tuo tema: apri per cambiare e salvare ogni dettaglio",
+        "custom", "Personale", "Tocca per modificare, tieni premuto per rinominare",
         PencilIcon, glass = false, expressive = false, lite = false
     )
 
@@ -190,19 +192,38 @@ fun ThemeCards(
     previewHeight: Dp = 150.dp,
     vm: LauncherViewModel? = null,
     showMine: Boolean = false,
+    mineTitle: String = LauncherThemes.Mine.title,
     onMine: () -> Unit = {},
+    onMineApply: () -> Unit = {},
+    onMineRename: () -> Unit = {},
     onSelect: (ThemeSpec) -> Unit
 ) {
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (showMine) ThemeCard(LauncherThemes.Mine, selected == "custom", s, previewHeight, vm) { onMine() }
+        if (showMine) ThemeCard(
+            LauncherThemes.Mine, selected == "custom", s, previewHeight, vm,
+            title = mineTitle, onCheck = onMineApply, onLongClick = onMineRename
+        ) { onMine() }
         for (spec in LauncherThemes.all) {
             ThemeCard(spec, spec.key == selected, s, previewHeight, vm) { onSelect(spec) }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, previewHeight: Dp, vm: LauncherViewModel?, onClick: () -> Unit) {
+private fun ThemeCard(
+    spec: ThemeSpec,
+    selected: Boolean,
+    s: LauncherSettings,
+    previewHeight: Dp,
+    vm: LauncherViewModel?,
+    title: String = spec.title,
+    /** Tondino a destra anche quando la scheda non è scelta: toccandolo il tema si applica senza aprire altro. */
+    onCheck: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit
+) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val cs = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -234,7 +255,16 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
                 if (selected) cs.primary else if (LocalFluent.current) cs.outlineVariant else Color.Transparent,
                 shape
             )
-            .clickable(interactionSource = interaction, indication = ripple()) { onClick() }
+            .combinedClickable(
+                interactionSource = interaction, indication = ripple(),
+                onClick = { onClick() },
+                onLongClick = onLongClick?.let { f ->
+                    {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        f()
+                    }
+                }
+            )
             .padding(10.dp)
     ) {
         MiniDesktop(spec, s, Modifier.fillMaxWidth().height(previewHeight), vm)
@@ -246,7 +276,7 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    spec.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                    title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                     color = if (selected) cs.onPrimaryContainer else cs.onSurface
                 )
                 Text(
@@ -254,7 +284,17 @@ private fun ThemeCard(spec: ThemeSpec, selected: Boolean, s: LauncherSettings, p
                     color = if (selected) cs.onPrimaryContainer.copy(alpha = 0.8f) else cs.onSurfaceVariant
                 )
             }
-            if (selected) {
+            if (onCheck != null) {
+                // il tondino si tocca da solo: applica il tema (se non è già quello in uso) senza aprire le impostazioni
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).clickable(enabled = !selected) { onCheck() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selected) Box(Modifier.size(28.dp).clip(CircleShape).background(cs.primary), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Check, null, tint = cs.onPrimary, modifier = Modifier.size(18.dp))
+                    } else Box(Modifier.size(28.dp).clip(CircleShape).border(2.dp, cs.outline, CircleShape))
+                }
+            } else if (selected) {
                 Box(Modifier.size(28.dp).clip(CircleShape).background(cs.primary), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Check, null, tint = cs.onPrimary, modifier = Modifier.size(18.dp))
                 }
@@ -305,7 +345,7 @@ private fun MiniDesktopBody(spec: ThemeSpec, s: LauncherSettings, modifier: Modi
             Box(Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 10.dp).size(70.dp).clip(CircleShape).background(cs.tertiary.copy(alpha = 0.55f)))
             Box(Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(54.dp).clip(CircleShape).background(cs.primary.copy(alpha = 0.45f)))
         }
-        MiniClock(spec, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp))
+        MiniClock(spec, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 10.dp), onWall = wall != null)
         val columns = s.cols.coerceIn(3, 7)
         val glyphs = listOf(
             Icons.Rounded.Call, Icons.Rounded.Email, Icons.Rounded.Place, Icons.Rounded.Favorite,
@@ -339,7 +379,7 @@ private fun MiniDesktopBody(spec: ThemeSpec, s: LauncherSettings, modifier: Modi
 }
 
 @Composable
-private fun MiniClock(spec: ThemeSpec, modifier: Modifier) {
+private fun MiniClock(spec: ThemeSpec, modifier: Modifier, onWall: Boolean = false) {
     val cs = MaterialTheme.colorScheme
     when {
         spec.glass || spec.key == "glass" || spec.key == "none" ->
@@ -355,7 +395,7 @@ private fun MiniClock(spec: ThemeSpec, modifier: Modifier) {
                 Text("41", color = cs.onTertiary, fontSize = 15.sp, fontWeight = FontWeight.Black)
             }
         }
-        else -> Text("9:41", modifier, color = cs.onPrimaryContainer, fontSize = 26.sp, fontWeight = FontWeight.Normal)
+        else -> Text("9:41", modifier, color = if (onWall) Color.White else cs.onPrimaryContainer, fontSize = 26.sp, fontWeight = FontWeight.Normal)
     }
 }
 
